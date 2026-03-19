@@ -4,8 +4,8 @@
 
 ### NixOS Development Environment
 ✅ flake.nix
-   - Python 3.11 with all scientific packages
-   - Tools: uv, ruff, pytest, mypy, black, isort
+   - Python 3.12 with all scientific packages
+   - Tools: uv, ruff, pytest, mypy, isort
    - Dependencies: scikit-learn, pandas, numpy, anthropic, fastapi, uvicorn
    - Includes github-copilot-cli
 
@@ -20,7 +20,7 @@
 ### GitHub Actions CI/CD
 ✅ .github/workflows/tests.yml
    - Runs on: push to main/develop, all PRs
-   - Tests: Python 3.11 & 3.12
+   - Tests: Python 3.12
    - Steps: lint (ruff) → type check (mypy) → test (pytest) → coverage (codecov)
 
 ### Project Configuration Files
@@ -143,7 +143,7 @@ These will be created as you follow the implementation outline:
 ## Usage After Setup
 
 1. **Enter dev environment**: `nix develop`
-2. **Install dependencies**: `uv pip install -e ".[dev]"`
+2. **Install dependencies**: `uv pip install -e .`
 3. **Check quick start**: Read `QUICK_START.md`
 4. **Check implementation plan**: Read `IMPLEMENTATION_OUTLINE.md`
 5. **Start coding**: Create first module in `src/`

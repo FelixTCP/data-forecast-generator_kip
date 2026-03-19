@@ -18,7 +18,7 @@ nix flake update
 
 # Install dependencies
 echo "📦 Installing Python dependencies..."
-nix develop -c bash -c 'uv pip install -e ".[dev]"'
+nix develop -c bash -c 'uv pip install -e .'
 
 echo ""
 echo "✅ Setup complete!"

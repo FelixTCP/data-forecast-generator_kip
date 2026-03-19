@@ -8,15 +8,15 @@ cd /home/felix/Uni/data-forecast-generator_kip
 # Enter dev environment
 nix develop
 
-# Install dependencies
-uv pip install -e ".[dev]"
+# Install project dependencies (Nix shell provides tooling)
+uv pip install -e .
 
 # Verify everything works
 pytest --version && ruff --version
 ```
 
 Done! You now have:
-- ✅ Python 3.11 environment
+- ✅ Python 3.12 environment
 - ✅ All dependencies (scikit-learn, pandas, anthropic, etc.)
 - ✅ Testing framework (pytest)
 - ✅ Linter (ruff) + formatter

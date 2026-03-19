@@ -15,8 +15,8 @@ Automated discovery and development of regression forecasting models from custom
 nix flake update
 nix develop
 
-# Install dependencies
-uv pip install -e ".[dev]"
+# Install project dependencies (Nix shell provides tooling)
+uv pip install -e .
 
 # Verify installation
 pytest --version
@@ -24,10 +24,10 @@ ruff --version
 ```
 
 ### Setup (Other Systems)
-Python 3.11+ with pip:
+Python 3.12+ with pip:
 ```bash
-python -m venv venv
-source venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 uv pip install -e ".[dev]"
 ```
 
@@ -70,7 +70,7 @@ git add . && git commit -m "feat: ..."
 
 ## Architecture
 
-See [plan.md](/.copilot/session-state/0044af14-0c57-421e-b7b4-3e1da6914e94/plan.md) for detailed implementation plan.
+See the session `plan.md` for the detailed implementation plan.
 
 **Core modules**:
 - `src/data/` - CSV loading & validation
@@ -98,7 +98,7 @@ cp .env.example .env
 GitHub Actions runs on every push:
 - Lint with ruff
 - Type check with mypy
-- Test with pytest (Python 3.11, 3.12)
+- Test with pytest (Python 3.12)
 - Coverage reporting to Codecov
 
 See `.github/workflows/tests.yml`

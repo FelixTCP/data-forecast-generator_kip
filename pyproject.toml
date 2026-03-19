@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Automated data analysis and regression forecasting using LLM-driven discovery"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [
     { name = "Data Forecast Generator Contributors" }
 ]
@@ -28,7 +28,6 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "ruff>=0.1.0",
-    "black>=23.0.0",
     "isort>=5.12.0",
     "mypy>=1.5.0",
 ]
@@ -44,7 +43,7 @@ packages = ["src/data_forecast_generator"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -63,31 +62,14 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
-profile = "black"
+combine-as-imports = true
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "tests/*" = ["F401"]
 
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
-
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

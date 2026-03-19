@@ -3,8 +3,8 @@
 ## What's Been Created
 
 ### 1. **Nix Development Environment** (`flake.nix`)
-- Python 3.11 with all scientific packages pre-configured
-- Tools included: uv, ruff, pytest, mypy, black, isort
+- Python 3.12 with all scientific packages pre-configured
+- Tools included: uv, ruff, pytest, mypy, isort
 - Dependencies: scikit-learn, pandas, numpy, anthropic, fastapi, uvicorn
 - GitHub Copilot CLI included for development
 
@@ -15,7 +15,7 @@ nix develop
 
 ### 2. **Python Project Configuration** (`pyproject.toml`)
 - uv-compatible package management
-- Ruff configuration (100 char lines, Python 3.11)
+- Ruff configuration (100 char lines, Python 3.12)
 - Pytest markers (unit, integration, slow)
 - Black formatting config
 - MyPy type checking setup
@@ -24,13 +24,12 @@ nix develop
 ### 3. **Code Quality & Linting**
 - **Ruff**: Fast Python linter + formatter
 - **MyPy**: Static type checking (configured, non-strict MVP)
-- **Black**: Code formatting
 - **isort**: Import sorting
 - **Pytest**: Testing framework with coverage
 
 ### 4. **CI/CD Pipeline** (`.github/workflows/tests.yml`)
 - Runs on: push to main/develop, all PRs
-- Tests on Python 3.11 and 3.12
+- Tests on Python 3.12
 - Steps:
   1. Lint with ruff (check + format)
   2. Type check with mypy
@@ -72,8 +71,8 @@ cd /home/felix/Uni/data-forecast-generator_kip
 # Enter dev environment
 nix develop
 
-# Install package + dependencies
-uv pip install -e ".[dev]"
+# Create venv, activate, install package + dependencies
+uv pip install -e .
 
 # Verify tools work
 pytest --version
@@ -171,7 +170,7 @@ Each module gets:
 
 ## Tools & Versions
 
-- **Python**: 3.11 (3.12 also tested in CI)
+- **Python**: 3.12
 - **Ruff**: Latest (linter + formatter)
 - **Pytest**: 7.4+
 - **MyPy**: 1.5+ (optional, non-strict)
@@ -183,7 +182,7 @@ Each module gets:
 ## Next Steps
 
 1. ✅ Enter dev environment: `nix develop`
-2. ✅ Install dependencies: `uv pip install -e ".[dev]"`
+2. ✅ Install dependencies: `uv pip install -e .`
 3. ✅ Verify setup: `pytest --version`
 4. ➜ Start implementing modules (see plan.md)
 5. ➜ Write tests first (TDD approach recommended)
@@ -203,7 +202,7 @@ Each module gets:
 - Run from project root: `cd /home/felix/Uni/data-forecast-generator_kip && pytest`
 
 **Import errors in tests**
-- Install in dev mode: `uv pip install -e ".[dev]"`
+- Install in dev mode: `uv pip install -e .`
 - Check `src/__init__.py` exists
 
 ## Questions?

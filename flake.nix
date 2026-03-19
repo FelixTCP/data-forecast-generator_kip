@@ -35,6 +35,8 @@
 
             # Linting and formatting
             ruff
+            mypy
+            python312Packages.pytest
 
             # Development tools
             git
@@ -57,10 +59,10 @@
             echo "shell: $SHELL"
             echo ""
             echo "Quick commands:"
-            echo "  uv pip install -e \".[dev]\" # Install package in dev mode"
-            echo "  pytest                  # Run tests"
-            echo "  ruff check src tests    # Lint code"
-            echo "  ruff format src tests   # Format code"
+            echo "  uv pip install -e .      # Install project dependencies"
+            echo "  pytest           # Run tests"
+            echo "  ruff check src tests  # Lint code"
+            echo "  ruff format src tests # Format code"
             echo ""
           '';
         };

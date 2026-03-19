@@ -16,7 +16,7 @@ The core workflow: CSV input → LLM analysis → Use case discovery → Regress
 
 As the project develops, expected tools:
 - **Testing**: pytest (for regression pipeline tests)
-- **Linting**: black, flake8, or ruff (Python style)
+- **Linting/Formatting**: ruff (Python style and formatting)
 - **ML Framework**: scikit-learn (regression pipelines)
 - **LLM Integration**: Likely Claude API or similar
 

@@ -18,10 +18,10 @@ A complete, production-ready Python development environment with:
 ```bash
 cd /home/felix/Uni/data-forecast-generator_kip
 nix develop
-uv pip install -e ".[dev]"
+uv pip install -e .
 ```
 
-Done! ✓ You now have Python 3.11 + all tools + all dependencies.
+Done! ✓ You now have Python 3.12 + all tools + all dependencies.
 
 ## 📚 What to Read Next
 
@@ -40,7 +40,7 @@ Done! ✓ You now have Python 3.11 + all tools + all dependencies.
 
 **First time?** Follow this order:
 
-1. ✅ Setup (you did this): `nix develop` + `uv pip install -e ".[dev]"`
+1. ✅ Setup (you did this): `nix develop` + `uv pip install -e .`
 2. → Read **[INDEX.md](INDEX.md)** (quick navigation guide)
 3. → Read **[QUICK_START.md](QUICK_START.md)** (setup & commands)
 4. → Read **[IMPLEMENTATION_OUTLINE.md](IMPLEMENTATION_OUTLINE.md)** (module structure)
@@ -150,7 +150,7 @@ mypy src                             # Type check
 # Development
 nix develop                          # Enter dev environment
 nix flake update                     # Update dependencies
-uv pip install -e ".[dev]"           # Install locally
+uv pip install -e .           # Install locally
 ```
 
 ## 🎯 Success Criteria

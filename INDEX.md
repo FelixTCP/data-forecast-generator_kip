@@ -61,7 +61,7 @@ Quick navigation for the Data Forecast Generator project.
 ```bash
 # Setup
 nix develop
-uv pip install -e ".[dev]"
+uv pip install -e .
 
 # Development
 pytest                                    # Run tests
@@ -138,7 +138,7 @@ See [QUICK_START.md](QUICK_START.md) for detailed workflow.
 ## 🎯 Success Criteria
 
 - [ ] Nix environment set up: `nix develop`
-- [ ] Dependencies installed: `uv pip install -e ".[dev]"`
+- [ ] Dependencies installed: `uv pip install -e .`
 - [ ] Tools verified: `pytest --version && ruff --version`
 - [ ] Tests passing locally
 - [ ] Code formatted: `ruff format src tests`
