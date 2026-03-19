@@ -28,7 +28,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv venc && uv pip install -e ".[dev]"
+          uv venv && uv pip install -e ".[dev]"
 
       - name: Lint with ruff
         run: |
