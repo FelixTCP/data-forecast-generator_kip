@@ -5,7 +5,7 @@
 ### 1. **Nix Development Environment** (`flake.nix`)
 - Python 3.12 with all scientific packages pre-configured
 - Tools included: uv, ruff, pytest, mypy, isort
-- Dependencies: scikit-learn, pandas, numpy, anthropic, fastapi, uvicorn
+- Dependencies: scikit-learn, polars, numpy, anthropic, fastapi, uvicorn
 - GitHub Copilot CLI included for development
 
 **Enter environment**:
@@ -175,7 +175,7 @@ Each module gets:
 - **Pytest**: 7.4+
 - **MyPy**: 1.5+ (optional, non-strict)
 - **scikit-learn**: 1.3+
-- **pandas**: 2.0+
+- **polars**: 2.0+
 - **anthropic**: 0.7+ (for Claude)
 - **fastapi**: 0.100+ (Phase 3)
 

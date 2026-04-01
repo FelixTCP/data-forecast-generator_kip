@@ -11,7 +11,7 @@ class DataLoader:
         """Load and validate CSV, return wrapped DataFrame with metadata"""
         
 class LoadedDataFrame:
-    df: pd.DataFrame
+    df: pl.DataFrame
     shape: tuple
     dtypes: dict
     quality_score: float  # 0-100
@@ -66,10 +66,10 @@ class AnalysisReport:
 ```python
 class FeatureEngineer:
     def engineer(
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         target: str,
         feature_config: dict = None
-    ) -> tuple[pd.DataFrame, FeatureMetadata]:
+    ) -> tuple[pl.DataFrame, FeatureMetadata]:
         """Handle missing values, scaling, categorical encoding"""
         
 class FeatureMetadata:
@@ -79,7 +79,7 @@ class FeatureMetadata:
     transformations_applied: list[str]
     
 class FeatureSelector:
-    def select_features(X: pd.DataFrame, y: pd.Series) -> list[str]:
+    def select_features(X: pl.DataFrame, y: pl.Series) -> list[str]:
         """Correlation-based or variance-based feature selection"""
 ```
 
@@ -101,8 +101,8 @@ class RegressionPipeline:
         """Initialize with Linear, Ridge, Lasso, RF, or GBM"""
         
     def train(
-        X: pd.DataFrame,
-        y: pd.Series,
+        X: pl.DataFrame,
+        y: pl.Series,
         test_size: float = 0.2
     ) -> TrainedModel:
         """Fit model with cross-validation"""
@@ -136,8 +136,8 @@ class ModelComparison:
 class ModelEvaluator:
     def evaluate(
         model: TrainedModel,
-        X_test: pd.DataFrame,
-        y_test: pd.Series
+        X_test: pl.DataFrame,
+        y_test: pl.Series
     ) -> EvaluationReport:
         """Calculate all metrics and diagnostics"""
 
@@ -199,7 +199,7 @@ class ArtifactLoader:
     def load(artifact_path: str) -> LoadedArtifact:
         """Load artifact and prepare for inference"""
         
-    def predict(new_data: pd.DataFrame) -> pd.Series:
+    def predict(new_data: pl.DataFrame) -> pl.Series:
         """Make predictions on new data"""
 ```
 
@@ -272,10 +272,10 @@ def main():
 
 **File**: `tests/fixtures/sample_data.py`
 ```python
-def synthetic_regression_data() -> tuple[pd.DataFrame, pd.Series]:
+def synthetic_regression_data() -> tuple[pl.DataFrame, pl.Series]:
     """Generate synthetic CSV for testing"""
     
-def synthetic_timeseries_data() -> pd.DataFrame:
+def synthetic_timeseries_data() -> pl.DataFrame:
     """Time series data for regression"""
 ```
 
@@ -306,7 +306,7 @@ def mock_claude_analysis() -> dict:
 ## Key Imports (Standard Pattern)
 
 ```python
-import pandas as pd
+import polars as pl
 import numpy as np
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import StandardScaler

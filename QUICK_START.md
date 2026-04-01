@@ -17,7 +17,7 @@ pytest --version && ruff --version
 
 Done! You now have:
 - ✅ Python 3.12 environment
-- ✅ All dependencies (scikit-learn, pandas, anthropic, etc.)
+- ✅ All dependencies (scikit-learn, polars, anthropic, etc.)
 - ✅ Testing framework (pytest)
 - ✅ Linter (ruff) + formatter
 - ✅ GitHub Copilot CLI

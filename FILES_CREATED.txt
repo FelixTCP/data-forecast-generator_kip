@@ -6,7 +6,7 @@
 ✅ flake.nix
    - Python 3.12 with all scientific packages
    - Tools: uv, ruff, pytest, mypy, isort
-   - Dependencies: scikit-learn, pandas, numpy, anthropic, fastapi, uvicorn
+   - Dependencies: scikit-learn, polars, numpy, anthropic, fastapi, uvicorn
    - Includes github-copilot-cli
 
 ### Python Project Configuration
