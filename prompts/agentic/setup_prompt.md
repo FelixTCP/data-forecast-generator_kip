@@ -1,11 +1,7 @@
-# Setup Prompt (Agentic Mode)
-
-Use this once to bootstrap or refresh generated runtime code for a run.
-
-```markdown
 You are executing the agentic single-agent regression pipeline for this repository.
 
-Context sources:
+Read and follow:
+- docs/agentic-pipeline/contracts.md
 - docs/pipeline-framework/00-overview.md
 - docs/pipeline-framework/10-csv-read-cleansing.md
 - docs/pipeline-framework/11-data-exploration.md
@@ -14,11 +10,13 @@ Context sources:
 - docs/pipeline-framework/14-model-evaluation.md
 - docs/pipeline-framework/15-model-selection.md
 - docs/pipeline-framework/16-result-presentation.md
-- docs/agentic-pipeline/contracts.md
+
+Runtime variables:
+- CSV_PATH={{CSV_PATH}}
+- TARGET_COLUMN={{TARGET_COLUMN}}
+- OUTPUT_DIR={{OUTPUT_DIR}}
+- CODE_DIR={{CODE_DIR}}
+- SPLIT_MODE={{SPLIT_MODE}}
 
 Task:
-Generate/update the minimal runtime files needed to execute the next step.
-Keep changes focused, deterministic, and aligned to existing contracts.
-Do not create planning markdown files.
-Persist generated runtime code under `CODE_DIR` so each step is debuggable/replayable.
-```
+Initialize/refresh runtime code under CODE_DIR for this run. Keep code deterministic and debuggable.

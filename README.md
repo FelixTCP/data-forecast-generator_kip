@@ -100,6 +100,29 @@ This mode is instruction-first: step logic is executed by Copilot CLI prompts us
 `docs/agentic-pipeline/` contracts and `docs/pipeline-framework/` step guidance.
 Pipeline progress is visualized with `tqdm` while steps execute.
 Required run artifacts now include `model.joblib` for the selected model.
+
+### Verbose debugging artifacts
+Each run now writes rich debug artifacts under `artifacts/<run_id>/debug/`:
+- `run_context.json` (full runtime inputs/profile)
+- `<step>/prompt.md` (exact prompt sent)
+- `<step>/response.md` (raw Copilot response)
+- `<step>/meta.json` (model/reasoning metadata)
+
+It also writes `code_audit.json` and a persistent hashed code workspace:
+- `artifacts/.agent_code/<command_hash>/workspace/` (generated code)
+- `artifacts/.agent_code/<command_hash>/snapshots/` (pre-reset backups)
+
+### Direct `copilot -p` workflow (without CLI orchestrator)
+If you want to debug prompt-by-prompt manually:
+
+```bash
+scripts/run_agentic_prompts.sh \
+  ./data/appliances_energy_prediction.csv \
+  appliances \
+  ./artifacts/manual_debug_run
+```
+
+Prompt templates are in `prompts/agentic/` and rendered prompts/responses are saved to `OUTPUT_DIR/debug/`.
 Generated step code is stored under a hashed directory in `artifacts/.agent_code/<command_hash>/workspace`
 and audited per run in `code_audit.json`.
 

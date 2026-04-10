@@ -212,6 +212,31 @@ def _append_code_audit(audit_path: Path, *, step: str, code_dir: Path) -> None:
     _write_json(audit_path, payload)
 
 
+def _write_step_debug(
+    debug_dir: Path,
+    *,
+    step_label: str,
+    prompt: str,
+    response: str,
+    model: str,
+    reasoning_effort: str,
+    code_dir: Path,
+) -> None:
+    step_dir = debug_dir / step_label
+    step_dir.mkdir(parents=True, exist_ok=True)
+    (step_dir / "prompt.md").write_text(prompt, encoding="utf-8")
+    (step_dir / "response.md").write_text(response, encoding="utf-8")
+    _write_json(
+        step_dir / "meta.json",
+        {
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+            "model": model,
+            "reasoning_effort": reasoning_effort,
+            "code_dir": str(code_dir),
+        },
+    )
+
+
 def _update_progress(
     progress_path: Path,
     *,
@@ -313,6 +338,8 @@ def run_pipeline(
     run_id = _iso_run_id()
     run_dir = output_root / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
+    debug_dir = run_dir / "debug"
+    debug_dir.mkdir(parents=True, exist_ok=True)
 
     command_hash = _compute_command_hash(
         csv_path=csv_path,
@@ -360,6 +387,19 @@ def run_pipeline(
             "steps": [],
         },
     )
+    _write_json(
+        debug_dir / "run_context.json",
+        {
+            "run_id": run_id,
+            "csv_path": csv_path,
+            "target_column": target_column,
+            "split_mode": split_mode,
+            "budget_mode": budget_mode,
+            "copilot_model": effective_model,
+            "reasoning_effort": effective_reasoning,
+            "code_dir": str(code_dir),
+        },
+    )
 
     setup_prompt = _read_text(root / "docs/agentic-pipeline/setup-prompt.md")
     step_templates = _load_step_prompts(root / "docs/agentic-pipeline/step-prompts.md")
@@ -376,19 +416,29 @@ def run_pipeline(
     }
 
     try:
-        _run_copilot_prompt(
-            (
-                f"{setup_prompt}\n\n"
-                "Runtime variables:\n"
-                f"{json.dumps(mapping, indent=2)}\n\n"
-                f"Execution profile:\n"
-                f"- budget_mode: {budget_mode}\n"
-                f"- model: {effective_model}\n"
-                f"- reasoning_effort: {effective_reasoning}\n"
-            ),
+        setup_full_prompt = (
+            f"{setup_prompt}\n\n"
+            "Runtime variables:\n"
+            f"{json.dumps(mapping, indent=2)}\n\n"
+            f"Execution profile:\n"
+            f"- budget_mode: {budget_mode}\n"
+            f"- model: {effective_model}\n"
+            f"- reasoning_effort: {effective_reasoning}\n"
+        )
+        setup_response = _run_copilot_prompt(
+            setup_full_prompt,
             cwd=root,
             copilot_model=effective_model,
             reasoning_effort=effective_reasoning,
+        )
+        _write_step_debug(
+            debug_dir,
+            step_label="00-setup",
+            prompt=setup_full_prompt,
+            response=setup_response,
+            model=effective_model,
+            reasoning_effort=effective_reasoning,
+            code_dir=code_dir,
         )
         _append_code_audit(code_audit_path, step="setup", code_dir=code_dir)
 
@@ -429,11 +479,20 @@ def run_pipeline(
                 "- the relevant step file under docs/pipeline-framework/\n\n"
                 f"Step:\n{step_prompt}"
             )
-            _run_copilot_prompt(
+            step_response = _run_copilot_prompt(
                 full_prompt,
                 cwd=root,
                 copilot_model=effective_model,
                 reasoning_effort=effective_reasoning,
+            )
+            _write_step_debug(
+                debug_dir,
+                step_label=step,
+                prompt=full_prompt,
+                response=step_response,
+                model=effective_model,
+                reasoning_effort=effective_reasoning,
+                code_dir=code_dir,
             )
             completed_steps.append(step)
             _append_code_audit(code_audit_path, step=step, code_dir=code_dir)
@@ -460,11 +519,20 @@ def run_pipeline(
                 "- Reuse existing run outputs under this output directory when possible.\n"
                 f"- Keep selected model consistent with {run_dir / 'step-15-selection.json'} when feasible.\n"
             )
-            _run_copilot_prompt(
+            repair_response = _run_copilot_prompt(
                 repair_prompt,
                 cwd=root,
                 copilot_model=effective_model,
                 reasoning_effort=effective_reasoning,
+            )
+            _write_step_debug(
+                debug_dir,
+                step_label="99-repair-model-artifact",
+                prompt=repair_prompt,
+                response=repair_response,
+                model=effective_model,
+                reasoning_effort=effective_reasoning,
+                code_dir=code_dir,
             )
             _append_code_audit(code_audit_path, step="repair-model-artifact", code_dir=code_dir)
             _validate_required_artifacts(run_dir, code_dir)
