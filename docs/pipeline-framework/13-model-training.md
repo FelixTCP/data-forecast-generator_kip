@@ -36,6 +36,9 @@ Train candidate models reproducibly, log full training history, and output artif
 - Persist search space + selected params for reproducibility.
 - Log warnings if variance across folds is high.
 - Do not mix temporal and random split logic.
+- For time-series forecasting, maintain strict chronology and use a purge/gap where feasible to avoid boundary leakage.
+- Reject training input if forbidden leaked features are present (for example non-causal target rolling features).
+- Log and compare a naive baseline (`y_hat_t = y_{t-1}`) for the same holdout window.
 
 ## Copilot Prompt Snippet (High-Value)
 
@@ -49,6 +52,7 @@ Requirements:
 4. cache sklearn pipeline transformations via `joblib.Memory`
 5. return serializable output containing best_model_name, best_params, and per-candidate metrics
 6. include unit tests for split strategy selection and deterministic results with fixed seeds
+7. include leakage sentry checks that fail on forbidden target-derived predictors
 ```
 
 ## Reference Architecture
@@ -180,3 +184,5 @@ def train_models(X, y, preprocessor, config: dict) -> dict:
 - search strategy path (`none/grid/random`)
 - history serialization
 - fallback behavior if one candidate fails (explicitly logged + failed candidate marked)
+- reject known leakage feature patterns before fit
+- baseline comparison exists and is logged

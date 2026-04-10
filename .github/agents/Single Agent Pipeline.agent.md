@@ -103,14 +103,19 @@ Before executing a step, check whether it can be skipped:
 ### After Step 11
 - `step-11-exploration.json` exists
 - `numeric_columns` is a non-empty list
+- `mi_ranking` is a non-empty list (MI analysis must have run)
+- `recommended_features` is a non-empty list (feature filtering must have produced candidates)
+- `noise_mi_baseline` is a finite float
 - `target_candidates` contains at least one entry
 - `shape.rows > 10` (sanity check — catch accidental empty frames early)
 
 ### After Step 12
 - `step-12-features.json` exists
-- `features` list is non-empty (if empty, all numeric columns were dropped — diagnose before continuing)
+- `features` list is non-empty (if empty, all features were filtered — diagnose step 11 output before continuing)
+- `features_excluded` key exists (audit trail of what was dropped and why)
 - `split_strategy.resolved_mode` is one of `random` or `time_series`
 - The parquet path in `artifacts.features_parquet` exists on disk
+- No feature in `features` appears in `step-11-exploration.json["excluded_features"]` (leakage guard against re-including dropped features)
 
 ### After Step 13
 - `step-13-training.json` exists
@@ -122,11 +127,19 @@ Before executing a step, check whether it can be skipped:
 ### After Step 14
 - `step-14-evaluation.json` exists
 - Each candidate entry contains `r2`, `rmse`, and `mae` keys with finite numeric values
+- `quality_assessment` key exists with one of: `acceptable`, `marginal`, `subpar`, `subpar_after_expansion`
+- `target_stats` key exists (mean, std, min, max of the target)
+- Any candidate with R² < 0 has `model_worse_than_mean_baseline: true` in its entry
+- If `quality_assessment` is `subpar`: `expansion_diagnosis` key is present and non-empty
+- If `quality_assessment` is `subpar`: expansion candidates were trained and their results are present in the JSON
+- **Do NOT proceed to step 15 if `quality_assessment` is `subpar` and no expansion was attempted**
 
 ### After Step 15
 - `step-15-selection.json` exists
-- `selected_model` field is present and non-empty
-- `rationale` field is present and contains at least one sentence
+- `quality_flag` key is present and is one of: `acceptable`, `marginal`, `subpar`, `subpar_after_expansion`, `no_viable_candidate`
+- If `quality_flag` is NOT `no_viable_candidate`: `selected_model` is non-empty and `rationale` contains at least one sentence
+- If `quality_flag` is `no_viable_candidate`: `selected_model` is null/absent and a clear message is present — do **not** produce a `model.joblib` with a worthless model; step 16 must report failure
+- `full_ranking` is present and lists all candidates including ineligible ones
 
 ### After Step 16
 - `step-16-report.md` exists and is at least 500 bytes
@@ -147,16 +160,22 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 - Output: `step-10-cleanse.json`, `cleaned.parquet`
 
 ### Step 11 — Data Exploration (`step_11_exploration.py`)
-- Profile the cleaned DataFrame: distributions, pairwise correlations (first 8 numeric cols), cardinality scan.
-- Flag time-series data if time column was detected in step 10.
-- Suggest top-5 target candidates ranked by low null rate and high variance.
+- Read the full spec at `docs/pipeline-framework/11-data-exploration.md`.
+- Near-zero variance filter: flag columns with scaled variance < 1e-4.
+- Mutual information ranking: compute `mutual_info_regression` for all numeric features vs. target; also compute MI for 5 fresh random-noise columns to establish a noise baseline. Flag real features at or below the noise baseline as `below_noise_baseline`.
+- Redundancy filter: for any pair with |Pearson r| ≥ 0.90, flag the lower-MI one as `redundant`.
+- Time-series lag analysis (if time column detected): autocorrelation of target at lags 1–24 → `significant_lags`; cross-correlation of each feature at lags 0–3 → `useful_lag_features` (xcorr > 0.15).
+- Produce `recommended_features` — the filtered list step 12 must start from. Log every exclusion with a reason.
 - Output: `step-11-exploration.json`
 
 ### Step 12 — Feature Extraction (`step_12_features.py`)
-- Use `TARGET_COLUMN` and `SPLIT_MODE` from context.
-- If time column exists: extract year, month, day-of-week, hour; create lag and rolling-window features.
-- Drop non-numeric columns from the feature set (after any encoding).
-- Document every created feature with a short reason in `created_features`.
+- Read the full spec at `docs/pipeline-framework/12-feature-extraction.md`.
+- Start strictly from `step-11-exploration.json["recommended_features"]` — never add features excluded in step 11.
+- Time features (year, month, day_of_week, hour) are always added if time column detected.
+- Lag features: only for combinations in `step-11["useful_lag_features"]` plus target lags at `step-11["significant_lags"]`. Do not create lags blindly for all features.
+- Rolling features: only for the target, at window sizes matching the top 2 significant lags.
+- Leakage guard: assert no feature has |Pearson r with target| > 0.99 on the full dataset.
+- Document every feature with a creation reason; log every exclusion.
 - Output: `step-12-features.json`, `features.parquet`
 
 ### Step 13 — Model Training (`step_13_training.py`) *(most critical)*
@@ -170,9 +189,13 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 - Output: `step-13-training.json`, `model.joblib`, `candidate-*.joblib`, `holdout.npz`
 
 ### Step 14 — Model Evaluation (`step_14_evaluation.py`)
+- Read the full spec at `docs/pipeline-framework/14-model-evaluation.md`.
 - Load `holdout.npz` and all `candidate-*.joblib` files.
-- Compute R², RMSE, MAE for each candidate on the holdout set.
-- Add a short residual note (mean residual, max absolute error).
+- Compute R², RMSE, MAE, residual summary (mean + max abs error) for each candidate.
+- Flag any candidate with R² < 0 as `model_worse_than_mean_baseline: true`.
+- Compare best R² against quality thresholds: ≥0.50 = acceptable; [0.25,0.50) = marginal; <0.25 = subpar.
+- If subpar: diagnose (is training CV R² also low? is holdout much worse than CV? is target skewed?), then train and evaluate expansion candidates (ElasticNet, HistGradientBoostingRegressor, SVR). Write results before proceeding.
+- Record `quality_assessment` and `target_stats` in the output JSON.
 - Output: `step-14-evaluation.json`
 
 ### Step 15 — Model Selection (`step_15_selection.py`)

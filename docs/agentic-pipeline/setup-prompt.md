@@ -25,4 +25,6 @@ Core rules:
 - Validate each step's output before proceeding to the next.
 - Do not create planning or summary markdown files.
 - All generated Python code lives under CODE_DIR.
+- Enforce a strict no-leakage policy: causal features only; no target-at-t information may appear in predictors.
+- Hard-fail the run if leakage checks fail. Do not continue to selection/reporting with suspect metrics.
 ```

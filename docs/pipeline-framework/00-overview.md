@@ -79,3 +79,14 @@ Implement step <STEP_NAME> of the forecasting pipeline.
 - Each step has: objective, input/output contract, guardrails, code skeleton, and tests.
 - Model training includes reproducible split, caching, history/logging, and hyperparameter search path.
 - Evaluation and selection are traceable and reproducible.
+
+## Forecasting Validity Gate (Mandatory)
+
+Before any run can be treated as successful:
+
+- Leakage audit must pass (no direct or algebraic target leakage).
+- Feature construction must be causal (t uses only <= t-1 information).
+- A naive baseline must be reported and compared in evaluation.
+- If unusually high scores are detected (for example R2 > 0.98 on noisy real-world data), run a mandatory leakage stress test.
+
+If any of these fail, the run is diagnostic-only and must not be treated as production-ready forecasting.

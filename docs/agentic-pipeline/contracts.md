@@ -2,6 +2,18 @@
 
 This repo is instruction-first. Runtime code is generated/adapted by Copilot per run.
 
+## Non-Negotiable Leakage Policy
+
+This pipeline is for real forecasting. Any target leakage invalidates the run.
+
+- Feature engineering must be causal: at timestamp t, features may only use information available at or before t-1.
+- Forbidden features include (but are not limited to):
+  - direct target copies/transforms at t (`target`, `target_scaled`, `target_diff_0`)
+  - rolling statistics that include current target value (`rolling_mean(target, N)` without a prior shift)
+  - any algebraic combination that can reconstruct target exactly or near-exactly
+- Required target-derived features must be lagged-only, e.g. `target_lag_k` where k >= 1.
+- If leakage is suspected, the pipeline must fail with explicit diagnostics and must not mark status as completed.
+
 ## Global Runtime Inputs
 - `CSV_PATH`: absolute or repo-relative input CSV
 - `TARGET_COLUMN`: regression target
@@ -37,6 +49,7 @@ Each step script must:
 4. Exit with code `0` on success, non-zero on any unhandled failure.
 5. Be idempotent: running the same step twice with the same inputs produces identical outputs.
 6. Be independently runnable without requiring the previous step's script to be in scope.
+7. Enforce leakage checks and fail fast when triggered. A run with leakage cannot proceed to production selection.
 
 ## Resume / Skip Contract
 
@@ -62,6 +75,7 @@ A step must be re-run if its output JSON is absent, corrupt, or the step is forc
 - `OUTPUT_DIR/step-15-selection.json`
 - `OUTPUT_DIR/step-16-report.md`
 - `OUTPUT_DIR/code_audit.json` (Python file inventory + hashes per step)
+- `OUTPUT_DIR/leakage_audit.json` (explicit leakage diagnostics and pass/fail decision)
 
 ## Progress Schema
 ```json
