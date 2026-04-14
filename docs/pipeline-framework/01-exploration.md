@@ -3,7 +3,7 @@ You are a Senior Data Analyst. We need to safely inspect the file `/data/applian
 
 **Step 1:** Write a tiny, temporary python script or use a bash command (like `head -n 10`) to extract the exact header and the first 5 rows of the CSV.
 **Step 2:** Analyze this raw text output. 
-**Step 3:** Create a file named `ATTENTION.md` in the `/steps` folder. 
+**Step 3:** Create a file named `01-exploration.md` in the `/pipeline-framework/additional-information` folder. 
 
 The `ATTENTION.md` MUST contain:
 - **Expected Delimiter:** (e.g., comma, semicolon, tab)
