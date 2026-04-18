@@ -151,8 +151,9 @@ See the session `plan.md` for the detailed implementation plan.
 
 **Pipeline framework docs (Issue #8, sub-issues #10-#16):**
 
-- `docs/pipeline-framework/00-overview.md` - End-to-end single-agent framework
-- `docs/pipeline-framework/13-model-training.md` - Deep dive for model training context engineering
+- `docs/agentic-pipeline/contracts.md` - Runtime contracts, file layout, and resume rules
+- `docs/agentic-pipeline/step-prompts.md` - Runtime Reason→Code→Validate wrappers per step
+- `docs/pipeline-framework/10-csv-read-cleansing.md` ... `16-result-presentation.md` - Canonical per-step logic
 
 ## Configuration
 
