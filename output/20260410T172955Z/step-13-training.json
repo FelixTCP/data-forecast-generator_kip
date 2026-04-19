@@ -1,0 +1,201 @@
+{
+  "step": "13-model-training",
+  "split_mode": "time_series",
+  "train_rows": 15788,
+  "test_rows": 3947,
+  "feature_count": 42,
+  "records": [
+    {
+      "model_name": "ridge",
+      "complexity": 1,
+      "params": {
+        "alpha": 1.0,
+        "copy_X": true,
+        "fit_intercept": true,
+        "max_iter": null,
+        "positive": false,
+        "random_state": 42,
+        "solver": "auto",
+        "tol": 0.0001
+      },
+      "holdout_metrics": {
+        "r2": 0.10605293036991192,
+        "rmse": 86.07581412323282,
+        "mae": 50.513568741902496
+      },
+      "cv_scores_r2": [
+        -0.08791546811804407,
+        0.0771674712116055,
+        0.02720213290085971,
+        0.13302025947700202,
+        0.13298717820639272
+      ],
+      "cv_mean_r2": 0.056492314735563175,
+      "cv_std_r2": 0.08227633324314226,
+      "artifact_path": "output\\20260410T172955Z\\candidate-ridge.joblib"
+    },
+    {
+      "model_name": "gradient_boosting",
+      "complexity": 3,
+      "params": {
+        "alpha": 0.9,
+        "ccp_alpha": 0.0,
+        "criterion": "friedman_mse",
+        "init": null,
+        "learning_rate": 0.1,
+        "loss": "squared_error",
+        "max_depth": 3,
+        "max_features": null,
+        "max_leaf_nodes": null,
+        "min_impurity_decrease": 0.0,
+        "min_samples_leaf": 1,
+        "min_samples_split": 2,
+        "min_weight_fraction_leaf": 0.0,
+        "n_estimators": 100,
+        "n_iter_no_change": null,
+        "random_state": 42,
+        "subsample": 1.0,
+        "tol": 0.0001,
+        "validation_fraction": 0.1,
+        "verbose": 0,
+        "warm_start": false
+      },
+      "holdout_metrics": {
+        "r2": -9.70918883908174,
+        "rmse": 297.9226517260612,
+        "mae": 245.54556619617904
+      },
+      "cv_scores_r2": [
+        -0.966233458021537,
+        -0.5315674052207569,
+        -0.11980936711720958,
+        -0.3519693910303967,
+        -0.006347955642425296
+      ],
+      "cv_mean_r2": -0.39518551540646507,
+      "cv_std_r2": 0.3387004803569641,
+      "artifact_path": "output\\20260410T172955Z\\candidate-gradient_boosting.joblib"
+    },
+    {
+      "model_name": "random_forest",
+      "complexity": 4,
+      "params": {
+        "bootstrap": true,
+        "ccp_alpha": 0.0,
+        "criterion": "squared_error",
+        "max_depth": null,
+        "max_features": 1.0,
+        "max_leaf_nodes": null,
+        "max_samples": null,
+        "min_impurity_decrease": 0.0,
+        "min_samples_leaf": 1,
+        "min_samples_split": 2,
+        "min_weight_fraction_leaf": 0.0,
+        "monotonic_cst": null,
+        "n_estimators": 300,
+        "n_jobs": -1,
+        "oob_score": false,
+        "random_state": 42,
+        "verbose": 0,
+        "warm_start": false
+      },
+      "holdout_metrics": {
+        "r2": -4.530032719002494,
+        "rmse": 214.08640376664638,
+        "mae": 192.59853897474875
+      },
+      "cv_scores_r2": [
+        -0.9879063971463915,
+        -0.9244016212655719,
+        -0.26715787566559857,
+        -0.7733982003495992,
+        -0.36371850440068787
+      ],
+      "cv_mean_r2": -0.6633165197655698,
+      "cv_std_r2": 0.29405531358207804,
+      "artifact_path": "output\\20260410T172955Z\\candidate-random_forest.joblib"
+    }
+  ],
+  "best_model_for_artifact": "ridge",
+  "model_artifact": "output\\20260410T172955Z\\model.joblib",
+  "context": {
+    "dataset_id": "appliances_energy_prediction.csv",
+    "target_column": "appliances",
+    "time_column": "date",
+    "features": [
+      "lights",
+      "t1",
+      "rh_1",
+      "t2",
+      "rh_2",
+      "t3",
+      "rh_3",
+      "t4",
+      "rh_4",
+      "t5",
+      "rh_5",
+      "t6",
+      "rh_6",
+      "t7",
+      "rh_7",
+      "t8",
+      "rh_8",
+      "t9",
+      "rh_9",
+      "t_out",
+      "press_mm_hg",
+      "rh_out",
+      "windspeed",
+      "visibility",
+      "tdewpoint",
+      "rv1",
+      "rv2",
+      "date_year",
+      "date_month",
+      "date_day",
+      "date_weekday",
+      "date_ordinal_day",
+      "lights_lag1",
+      "lights_rollmean3",
+      "t1_lag1",
+      "t1_rollmean3",
+      "rh_1_lag1",
+      "rh_1_rollmean3",
+      "t2_lag1",
+      "t2_rollmean3",
+      "rh_2_lag1",
+      "rh_2_rollmean3"
+    ],
+    "split_strategy": {
+      "requested_mode": "auto",
+      "resolved_mode": "time_series",
+      "time_column": "date",
+      "random_state": 42
+    },
+    "model_candidates": [
+      {
+        "name": "ridge",
+        "complexity": 1
+      },
+      {
+        "name": "gradient_boosting",
+        "complexity": 3
+      },
+      {
+        "name": "random_forest",
+        "complexity": 4
+      }
+    ],
+    "metrics": {
+      "best_cv_mean_r2": 0.056492314735563175,
+      "best_holdout_r2": 0.10605293036991192
+    },
+    "artifacts": {
+      "cleaned_parquet": "output\\20260410T172955Z\\cleaned.parquet",
+      "features_parquet": "output\\20260410T172955Z\\features.parquet",
+      "holdout_npz": "output\\20260410T172955Z\\holdout.npz",
+      "model_joblib": "output\\20260410T172955Z\\model.joblib"
+    },
+    "notes": []
+  }
+}

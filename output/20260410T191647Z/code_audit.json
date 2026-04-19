@@ -1,0 +1,24 @@
+{
+  "run_id": "20260410T191647Z",
+  "code_dir": "output\\20260410T191647Z\\code",
+  "steps": [
+    "orchestrator.py",
+    "step_10_cleanse.py",
+    "step_11_exploration.py",
+    "step_12_features.py",
+    "step_13_training.py",
+    "step_14_evaluation.py",
+    "step_15_selection.py",
+    "step_16_report.py"
+  ],
+  "sha256": {
+    "orchestrator.py": "94a6751ca8bcf73a74b25993b27e59e56f74c12a88637560343d80091b91014d",
+    "step_10_cleanse.py": "92449fb598655565121e9831074dfcf3afe8c379cd4b7fad7ef9699a151993bf",
+    "step_11_exploration.py": "90e27f7c0c3d5afbe9469ef96f7450a3fd01cc63b60015a7467b6e265ec1ee61",
+    "step_12_features.py": "b860d5f2be464676c15b8f2ef2ce9fadec46493bf81e2dd59abc62b503e3528d",
+    "step_13_training.py": "ccb47ec680fa256542562d7cb560d896ab78a592de16afc3abf9d147ccde2204",
+    "step_14_evaluation.py": "15dd68747d4b90699c403dc67c895ddd0ff1156c0348e521ed2118258cdae1a8",
+    "step_15_selection.py": "aafd46ff24ac56a7a74ccee48ff6c8b4cb299375df2d8b55d3147af70820dc1e",
+    "step_16_report.py": "6806c601c094ab602d728cd581f76159eec9f65b23b30f5594313a570a7d7bd2"
+  }
+}

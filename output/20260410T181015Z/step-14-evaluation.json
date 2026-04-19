@@ -1,0 +1,126 @@
+{
+  "step": "14-model-evaluation",
+  "candidate_reports": [
+    {
+      "model_name": "ridge",
+      "complexity": 1,
+      "r2": 0.11467225673852688,
+      "rmse": 85.65984286618226,
+      "mae": 49.97054257273384,
+      "cv_mean_r2": 0.04033842506692533,
+      "cv_std_r2": 0.09607856021935453,
+      "residual_note": {
+        "mean_residual": -1.3945344027771915,
+        "max_abs_error": 745.9817095897273
+      },
+      "artifact_path": "output\\20260410T181015Z\\candidate-ridge.joblib"
+    },
+    {
+      "model_name": "random_forest",
+      "complexity": 4,
+      "r2": -4.666934793795751,
+      "rmse": 216.72017576216396,
+      "mae": 176.14737775525714,
+      "cv_mean_r2": -0.46815112629823774,
+      "cv_std_r2": 0.3133016992558699,
+      "residual_note": {
+        "mean_residual": -163.90293894096783,
+        "max_abs_error": 719.7
+      },
+      "artifact_path": "output\\20260410T181015Z\\candidate-random_forest.joblib"
+    },
+    {
+      "model_name": "gradient_boosting",
+      "complexity": 3,
+      "r2": -6.850697024666848,
+      "rmse": 255.08172494126592,
+      "mae": 198.23812892900006,
+      "cv_mean_r2": -0.36257940786272463,
+      "cv_std_r2": 0.5658390376722148,
+      "residual_note": {
+        "mean_residual": -182.0592405481487,
+        "max_abs_error": 740.4130324700905
+      },
+      "artifact_path": "output\\20260410T181015Z\\candidate-gradient_boosting.joblib"
+    }
+  ],
+  "context": {
+    "dataset_id": "appliances_energy_prediction.csv",
+    "target_column": "appliances",
+    "time_column": "date",
+    "features": [
+      "lights",
+      "t1",
+      "rh_1",
+      "t2",
+      "rh_2",
+      "t3",
+      "rh_3",
+      "t4",
+      "rh_4",
+      "t5",
+      "rh_5",
+      "t6",
+      "rh_6",
+      "t7",
+      "rh_7",
+      "t8",
+      "rh_8",
+      "t9",
+      "rh_9",
+      "t_out",
+      "press_mm_hg",
+      "rh_out",
+      "windspeed",
+      "visibility",
+      "tdewpoint",
+      "rv1",
+      "rv2",
+      "date_year",
+      "date_month",
+      "date_weekday",
+      "date_hour",
+      "lights_lag1",
+      "lights_rollmean3",
+      "t1_lag1",
+      "t1_rollmean3",
+      "rh_1_lag1",
+      "rh_1_rollmean3",
+      "t2_lag1",
+      "t2_rollmean3",
+      "rh_2_lag1",
+      "rh_2_rollmean3"
+    ],
+    "split_strategy": {
+      "requested_mode": "auto",
+      "resolved_mode": "time_series",
+      "time_column": "date",
+      "random_state": 42
+    },
+    "model_candidates": [
+      {
+        "name": "ridge",
+        "complexity": 1
+      },
+      {
+        "name": "random_forest",
+        "complexity": 4
+      },
+      {
+        "name": "gradient_boosting",
+        "complexity": 3
+      }
+    ],
+    "metrics": {
+      "best_cv_mean_r2": 0.04033842506692533,
+      "best_holdout_r2": 0.11467225673852688
+    },
+    "artifacts": {
+      "cleaned_parquet": "output\\20260410T181015Z\\cleaned.parquet",
+      "features_parquet": "output\\20260410T181015Z\\features.parquet",
+      "model_joblib": "output\\20260410T181015Z\\model.joblib",
+      "holdout_npz": "output\\20260410T181015Z\\holdout.npz"
+    },
+    "notes": []
+  }
+}

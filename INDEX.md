@@ -22,6 +22,9 @@ Quick navigation for the Data Forecast Generator project.
 - **[IMPLEMENTATION_OUTLINE.md](IMPLEMENTATION_OUTLINE.md)** - 8 modules with pseudocode & signatures
 - **[plan.md](plan.md)** - Full 15-step Phase 1 roadmap (session folder)
 - **[.github/copilot-instructions.md](.github/copilot-instructions.md)** - Copilot guide
+- **[docs/agentic-pipeline/contracts.md](docs/agentic-pipeline/contracts.md)** - Single-agent runtime contracts
+- **[docs/agentic-pipeline/step-prompts.md](docs/agentic-pipeline/step-prompts.md)** - Runtime step protocol wrappers
+- **[docs/pipeline-framework/10-csv-read-cleansing.md](docs/pipeline-framework/10-csv-read-cleansing.md)** ... **[16-result-presentation.md](docs/pipeline-framework/16-result-presentation.md)** - Canonical per-step specs
 
 ### Reference
 - **[FILES_CREATED.txt](FILES_CREATED.txt)** - Inventory of all created files
