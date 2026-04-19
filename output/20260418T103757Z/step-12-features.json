@@ -1,0 +1,305 @@
+{
+  "step": "12-feature-extraction",
+  "features": [
+    "lights",
+    "t1",
+    "rh_1",
+    "t2",
+    "rh_2",
+    "rh_3",
+    "t4",
+    "rh_4",
+    "rh_5",
+    "t6",
+    "rh_6",
+    "rh_7",
+    "t8",
+    "rh_8",
+    "t9",
+    "rh_9",
+    "press_mm_hg",
+    "rh_out",
+    "windspeed",
+    "visibility",
+    "tdewpoint",
+    "year",
+    "month",
+    "day_of_week",
+    "hour",
+    "lights_lag_1",
+    "lights_lag_2",
+    "lights_lag_3",
+    "target_lag_1",
+    "target_lag_2",
+    "target_lag_3",
+    "target_lag_4",
+    "target_lag_5",
+    "target_lag_6",
+    "target_lag_7",
+    "target_lag_8",
+    "target_lag_9",
+    "target_lag_10",
+    "target_lag_11",
+    "target_lag_12",
+    "target_lag_13",
+    "target_lag_14",
+    "target_lag_15",
+    "target_lag_16",
+    "target_lag_17",
+    "target_lag_18",
+    "target_lag_19",
+    "target_lag_20",
+    "target_lag_21",
+    "target_lag_22",
+    "target_lag_23",
+    "target_lag_24",
+    "target_rolling_mean_1",
+    "target_rolling_std_1",
+    "target_rolling_mean_2",
+    "target_rolling_std_2"
+  ],
+  "features_excluded": {
+    "rv1": "below_noise_baseline (step 11)",
+    "rv2": "below_noise_baseline (step 11)",
+    "t3": "redundant_with_t9 (step 11)",
+    "t5": "redundant_with_t9 (step 11)",
+    "t_out": "redundant_with_t6 (step 11)",
+    "t7": "redundant_with_t9 (step 11)"
+  },
+  "created_features": [
+    {
+      "name": "year",
+      "reason": "time decomposition"
+    },
+    {
+      "name": "month",
+      "reason": "time decomposition"
+    },
+    {
+      "name": "day_of_week",
+      "reason": "time decomposition"
+    },
+    {
+      "name": "hour",
+      "reason": "time decomposition"
+    },
+    {
+      "name": "lights_lag_1",
+      "reason": "useful_lag_feature: lights lag=1, xcorr=0.190"
+    },
+    {
+      "name": "lights_lag_2",
+      "reason": "useful_lag_feature: lights lag=2, xcorr=0.175"
+    },
+    {
+      "name": "lights_lag_3",
+      "reason": "useful_lag_feature: lights lag=3, xcorr=0.159"
+    },
+    {
+      "name": "target_lag_1",
+      "reason": "significant_lag=1 from step 11"
+    },
+    {
+      "name": "target_lag_2",
+      "reason": "significant_lag=2 from step 11"
+    },
+    {
+      "name": "target_lag_3",
+      "reason": "significant_lag=3 from step 11"
+    },
+    {
+      "name": "target_lag_4",
+      "reason": "significant_lag=4 from step 11"
+    },
+    {
+      "name": "target_lag_5",
+      "reason": "significant_lag=5 from step 11"
+    },
+    {
+      "name": "target_lag_6",
+      "reason": "significant_lag=6 from step 11"
+    },
+    {
+      "name": "target_lag_7",
+      "reason": "significant_lag=7 from step 11"
+    },
+    {
+      "name": "target_lag_8",
+      "reason": "significant_lag=8 from step 11"
+    },
+    {
+      "name": "target_lag_9",
+      "reason": "significant_lag=9 from step 11"
+    },
+    {
+      "name": "target_lag_10",
+      "reason": "significant_lag=10 from step 11"
+    },
+    {
+      "name": "target_lag_11",
+      "reason": "significant_lag=11 from step 11"
+    },
+    {
+      "name": "target_lag_12",
+      "reason": "significant_lag=12 from step 11"
+    },
+    {
+      "name": "target_lag_13",
+      "reason": "significant_lag=13 from step 11"
+    },
+    {
+      "name": "target_lag_14",
+      "reason": "significant_lag=14 from step 11"
+    },
+    {
+      "name": "target_lag_15",
+      "reason": "significant_lag=15 from step 11"
+    },
+    {
+      "name": "target_lag_16",
+      "reason": "significant_lag=16 from step 11"
+    },
+    {
+      "name": "target_lag_17",
+      "reason": "significant_lag=17 from step 11"
+    },
+    {
+      "name": "target_lag_18",
+      "reason": "significant_lag=18 from step 11"
+    },
+    {
+      "name": "target_lag_19",
+      "reason": "significant_lag=19 from step 11"
+    },
+    {
+      "name": "target_lag_20",
+      "reason": "significant_lag=20 from step 11"
+    },
+    {
+      "name": "target_lag_21",
+      "reason": "significant_lag=21 from step 11"
+    },
+    {
+      "name": "target_lag_22",
+      "reason": "significant_lag=22 from step 11"
+    },
+    {
+      "name": "target_lag_23",
+      "reason": "significant_lag=23 from step 11"
+    },
+    {
+      "name": "target_lag_24",
+      "reason": "significant_lag=24 from step 11"
+    },
+    {
+      "name": "target_rolling_mean_1",
+      "reason": "rolling mean at lag-window=1"
+    },
+    {
+      "name": "target_rolling_std_1",
+      "reason": "rolling std at lag-window=1"
+    },
+    {
+      "name": "target_rolling_mean_2",
+      "reason": "rolling mean at lag-window=2"
+    },
+    {
+      "name": "target_rolling_std_2",
+      "reason": "rolling std at lag-window=2"
+    }
+  ],
+  "rows_dropped_by_lag": 24,
+  "leakage_flags": [],
+  "leakage_audit": {
+    "status": "pass",
+    "checks": [
+      "pairwise_corr"
+    ],
+    "details": []
+  },
+  "split_strategy": {
+    "requested_mode": "auto",
+    "resolved_mode": "time_series",
+    "time_column": "date",
+    "random_state": 42
+  },
+  "artifacts": {
+    "features_parquet": "output/20260418T103757Z/features.parquet"
+  },
+  "context": {
+    "dataset_id": "appliances_energy_prediction.csv",
+    "target_column": "appliances",
+    "time_column": "date",
+    "features": [
+      "lights",
+      "t1",
+      "rh_1",
+      "t2",
+      "rh_2",
+      "rh_3",
+      "t4",
+      "rh_4",
+      "rh_5",
+      "t6",
+      "rh_6",
+      "rh_7",
+      "t8",
+      "rh_8",
+      "t9",
+      "rh_9",
+      "press_mm_hg",
+      "rh_out",
+      "windspeed",
+      "visibility",
+      "tdewpoint",
+      "year",
+      "month",
+      "day_of_week",
+      "hour",
+      "lights_lag_1",
+      "lights_lag_2",
+      "lights_lag_3",
+      "target_lag_1",
+      "target_lag_2",
+      "target_lag_3",
+      "target_lag_4",
+      "target_lag_5",
+      "target_lag_6",
+      "target_lag_7",
+      "target_lag_8",
+      "target_lag_9",
+      "target_lag_10",
+      "target_lag_11",
+      "target_lag_12",
+      "target_lag_13",
+      "target_lag_14",
+      "target_lag_15",
+      "target_lag_16",
+      "target_lag_17",
+      "target_lag_18",
+      "target_lag_19",
+      "target_lag_20",
+      "target_lag_21",
+      "target_lag_22",
+      "target_lag_23",
+      "target_lag_24",
+      "target_rolling_mean_1",
+      "target_rolling_std_1",
+      "target_rolling_mean_2",
+      "target_rolling_std_2"
+    ],
+    "split_strategy": {
+      "requested_mode": "auto",
+      "resolved_mode": "time_series",
+      "time_column": "date",
+      "random_state": 42
+    },
+    "model_candidates": [],
+    "metrics": {},
+    "artifacts": {
+      "cleaned_parquet": "output/20260418T103757Z/cleaned.parquet",
+      "features_parquet": "output/20260418T103757Z/features.parquet"
+    },
+    "notes": []
+  }
+}

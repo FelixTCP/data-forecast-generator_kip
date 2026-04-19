@@ -1,0 +1,30 @@
+{
+  "run_id": "20260410T172955Z",
+  "code_dir": "output\\20260410T172955Z\\code",
+  "python_files": {
+    "run_pipeline.py": "c5185ebcddc6a959e3997fe1df1cd0d210b7ae0b7a1fc8f0f6555cb27d56126a"
+  },
+  "steps": {
+    "10-csv-read-cleansing": [
+      "run_pipeline.py"
+    ],
+    "11-data-exploration": [
+      "run_pipeline.py"
+    ],
+    "12-feature-extraction": [
+      "run_pipeline.py"
+    ],
+    "13-model-training": [
+      "run_pipeline.py"
+    ],
+    "14-model-evaluation": [
+      "run_pipeline.py"
+    ],
+    "15-model-selection": [
+      "run_pipeline.py"
+    ],
+    "16-result-presentation": [
+      "run_pipeline.py"
+    ]
+  }
+}

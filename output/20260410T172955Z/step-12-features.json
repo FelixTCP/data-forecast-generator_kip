@@ -1,0 +1,179 @@
+{
+  "step": "12-feature-extraction",
+  "target_column": "appliances",
+  "feature_count": 42,
+  "feature_columns": [
+    "lights",
+    "t1",
+    "rh_1",
+    "t2",
+    "rh_2",
+    "t3",
+    "rh_3",
+    "t4",
+    "rh_4",
+    "t5",
+    "rh_5",
+    "t6",
+    "rh_6",
+    "t7",
+    "rh_7",
+    "t8",
+    "rh_8",
+    "t9",
+    "rh_9",
+    "t_out",
+    "press_mm_hg",
+    "rh_out",
+    "windspeed",
+    "visibility",
+    "tdewpoint",
+    "rv1",
+    "rv2",
+    "date_year",
+    "date_month",
+    "date_day",
+    "date_weekday",
+    "date_ordinal_day",
+    "lights_lag1",
+    "lights_rollmean3",
+    "t1_lag1",
+    "t1_rollmean3",
+    "rh_1_lag1",
+    "rh_1_rollmean3",
+    "t2_lag1",
+    "t2_rollmean3",
+    "rh_2_lag1",
+    "rh_2_rollmean3"
+  ],
+  "created_features": [
+    {
+      "feature": "date_year",
+      "reason": "Date decomposition for seasonal signal"
+    },
+    {
+      "feature": "date_month",
+      "reason": "Date decomposition for seasonal signal"
+    },
+    {
+      "feature": "date_day",
+      "reason": "Date decomposition for seasonal signal"
+    },
+    {
+      "feature": "date_weekday",
+      "reason": "Date decomposition for seasonal signal"
+    },
+    {
+      "feature": "date_ordinal_day",
+      "reason": "Date decomposition for seasonal signal"
+    },
+    {
+      "feature": "lights_lag1",
+      "reason": "Short-term temporal dependency"
+    },
+    {
+      "feature": "lights_rollmean3",
+      "reason": "Local trend smoothing"
+    },
+    {
+      "feature": "t1_lag1",
+      "reason": "Short-term temporal dependency"
+    },
+    {
+      "feature": "t1_rollmean3",
+      "reason": "Local trend smoothing"
+    },
+    {
+      "feature": "rh_1_lag1",
+      "reason": "Short-term temporal dependency"
+    },
+    {
+      "feature": "rh_1_rollmean3",
+      "reason": "Local trend smoothing"
+    },
+    {
+      "feature": "t2_lag1",
+      "reason": "Short-term temporal dependency"
+    },
+    {
+      "feature": "t2_rollmean3",
+      "reason": "Local trend smoothing"
+    },
+    {
+      "feature": "rh_2_lag1",
+      "reason": "Short-term temporal dependency"
+    },
+    {
+      "feature": "rh_2_rollmean3",
+      "reason": "Local trend smoothing"
+    }
+  ],
+  "split_strategy": {
+    "requested_mode": "auto",
+    "resolved_mode": "time_series",
+    "time_column": "date",
+    "random_state": 42
+  },
+  "context": {
+    "dataset_id": "appliances_energy_prediction.csv",
+    "target_column": "appliances",
+    "time_column": "date",
+    "features": [
+      "lights",
+      "t1",
+      "rh_1",
+      "t2",
+      "rh_2",
+      "t3",
+      "rh_3",
+      "t4",
+      "rh_4",
+      "t5",
+      "rh_5",
+      "t6",
+      "rh_6",
+      "t7",
+      "rh_7",
+      "t8",
+      "rh_8",
+      "t9",
+      "rh_9",
+      "t_out",
+      "press_mm_hg",
+      "rh_out",
+      "windspeed",
+      "visibility",
+      "tdewpoint",
+      "rv1",
+      "rv2",
+      "date_year",
+      "date_month",
+      "date_day",
+      "date_weekday",
+      "date_ordinal_day",
+      "lights_lag1",
+      "lights_rollmean3",
+      "t1_lag1",
+      "t1_rollmean3",
+      "rh_1_lag1",
+      "rh_1_rollmean3",
+      "t2_lag1",
+      "t2_rollmean3",
+      "rh_2_lag1",
+      "rh_2_rollmean3"
+    ],
+    "split_strategy": {
+      "requested_mode": "auto",
+      "resolved_mode": "time_series",
+      "time_column": "date",
+      "random_state": 42
+    },
+    "model_candidates": [],
+    "metrics": {},
+    "artifacts": {
+      "cleaned_parquet": "output\\20260410T172955Z\\cleaned.parquet",
+      "features_parquet": "output\\20260410T172955Z\\features.parquet"
+    },
+    "notes": []
+  }
+}
