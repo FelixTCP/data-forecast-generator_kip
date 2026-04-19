@@ -24,38 +24,45 @@ Generate a decision-ready profile that critically evaluates feature quality AND 
 - Compute variance for every numeric column. Flag any column with variance below `1e-4` (after min-max scaling) as `low_variance`.
 - Compute unique value counts for categorical/string columns. Flag those with >50 unique values as `high_cardinality`.
 - Both types contribute no useful information for standard models and must be excluded unless explicitly overridden.
+
 ### 2. Leakage Risk Detection
 - Per the strict non-leakage policy: identify any feature that is essentially a duplicate or direct proxy of the target at time $t$.
 - If a feature has a lag-0 cross-correlation with the target > `0.98`, or an anomalously high MI score, flag it as `leakage_suspect` and add it to `excluded_features`.
+
 #### 3. Mutual Information Ranking
 - Compute `mutual_info_regression(X, y)` for all numeric features vs. the target (use `sklearn.feature_selection`).
 - Also compute MI for **5 fresh random-noise columns** (standard normal, same row count) as a baseline.
 - Flag any real feature whose MI score falls **at or below the average noise MI** as `below_noise_baseline`.
 - Sort all features by MI descending and include the ranking in the output JSON.
 - Features ranked at or below noise baseline are **not recommended** for step 12.
+
 #### 4. Pairwise Correlation & Redundancy
 - Compute the Pearson correlation matrix for all numeric features.
 - For any pair with |correlation| ≥ 0.90, flag the one with the **lower MI with the target** as `redundant`.
 - Redundant features are **not recommended** for step 12.
-### 5. Time-Series Profiling (when time column detected)
+
+#### 5. Time-Series Profiling (when time column detected)
 - **Multiple Series Check:** Detect if the dataset contains multiple independent time series (e.g., grouped by a categorical ID).
 - **Stationarity:** Compute the Augmented Dickey-Fuller (ADF) test on the target column. Record if it is stationary (p < 0.05) or non-stationary.
 - **White Noise Check:** Use the Ljung-Box test to flag if the target series is essentially a Random Walk / White Noise.
 - **Components:** Decompose the series to flag if significant `trend` or `seasonality` is present.
 - **Model Recommendations:** Based on ADF and Seasonality results, append 2-3 recommended model families (e.g., "SARIMA" for seasonal/non-stationary, "XGBoost" for highly non-linear multiple series, "Naive" for White Noise).
+
 #### 6. Time-Series Lag Analysis
 - Compute autocorrelation of the target at lags 1–24 (or up to N/4 if series is short).
 - Identify lags where autocorrelation exceeds 0.1 and flag them as `significant_lags`.
 - Compute cross-correlation of each feature with the target at lags 0, 1, 2, 3.
 - Flag feature-lag combinations where cross-correlation exceeds 0.15 as `useful_lag_features`.
 - This directly informs which lags to build in step 12.
+
 #### 7. Client-Facing Summary
 - Generate a concise, non-technical text string (`client_facing_summary`) summarizing the time-series behavior (trend/seasonality) and justifying dropped features (e.g., "Temperature is highly predictive, but sensor_v2 was identified as random noise and removed").
 
 
 ## Output JSON Keys
 
-```{
+```json 
+{
   "step": "11-data-exploration",
   "shape": {"rows": 19735, "columns": 29},
   "numeric_columns": ["t1", "t6", "rh_6", "lights", "t_out", "rv1", "rv2"],
@@ -98,7 +105,7 @@ Generate a decision-ready profile that critically evaluates feature quality AND 
 - **Polars to Pandas:** Convert the `pl.DataFrame` to `pandas` or `numpy` before passing data into `sklearn` or `statsmodels` functions.
 
 ## Copilot Prompt Snippet
-```
+```markdown
 Implement `step_11_exploration.py`. The CLI receives `--output-dir` and `--run-id`. 
 Read the target column name from `OUTPUT_DIR/progress.json`. Load `OUTPUT_DIR/cleaned.parquet` using `polars`, but convert to `pandas` before passing arrays to `statsmodels` and `sklearn`.
 Include: near-zero variance, high cardinality check, MI ranking vs. target with random-noise baseline comparison, pairwise correlation redundancy detection (|r| >= 0.90), and a strict lag-0 leakage check (flag xcorr > 0.98).
