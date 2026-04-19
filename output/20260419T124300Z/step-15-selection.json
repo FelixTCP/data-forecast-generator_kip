@@ -1,0 +1,39 @@
+{
+  "step": "15-model-selection",
+  "run_id": "20260419T124300Z",
+  "selected_model": "ridge",
+  "weighted_score": 1.0,
+  "rationale": "ridge achieved the highest weighted score (1.0000) with R\u00b2 = 0.5434, RMSE = 60.7733, and MAE = 27.0967. It outperformed random_forest by 1.0000 points.",
+  "quality_flag": "acceptable",
+  "full_ranking": [
+    {
+      "rank": 1,
+      "model_name": "ridge",
+      "r2": 0.5434138321346691,
+      "rmse": 60.77332376887828,
+      "mae": 27.09667217114412,
+      "cv_std_r2": 0.032088106249092405,
+      "weighted_score": 1.0,
+      "eligible": true
+    },
+    {
+      "rank": 2,
+      "model_name": "random_forest",
+      "r2": 0.17087608172559765,
+      "rmse": 81.895744561149,
+      "mae": 49.06560840529113,
+      "cv_std_r2": 0.1766960172006031,
+      "weighted_score": 0.0,
+      "eligible": true
+    },
+    {
+      "model_name": "gradient_boosting",
+      "r2": -0.8045473673590082,
+      "rmse": 120.81914470644249,
+      "mae": 91.24389735172845,
+      "weighted_score": null,
+      "eligible": false,
+      "reason": "R\u00b2 < 0 (worse than mean baseline)"
+    }
+  ]
+}

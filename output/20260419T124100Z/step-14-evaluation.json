@@ -1,0 +1,184 @@
+{
+  "candidates": [
+    {
+      "artifact": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/candidate-ridge.joblib",
+      "cv_mean_r2": 0.5431083639561143,
+      "cv_std_r2": 0.06766280721563343,
+      "mae": 28.412928284581106,
+      "mape": 27.628115537905114,
+      "model_name": "ridge",
+      "model_worse_than_mean_baseline": false,
+      "r2": 0.5668829594991193,
+      "residual_max_abs": 601.9896967710653,
+      "residual_mean": -2.687135279861351,
+      "rmse": 59.56329686815007
+    },
+    {
+      "artifact": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/candidate-random_forest.joblib",
+      "cv_mean_r2": 0.45591076415023507,
+      "cv_std_r2": 0.09814772293195848,
+      "mae": 60.49980556260039,
+      "mape": 68.25070940885146,
+      "model_name": "random_forest",
+      "model_worse_than_mean_baseline": true,
+      "r2": -0.032898411034066655,
+      "residual_max_abs": 583.4666666666667,
+      "residual_mean": -45.70031279059937,
+      "rmse": 91.98243398837452
+    },
+    {
+      "artifact": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/candidate-gradient_boosting.joblib",
+      "cv_mean_r2": 0.506143882768483,
+      "cv_std_r2": 0.04792915560490726,
+      "mae": 45.49899488823488,
+      "mape": 53.05949286832622,
+      "model_name": "gradient_boosting",
+      "model_worse_than_mean_baseline": false,
+      "r2": 0.3797343928719642,
+      "residual_max_abs": 595.0505912021947,
+      "residual_mean": -26.654092446895596,
+      "rmse": 71.2795490033577
+    }
+  ],
+  "context": {
+    "artifacts": {
+      "cleaned_parquet": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/cleaned.parquet",
+      "features_parquet": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/features.parquet",
+      "holdout_npz": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/holdout.npz",
+      "model_joblib": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/model.joblib",
+      "step_00_profiler": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/step-00_profiler.json",
+      "step_00_report": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/step-00_data_profile_report.md",
+      "step_11_json": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/step-11-exploration.json"
+    },
+    "dataset_id": "appliances_energy_prediction",
+    "features": [
+      "lights",
+      "t1",
+      "rh_1",
+      "t2",
+      "rh_2",
+      "rh_3",
+      "t4",
+      "rh_4",
+      "rh_5",
+      "t6",
+      "rh_6",
+      "rh_7",
+      "t8",
+      "rh_8",
+      "t9",
+      "rh_9",
+      "press_mm_hg",
+      "rh_out",
+      "windspeed",
+      "visibility",
+      "tdewpoint",
+      "year",
+      "month",
+      "day_of_week",
+      "hour",
+      "lights_lag_1",
+      "lights_lag_2",
+      "lights_lag_3",
+      "target_lag_1",
+      "target_lag_2",
+      "target_lag_3",
+      "target_lag_4",
+      "target_lag_5",
+      "target_lag_6",
+      "target_lag_7",
+      "target_lag_8",
+      "target_lag_9",
+      "target_lag_10",
+      "target_lag_11",
+      "target_lag_12",
+      "target_lag_13",
+      "target_lag_14",
+      "target_lag_15",
+      "target_lag_16",
+      "target_lag_17",
+      "target_lag_18",
+      "target_lag_19",
+      "target_lag_20",
+      "target_lag_21",
+      "target_lag_22",
+      "target_lag_23",
+      "target_lag_24",
+      "target_shift1_roll_mean_w1",
+      "target_shift1_roll_mean_w2",
+      "target_shift1_roll_std_w2"
+    ],
+    "metrics": {
+      "best_holdout_r2": 0.5668829594991193,
+      "naive_baseline_r2": 0.4645034588198884
+    },
+    "model_candidates": [
+      {
+        "artifact": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/candidate-ridge.joblib",
+        "cv_mean_r2": 0.5431083639561143,
+        "cv_std_r2": 0.06766280721563343,
+        "fit_time_sec": 1.09293579199948,
+        "mae": 28.412928284581106,
+        "model_name": "ridge",
+        "r2": 0.5668829594991193,
+        "rmse": 59.56329686815007,
+        "status": "ok"
+      },
+      {
+        "artifact": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/candidate-random_forest.joblib",
+        "cv_mean_r2": 0.45591076415023507,
+        "cv_std_r2": 0.09814772293195848,
+        "fit_time_sec": 50.27765683400139,
+        "mae": 60.49980556260039,
+        "model_name": "random_forest",
+        "r2": -0.032898411034066655,
+        "rmse": 91.98243398837452,
+        "status": "ok"
+      },
+      {
+        "artifact": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/candidate-gradient_boosting.joblib",
+        "cv_mean_r2": 0.506143882768483,
+        "cv_std_r2": 0.04792915560490726,
+        "fit_time_sec": 13.162441250002303,
+        "mae": 45.49899488823488,
+        "model_name": "gradient_boosting",
+        "r2": 0.3797343928719642,
+        "rmse": 71.2795490033577,
+        "status": "ok"
+      }
+    ],
+    "notes": [
+      "Step 01 completed with strict non-dropping policy."
+    ],
+    "split_strategy": {
+      "random_state": 42,
+      "requested_mode": "auto",
+      "resolved_mode": "time_series"
+    },
+    "target_column": "appliances",
+    "time_column": "date"
+  },
+  "expansion_candidates": [],
+  "expansion_diagnosis": "",
+  "leakage_probe": {
+    "details": [],
+    "status": "not_triggered",
+    "triggered": false
+  },
+  "naive_baseline": {
+    "mae": 26.520415926959167,
+    "r2": 0.4645808623995821,
+    "residual_max_abs": 600.0,
+    "residual_mean": 0.04311437991377124,
+    "rmse": 66.22516330390175
+  },
+  "quality_assessment": "acceptable",
+  "step": "14-model-evaluation",
+  "target_stats": {
+    "max": 850.0,
+    "mean": 96.07151914785696,
+    "median": 60.0,
+    "min": 20.0,
+    "std": 90.50573357075729
+  }
+}
