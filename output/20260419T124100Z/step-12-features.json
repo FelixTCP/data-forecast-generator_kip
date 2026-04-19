@@ -1,0 +1,378 @@
+{
+  "artifacts": {
+    "features_parquet": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/features.parquet",
+    "leakage_audit": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/leakage_audit.json",
+    "step_12_json": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/step-12-features.json"
+  },
+  "context": {
+    "artifacts": {
+      "cleaned_parquet": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/cleaned.parquet",
+      "features_parquet": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/features.parquet",
+      "step_00_profiler": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/step-00_profiler.json",
+      "step_00_report": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/step-00_data_profile_report.md",
+      "step_11_json": "/Users/js/OTH/SS26/KIP/data-forecast-generator_kip/output/20260419T124100Z/step-11-exploration.json"
+    },
+    "dataset_id": "appliances_energy_prediction",
+    "features": [
+      "lights",
+      "t1",
+      "rh_1",
+      "t2",
+      "rh_2",
+      "rh_3",
+      "t4",
+      "rh_4",
+      "rh_5",
+      "t6",
+      "rh_6",
+      "rh_7",
+      "t8",
+      "rh_8",
+      "t9",
+      "rh_9",
+      "press_mm_hg",
+      "rh_out",
+      "windspeed",
+      "visibility",
+      "tdewpoint",
+      "year",
+      "month",
+      "day_of_week",
+      "hour",
+      "lights_lag_1",
+      "lights_lag_2",
+      "lights_lag_3",
+      "target_lag_1",
+      "target_lag_2",
+      "target_lag_3",
+      "target_lag_4",
+      "target_lag_5",
+      "target_lag_6",
+      "target_lag_7",
+      "target_lag_8",
+      "target_lag_9",
+      "target_lag_10",
+      "target_lag_11",
+      "target_lag_12",
+      "target_lag_13",
+      "target_lag_14",
+      "target_lag_15",
+      "target_lag_16",
+      "target_lag_17",
+      "target_lag_18",
+      "target_lag_19",
+      "target_lag_20",
+      "target_lag_21",
+      "target_lag_22",
+      "target_lag_23",
+      "target_lag_24",
+      "target_shift1_roll_mean_w1",
+      "target_shift1_roll_mean_w2",
+      "target_shift1_roll_std_w2"
+    ],
+    "metrics": {},
+    "model_candidates": [],
+    "notes": [
+      "Step 01 completed with strict non-dropping policy."
+    ],
+    "split_strategy": {
+      "random_state": 42,
+      "requested_mode": "auto",
+      "resolved_mode": "time_series",
+      "time_column": "date"
+    },
+    "target_column": "appliances",
+    "time_column": "date"
+  },
+  "created_features": [
+    {
+      "name": "year",
+      "reason": "time decomposition"
+    },
+    {
+      "name": "month",
+      "reason": "time decomposition"
+    },
+    {
+      "name": "day_of_week",
+      "reason": "time decomposition"
+    },
+    {
+      "name": "hour",
+      "reason": "time decomposition"
+    },
+    {
+      "name": "lights_lag_1",
+      "reason": "useful_lag_feature: lights lag=1 xcorr=0.189623"
+    },
+    {
+      "name": "lights_lag_2",
+      "reason": "useful_lag_feature: lights lag=2 xcorr=0.175272"
+    },
+    {
+      "name": "lights_lag_3",
+      "reason": "useful_lag_feature: lights lag=3 xcorr=0.15943"
+    },
+    {
+      "name": "target_lag_1",
+      "reason": "significant_lag=1 from step 11"
+    },
+    {
+      "name": "target_lag_2",
+      "reason": "significant_lag=2 from step 11"
+    },
+    {
+      "name": "target_lag_3",
+      "reason": "significant_lag=3 from step 11"
+    },
+    {
+      "name": "target_lag_4",
+      "reason": "significant_lag=4 from step 11"
+    },
+    {
+      "name": "target_lag_5",
+      "reason": "significant_lag=5 from step 11"
+    },
+    {
+      "name": "target_lag_6",
+      "reason": "significant_lag=6 from step 11"
+    },
+    {
+      "name": "target_lag_7",
+      "reason": "significant_lag=7 from step 11"
+    },
+    {
+      "name": "target_lag_8",
+      "reason": "significant_lag=8 from step 11"
+    },
+    {
+      "name": "target_lag_9",
+      "reason": "significant_lag=9 from step 11"
+    },
+    {
+      "name": "target_lag_10",
+      "reason": "significant_lag=10 from step 11"
+    },
+    {
+      "name": "target_lag_11",
+      "reason": "significant_lag=11 from step 11"
+    },
+    {
+      "name": "target_lag_12",
+      "reason": "significant_lag=12 from step 11"
+    },
+    {
+      "name": "target_lag_13",
+      "reason": "significant_lag=13 from step 11"
+    },
+    {
+      "name": "target_lag_14",
+      "reason": "significant_lag=14 from step 11"
+    },
+    {
+      "name": "target_lag_15",
+      "reason": "significant_lag=15 from step 11"
+    },
+    {
+      "name": "target_lag_16",
+      "reason": "significant_lag=16 from step 11"
+    },
+    {
+      "name": "target_lag_17",
+      "reason": "significant_lag=17 from step 11"
+    },
+    {
+      "name": "target_lag_18",
+      "reason": "significant_lag=18 from step 11"
+    },
+    {
+      "name": "target_lag_19",
+      "reason": "significant_lag=19 from step 11"
+    },
+    {
+      "name": "target_lag_20",
+      "reason": "significant_lag=20 from step 11"
+    },
+    {
+      "name": "target_lag_21",
+      "reason": "significant_lag=21 from step 11"
+    },
+    {
+      "name": "target_lag_22",
+      "reason": "significant_lag=22 from step 11"
+    },
+    {
+      "name": "target_lag_23",
+      "reason": "significant_lag=23 from step 11"
+    },
+    {
+      "name": "target_lag_24",
+      "reason": "significant_lag=24 from step 11"
+    },
+    {
+      "name": "target_shift1_roll_mean_w1",
+      "reason": "causal rolling mean with window=1"
+    },
+    {
+      "name": "target_shift1_roll_mean_w2",
+      "reason": "causal rolling mean with window=2"
+    },
+    {
+      "name": "target_shift1_roll_std_w2",
+      "reason": "causal rolling std with window=2"
+    }
+  ],
+  "features": [
+    "lights",
+    "t1",
+    "rh_1",
+    "t2",
+    "rh_2",
+    "rh_3",
+    "t4",
+    "rh_4",
+    "rh_5",
+    "t6",
+    "rh_6",
+    "rh_7",
+    "t8",
+    "rh_8",
+    "t9",
+    "rh_9",
+    "press_mm_hg",
+    "rh_out",
+    "windspeed",
+    "visibility",
+    "tdewpoint",
+    "year",
+    "month",
+    "day_of_week",
+    "hour",
+    "lights_lag_1",
+    "lights_lag_2",
+    "lights_lag_3",
+    "target_lag_1",
+    "target_lag_2",
+    "target_lag_3",
+    "target_lag_4",
+    "target_lag_5",
+    "target_lag_6",
+    "target_lag_7",
+    "target_lag_8",
+    "target_lag_9",
+    "target_lag_10",
+    "target_lag_11",
+    "target_lag_12",
+    "target_lag_13",
+    "target_lag_14",
+    "target_lag_15",
+    "target_lag_16",
+    "target_lag_17",
+    "target_lag_18",
+    "target_lag_19",
+    "target_lag_20",
+    "target_lag_21",
+    "target_lag_22",
+    "target_lag_23",
+    "target_lag_24",
+    "target_shift1_roll_mean_w1",
+    "target_shift1_roll_mean_w2",
+    "target_shift1_roll_std_w2"
+  ],
+  "features_excluded": {
+    "rv1": "below_noise_baseline",
+    "rv2": "below_noise_baseline;redundant",
+    "t3": "redundant",
+    "t5": "redundant",
+    "t7": "redundant",
+    "t_out": "redundant"
+  },
+  "leakage_audit": {
+    "checks": [
+      "pairwise_corr",
+      "linear_probe_reconstruction"
+    ],
+    "details": [
+      {
+        "r2": 0.53516603,
+        "rmse": 61.70566265,
+        "subset": [
+          "target_lag_1"
+        ]
+      },
+      {
+        "r2": 0.24962943,
+        "rmse": 78.39962576,
+        "subset": [
+          "target_lag_2"
+        ]
+      },
+      {
+        "r2": 0.18633921,
+        "rmse": 81.63902074,
+        "subset": [
+          "target_lag_3"
+        ]
+      },
+      {
+        "r2": 0.1657464,
+        "rmse": 82.6656598,
+        "subset": [
+          "target_lag_4"
+        ]
+      },
+      {
+        "r2": 0.14158128,
+        "rmse": 83.85436671,
+        "subset": [
+          "target_lag_5"
+        ]
+      },
+      {
+        "r2": 0.11972975,
+        "rmse": 84.9149395,
+        "subset": [
+          "target_lag_6"
+        ]
+      },
+      {
+        "r2": 0.09268557,
+        "rmse": 86.20947509,
+        "subset": [
+          "target_lag_7"
+        ]
+      },
+      {
+        "r2": 0.08721129,
+        "rmse": 86.46915641,
+        "subset": [
+          "target_lag_8"
+        ]
+      },
+      {
+        "r2": 0.10256515,
+        "rmse": 85.73883116,
+        "subset": [
+          "target_lag_9"
+        ]
+      },
+      {
+        "r2": 0.10731023,
+        "rmse": 85.5118635,
+        "subset": [
+          "target_lag_10"
+        ]
+      }
+    ],
+    "status": "pass"
+  },
+  "leakage_flags": [],
+  "rows_dropped_by_lag": 24,
+  "split_strategy": {
+    "random_state": 42,
+    "requested_mode": "auto",
+    "resolved_mode": "time_series",
+    "time_column": "date"
+  },
+  "step": "12-feature-extraction"
+}
