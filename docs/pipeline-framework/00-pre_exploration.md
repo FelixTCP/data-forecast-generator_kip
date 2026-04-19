@@ -1,22 +1,57 @@
-# TASK: DATA PROFILING
-You are a Senior Data Analyst. We need to safely inspect the $CSV_FILE without loading it entirely into memory to avoid missing hidden anomalies.
+# #00 Context Engineering: Data Profiling
 
-**Step 1:** Write a tiny, temporary python script into $OUTPUT_DIR
-- Extract the exact header and the first 5 rows (`head`).
-- Extract the last 5 rows (`tail`) to check for footers or trailing summary rows.
-- Extract a random sample of 10 rows to catch inconsistent types or varying missing value representations.
-- Get the exact row count 
-- Write output into 00_profiler_output.json
+## Objective
 
-**Step 2:** Analyze this raw text output and assess structural consistency (e.g., ensure the delimiter count is identical across all sampled rows).
+Safely inspect the CSV without loading it entirely into memory to avoid missing hidden anomalies, assess structural consistency, and generate a data profile report.
 
-**Step 3:** Create a file named `00_data_profile_report.md` in the $ARTIFACTS_DIR folder. 
+## Inputs
 
-The `00_data_profile_report.md` MUST contain:
-- **File Metadata:** File encoding natively detected, estimated total rows, and file size.
-- **Expected Delimiter & Structural Integrity:** (e.g., comma, semicolon, tab, and whether delimiters are evenly distributed per row).
-- **Detected Columns & Guessed Types:** List them based on the diverse sample.
-- **Data Anomalies & Pitfalls:** (e.g., "Row 99 has a missing value represented as `\N`", "The 'price' column uses a comma as a decimal separator", "Strings contain unescaped newline characters", "Trailing blank lines exist at the end of the file").
-- **Recommended Polars Cleansing Steps:** Bullet points on how to safely cast these specific columns and handle the identified anomalies using Polars lazy evaluation where possible.
+- CSV path
+- Output directory
+- Run ID
 
-When done continue with `01-csv_read_and_cleansing.md`.
+## Outputs
+
+- `step-00_profiler.json`
+- `step-00_data_profile_report.md` (Contains file metadata, delimiters, columns & guessed types, data anomalies, and recommended Polars cleansing steps)
+
+## Guardrails
+
+- Do not load the entire file into memory to avoid memory limits with large files.
+- Catch inconsistent types or varying missing value representations.
+- Check for footers or trailing summary rows.
+
+## Copilot Prompt Snippet
+
+```markdown
+Implement a lightweight Python script to extract the exact header, first 5 rows (`head`), last 5 rows (`tail`), and a random sample of 10 rows. Get exact row count. Write output into `step-00_profiler.json`.
+Assess structural consistency (e.g., identical delimiter count) and generate a `step-00_data_profile_report.md` outlining metadata, expected structure, columns, anomalies, and recommended Polars cleansing steps.
+```
+
+## Code Skeleton
+
+```python
+import json
+import os
+
+def generate_data_profile(csv_path: str, output_dir: str, run_id: str) -> None:
+    # 1. Read file incrementally (head, tail, sample, line count)
+    # 2. Extract metadata and identify anomalies
+    # 3. Write step-00_profiler.json
+    
+    profiler_output_path = os.path.join(output_dir, "step-00_profiler.json")
+    with open(profiler_output_path, "w") as f:
+        json.dump({"metadata": "...", "head": [], "tail": [], "sample": []}, f)
+        
+    # 4. Write step-00_data_profile_report.md
+    report_path = os.path.join(output_dir, "step-00_data_profile_report.md")
+    with open(report_path, "w") as f:
+        f.write("# Data Profile Report\n...")
+```
+
+## Tests
+
+- very large csv file
+- missing or unexpected delimiters
+- trailing summary rows present
+- inconsistent column types in random sample
