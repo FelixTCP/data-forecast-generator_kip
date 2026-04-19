@@ -1,0 +1,148 @@
+{
+  "step": "15-model-selection",
+  "selection_rule": {
+    "r2_weight": 0.5,
+    "rmse_weight": 0.25,
+    "mae_weight": 0.15,
+    "stability_weight": 0.1,
+    "tie_breaker": "lower complexity"
+  },
+  "ranking": [
+    {
+      "model_name": "ridge",
+      "complexity": 1,
+      "weighted_score": 1.0,
+      "metrics": {
+        "r2": 0.10605293036991192,
+        "rmse": 86.07581412323282,
+        "mae": 50.513568741902496
+      },
+      "cv_mean_r2": 0.056492314735563175,
+      "cv_std_r2": 0.08227633324314226,
+      "artifact_path": "output\\20260410T172955Z\\candidate-ridge.joblib"
+    },
+    {
+      "model_name": "random_forest",
+      "complexity": 4,
+      "weighted_score": 0.42089977458715133,
+      "metrics": {
+        "r2": -4.530032719002494,
+        "rmse": 214.08640376664638,
+        "mae": 192.59853897474875
+      },
+      "cv_mean_r2": -0.6633165197655698,
+      "cv_std_r2": 0.29405531358207804,
+      "artifact_path": "output\\20260410T172955Z\\candidate-random_forest.joblib"
+    },
+    {
+      "model_name": "gradient_boosting",
+      "complexity": 3,
+      "weighted_score": 0.0,
+      "metrics": {
+        "r2": -9.70918883908174,
+        "rmse": 297.9226517260612,
+        "mae": 245.54556619617904
+      },
+      "cv_mean_r2": -0.39518551540646507,
+      "cv_std_r2": 0.3387004803569641,
+      "artifact_path": "output\\20260410T172955Z\\candidate-gradient_boosting.joblib"
+    }
+  ],
+  "selected_model": {
+    "model_name": "ridge",
+    "complexity": 1,
+    "weighted_score": 1.0,
+    "metrics": {
+      "r2": 0.10605293036991192,
+      "rmse": 86.07581412323282,
+      "mae": 50.513568741902496
+    },
+    "cv_mean_r2": 0.056492314735563175,
+    "cv_std_r2": 0.08227633324314226,
+    "artifact_path": "output\\20260410T172955Z\\candidate-ridge.joblib"
+  },
+  "rationale": [
+    "Model selected using weighted normalized score across R2/RMSE/MAE/stability.",
+    "Tie-breaker favors lower complexity for similar weighted score."
+  ],
+  "context": {
+    "dataset_id": "appliances_energy_prediction.csv",
+    "target_column": "appliances",
+    "time_column": "date",
+    "features": [
+      "lights",
+      "t1",
+      "rh_1",
+      "t2",
+      "rh_2",
+      "t3",
+      "rh_3",
+      "t4",
+      "rh_4",
+      "t5",
+      "rh_5",
+      "t6",
+      "rh_6",
+      "t7",
+      "rh_7",
+      "t8",
+      "rh_8",
+      "t9",
+      "rh_9",
+      "t_out",
+      "press_mm_hg",
+      "rh_out",
+      "windspeed",
+      "visibility",
+      "tdewpoint",
+      "rv1",
+      "rv2",
+      "date_year",
+      "date_month",
+      "date_day",
+      "date_weekday",
+      "date_ordinal_day",
+      "lights_lag1",
+      "lights_rollmean3",
+      "t1_lag1",
+      "t1_rollmean3",
+      "rh_1_lag1",
+      "rh_1_rollmean3",
+      "t2_lag1",
+      "t2_rollmean3",
+      "rh_2_lag1",
+      "rh_2_rollmean3"
+    ],
+    "split_strategy": {
+      "requested_mode": "auto",
+      "resolved_mode": "time_series",
+      "time_column": "date",
+      "random_state": 42
+    },
+    "model_candidates": [
+      {
+        "name": "ridge",
+        "complexity": 1
+      },
+      {
+        "name": "gradient_boosting",
+        "complexity": 3
+      },
+      {
+        "name": "random_forest",
+        "complexity": 4
+      }
+    ],
+    "metrics": {
+      "best_cv_mean_r2": 0.056492314735563175,
+      "best_holdout_r2": 0.10605293036991192
+    },
+    "artifacts": {
+      "cleaned_parquet": "output\\20260410T172955Z\\cleaned.parquet",
+      "features_parquet": "output\\20260410T172955Z\\features.parquet",
+      "holdout_npz": "output\\20260410T172955Z\\holdout.npz",
+      "model_joblib": "output\\20260410T172955Z\\model.joblib"
+    },
+    "notes": []
+  }
+}
