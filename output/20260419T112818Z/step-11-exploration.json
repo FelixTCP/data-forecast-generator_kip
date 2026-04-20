@@ -1,0 +1,216 @@
+{
+  "step": "11-data-exploration",
+  "shape": {
+    "rows": 19735,
+    "columns": 29
+  },
+  "numeric_columns": [
+    "t1",
+    "rh_1",
+    "t2",
+    "rh_2",
+    "t3",
+    "rh_3",
+    "t4",
+    "rh_4",
+    "t5",
+    "rh_5",
+    "rh_6",
+    "t7",
+    "rh_7",
+    "t8",
+    "rh_8",
+    "t9",
+    "rh_9",
+    "press_mm_hg",
+    "visibility",
+    "appliances"
+  ],
+  "high_cardinality": [
+    "date"
+  ],
+  "low_variance_columns": [],
+  "mi_ranking": [
+    {
+      "feature": "t9",
+      "mi_score": 0.12535343598938642,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t5",
+      "mi_score": 0.11398715044795171,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_6",
+      "mi_score": 0.11228841831589786,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t4",
+      "mi_score": 0.11011522605591573,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t8",
+      "mi_score": 0.10805191215937615,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t3",
+      "mi_score": 0.10528364344835417,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t7",
+      "mi_score": 0.10330158093163444,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t1",
+      "mi_score": 0.10100534606237854,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_1",
+      "mi_score": 0.09011239727459852,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "press_mm_hg",
+      "mi_score": 0.08692210026105318,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_8",
+      "mi_score": 0.08104001975447161,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t2",
+      "mi_score": 0.07914900620211451,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_3",
+      "mi_score": 0.07630488179231065,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_5",
+      "mi_score": 0.07626186465474127,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_4",
+      "mi_score": 0.07323671522251285,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_9",
+      "mi_score": 0.07285431848678758,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_7",
+      "mi_score": 0.06710645965657402,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_2",
+      "mi_score": 0.06513183196845596,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "visibility",
+      "mi_score": 0.026282569761860053,
+      "below_noise_baseline": false
+    }
+  ],
+  "noise_mi_baseline": 0.0037608522711298775,
+  "redundant_columns": [
+    "t3",
+    "t7",
+    "t5"
+  ],
+  "recommended_features": [
+    "t9",
+    "rh_6",
+    "t4",
+    "t8",
+    "t1",
+    "rh_1",
+    "press_mm_hg",
+    "rh_8",
+    "t2",
+    "rh_3",
+    "rh_5",
+    "rh_4",
+    "rh_9",
+    "rh_7",
+    "rh_2",
+    "visibility"
+  ],
+  "excluded_features": {
+    "t3": "redundant",
+    "t5": "redundant",
+    "t7": "redundant"
+  },
+  "target_candidates": [
+    {
+      "column": "t9",
+      "null_rate": 0.0,
+      "mi_with_target": 0.12535343598938642
+    },
+    {
+      "column": "t5",
+      "null_rate": 0.0,
+      "mi_with_target": 0.11398715044795171
+    },
+    {
+      "column": "rh_6",
+      "null_rate": 0.0,
+      "mi_with_target": 0.11228841831589786
+    },
+    {
+      "column": "t4",
+      "null_rate": 0.0,
+      "mi_with_target": 0.11011522605591573
+    },
+    {
+      "column": "t8",
+      "null_rate": 0.0,
+      "mi_with_target": 0.10805191215937615
+    }
+  ],
+  "time_series": {
+    "time_column": "date",
+    "significant_lags": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "useful_lag_features": []
+  }
+}
