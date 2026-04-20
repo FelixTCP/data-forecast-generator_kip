@@ -1,0 +1,82 @@
+{
+  "checks": [
+    "pairwise_corr",
+    "linear_probe_reconstruction"
+  ],
+  "details": [
+    {
+      "r2": 0.53516603,
+      "rmse": 61.70566265,
+      "subset": [
+        "target_lag_1"
+      ]
+    },
+    {
+      "r2": 0.24962943,
+      "rmse": 78.39962576,
+      "subset": [
+        "target_lag_2"
+      ]
+    },
+    {
+      "r2": 0.18633921,
+      "rmse": 81.63902074,
+      "subset": [
+        "target_lag_3"
+      ]
+    },
+    {
+      "r2": 0.1657464,
+      "rmse": 82.6656598,
+      "subset": [
+        "target_lag_4"
+      ]
+    },
+    {
+      "r2": 0.14158128,
+      "rmse": 83.85436671,
+      "subset": [
+        "target_lag_5"
+      ]
+    },
+    {
+      "r2": 0.11972975,
+      "rmse": 84.9149395,
+      "subset": [
+        "target_lag_6"
+      ]
+    },
+    {
+      "r2": 0.09268557,
+      "rmse": 86.20947509,
+      "subset": [
+        "target_lag_7"
+      ]
+    },
+    {
+      "r2": 0.08721129,
+      "rmse": 86.46915641,
+      "subset": [
+        "target_lag_8"
+      ]
+    },
+    {
+      "r2": 0.10256515,
+      "rmse": 85.73883116,
+      "subset": [
+        "target_lag_9"
+      ]
+    },
+    {
+      "r2": 0.10731023,
+      "rmse": 85.5118635,
+      "subset": [
+        "target_lag_10"
+      ]
+    }
+  ],
+  "pairwise_flags": [],
+  "run_id": "20260419T124100Z",
+  "status": "pass",
+  "step": "12-feature-extraction"
+}
