@@ -22,35 +22,83 @@
 
 ---
 
-## Input-Vertrag (vom Data-Exploration-Modul)
+## Input-Vertrag (Output von Schritt 11)
+
+Das Input für `feature_extraction.py` ist der direkte Output von `data_exploration.py`:
 
 ```python
 exploration_output = {
+    # === METADATEN ===
     "metadata": {
-        "execution_id": "expl-2024-04-09-234",
+        "execution_id": "expl-2024-04-09-123",
         "module_name": "data_exploration",
-        "source_file": "energy_demand.csv",
-        "n_rows": 8700,
-        "n_cols": 4,
+        "timestamp_created": "2024-04-09T12:34:56Z",
+        "source_file": "appliances_energy.csv",
+        "n_rows": 19735,
+        "n_cols": 29,
     },
+
+    # === ROHDATEN ===
     "data": {
-        "df": pl.DataFrame,                              # Bereinigtes DataFrame (keine NaN in y!)
-        "time_col": "timestamp",                         # Name der Zeitspalte
-        "numeric_cols": ["energy", "temperature", "humidity"],
-        "categorical_cols": ["location"],
+        "df": pl.DataFrame,                                    # Bereinigtes DataFrame (keine NaN in y!)
+        "time_col": "date",                                    # Name der Zeitspalte
+        "numeric_cols": ["Appliances", "lights", "T1", "RH_1", "T_out", ...],
+        "categorical_cols": [],
+        "target_column": null,                                 # Falls nicht explizit gesetzt
     },
+
+    # === EXPLORATIONS-ERGEBNISSE ===
     "exploration": {
-        "frequency": "1h",                               # Erkannte Zeitreihen-Frequenz
-        "stationarity_adf_pvalue": 0.23,                 # ADF-Test p-Wert
-        "missing_fraction": 0.02,                        # Anteil fehlender Werte (vor Cleaning)
-        "column_stats": {                                # Deskriptive Statistik je Spalte
-            "energy": {"mean": 23.1, "std": 14.2, "min": 0.0, "max": 98.5},
+        "frequency": "10min",                                  # Erkannte Zeitreihen-Frequenz
+        "stationarity_adf_pvalue": 0.23,                       # ADF-Test p-Wert
+        "missing_fraction": 0.0,                               # Anteil fehlender Werte (vor Cleaning)
+        "column_stats": {                                      # Deskriptive Statistik je Spalte
+            "Appliances": {"mean": 93.7, "std": 102.3, "min": 0, "max": 2942},
+            "lights": {"mean": 4.2, "std": 8.4, "min": 0, "max": 176},
         },
     },
+
+    # === ANALYSE-ERGEBNISSE ===
+    "analysis": {
+        "mi_ranking": [                                        # Mutual Information Ranking (absteigend)
+            {"feature": "T6", "mi_score": 0.42, "below_noise_baseline": false},
+            {"feature": "T1", "mi_score": 0.35, "below_noise_baseline": false},
+        ],
+        "noise_mi_baseline": 0.005,                            # Durchschnitt der MI von Rausch-Spalten
+        "redundant_columns": ["rv2"],                          # Redundante Features (high correlation)
+        "correlation_matrix_summary": {
+            "max_pair": ["rv1", "rv2"],
+            "max_corr": 1.0
+        },
+        "low_variance_columns": [],                            # Low-Variance Features
+        "recommended_features": ["T6", "T1", "RH_6", "lights", "T_out"],  # Empfohlene Features für Step 12
+        "excluded_features": {
+            "rv1": "below_noise_baseline",
+            "rv2": "redundant"
+        }
+    },
+
+    # === TIME-SERIES SPEZIFISCHE ANALYSE ===
+    "time_series": {
+        "time_series_detected": true,
+        "significant_lags": [1, 3, 6],                         # Lags mit signifikantem Autocorrelation
+        "useful_lag_features": [                               # Features mit signifikantem Cross-Correlation
+            {"feature": "T1", "lag": 1, "xcorr": 0.23},
+            {"feature": "RH_6", "lag": 3, "xcorr": 0.18},
+        ]
+    },
+
+    # === FEHLER & WARNUNGEN ===
     "errors": [],
     "warnings": [],
 }
 ```
+
+**Kontrakt-Garantien:**
+- `df` ist polars.DataFrame mit keinen NaN in der Zielvariable
+- `numeric_cols` und `categorical_cols` decken alle Spalten ab
+- `recommended_features` ist niemals leer (oder Fehler wird in Schritt 11 geworfen)
+- `analysis.excluded_features` erklärt jeden ausgeschlossenen Feature
 
 ---
 
@@ -179,17 +227,26 @@ feature_output = {
 # import polars as pl
 
 def run_analysis(
-    exploration_output: dict,  # Output von Schritt 11
+    exploration_output: dict,  # Output von Schritt 11 (siehe Input-Vertrag oben)
     config: dict | None = None,
     # config keys: max_lag=48, embedding_dim=3, use_state_space=True,
     #              rolling_windows=[7,14,30], output_dir="outputs/step-12",
     #              target_column=None  # optional: explizite Zielspalte, überspringt Auto-Detection
 ) -> dict:
     """
-    Raises ValueError bei ungültigem Input.
-    Raises RuntimeError wenn Leakage erkannt — kein Artefakt wird in diesem Fall geschrieben.
-    Schreibt features.parquet und step-12-features.json nach output_dir (nur bei leakage.status="pass").
-    Gibt Output-Vertrag-Dict zurück (features.feature_matrix als pl.DataFrame in-memory).
+    **Input**: exploration_output vom Schritt 11
+      - exploration_output["data"]["df"] wird als Input-DataFrame verwendet
+      - exploration_output["data"]["numeric_cols"] definiert die Features
+      - exploration_output["analysis"]["recommended_features"] lenkt Feature-Selektion
+      - exploration_output["time_series"]["significant_lags"] lenkt Lag-Kreation
+
+    **Output**: Feature-Extraktions-Output (siehe Output-Vertrag)
+      - Schreibt features.parquet und step-12-features.json (nur wenn leakage.status="pass")
+      - feature_matrix ist pl.DataFrame mit allen engineered Features + Target
+
+    **Fehlerverarbeitung**:
+      - ValueError bei ungültigem Input (zu wenig Features, leeres DataFrame, etc.)
+      - RuntimeError wenn Leakage erkannt wird — kein Artefakt wird geschrieben
     """
 ```
 
