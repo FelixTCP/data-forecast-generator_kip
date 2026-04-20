@@ -29,22 +29,27 @@ Das Input für `feature_extraction.py` ist der direkte Output von `data_explorat
 ```python
 exploration_output = {
     # === METADATEN ===
+    "step": "11-data-exploration",
     "metadata": {
         "execution_id": "expl-2024-04-09-123",
         "module_name": "data_exploration",
         "timestamp_created": "2024-04-09T12:34:56Z",
         "source_file": "appliances_energy.csv",
-        "n_rows": 19735,
-        "n_cols": 29,
     },
+
+    # === SHAPE & COLUMN INFO ===
+    "shape": {"rows": 19735, "columns": 29},
+    "numeric_columns": ["Appliances", "lights", "T1", "RH_1", "T_out", ...],
+    "high_cardinality": [],
+    "low_variance_columns": [],
 
     # === ROHDATEN ===
     "data": {
-        "df": pl.DataFrame,                                    # Bereinigtes DataFrame (keine NaN in y!)
-        "time_col": "date",                                    # Name der Zeitspalte
+        "df": "pl.DataFrame (in-memory)",
+        "time_col": "date",
         "numeric_cols": ["Appliances", "lights", "T1", "RH_1", "T_out", ...],
         "categorical_cols": [],
-        "target_column": null,                                 # Falls nicht explizit gesetzt
+        "target_column": null
     },
 
     # === EXPLORATIONS-ERGEBNISSE ===
@@ -70,23 +75,33 @@ exploration_output = {
             "max_pair": ["rv1", "rv2"],
             "max_corr": 1.0
         },
-        "low_variance_columns": [],                            # Low-Variance Features
         "recommended_features": ["T6", "T1", "RH_6", "lights", "T_out"],  # Empfohlene Features für Step 12
         "excluded_features": {
             "rv1": "below_noise_baseline",
-            "rv2": "redundant"
+            "rv2": "redundant",
+            "target_copy": "leakage_suspect"
         }
     },
 
     # === TIME-SERIES SPEZIFISCHE ANALYSE ===
-    "time_series": {
-        "time_series_detected": true,
-        "significant_lags": [1, 3, 6],                         # Lags mit signifikantem Autocorrelation
-        "useful_lag_features": [                               # Features mit signifikantem Cross-Correlation
-            {"feature": "T1", "lag": 1, "xcorr": 0.23},
-            {"feature": "RH_6", "lag": 3, "xcorr": 0.18},
-        ]
+    "time_series_detected": true,
+    "time_column": "date",
+    "multiple_series_detected": false,
+    "time_series_characteristics": {
+        "trend_detected": true,                                # Trend vorhanden?
+        "seasonality_detected": true,                          # Saisonalität vorhanden?
+        "stationarity": "non-stationary",                      # ADF-Test Ergebnis
+        "white_noise": false                                   # Ist die Serie reines Rauschen?
     },
+    "model_recommendations": ["SARIMA", "Prophet", "XGBoost"],  # Empfohlene Modell-Architekturen
+    "significant_lags": [1, 3, 6],                             # Lags mit signifikantem Autocorrelation
+    "useful_lag_features": [                                   # Features mit signifikantem Cross-Correlation
+        {"feature": "T1", "lag": 1, "xcorr": 0.23},
+        {"feature": "RH_6", "lag": 3, "xcorr": 0.18},
+    ],
+
+    # === CLIENT-FACING ZUSAMMENFASSUNG ===
+    "client_facing_summary": "Your target variable shows a strong trend and seasonal patterns. Features like T6 and T1 are highly predictive, whereas rv1 and rv2 were excluded due to being redundant or pure noise.",
 
     # === FEHLER & WARNUNGEN ===
     "errors": [],
@@ -95,10 +110,12 @@ exploration_output = {
 ```
 
 **Kontrakt-Garantien:**
+- Input ist der **exakte Output von Step 11** (keine Transformation)
 - `df` ist polars.DataFrame mit keinen NaN in der Zielvariable
 - `numeric_cols` und `categorical_cols` decken alle Spalten ab
 - `recommended_features` ist niemals leer (oder Fehler wird in Schritt 11 geworfen)
 - `analysis.excluded_features` erklärt jeden ausgeschlossenen Feature
+- `time_series_characteristics`, `model_recommendations`, `significant_lags` sind immer vorhanden (auch wenn `time_series_detected=false`)
 
 ---
 
@@ -239,14 +256,64 @@ def run_analysis(
       - exploration_output["data"]["numeric_cols"] definiert die Features
       - exploration_output["analysis"]["recommended_features"] lenkt Feature-Selektion
       - exploration_output["time_series"]["significant_lags"] lenkt Lag-Kreation
+      - exploration_output["time_series"]["time_series_characteristics"] lenkt Feature-Strategy
+      - exploration_output["time_series"]["model_recommendations"] bestimmt Feature-Subsets
 
     **Output**: Feature-Extraktions-Output (siehe Output-Vertrag)
       - Schreibt features.parquet und step-12-features.json (nur wenn leakage.status="pass")
       - feature_matrix ist pl.DataFrame mit allen engineered Features + Target
+      - model_recommendations listet auf, welche Features für welches Modell genutzt werden
 
     **Fehlerverarbeitung**:
       - ValueError bei ungültigem Input (zu wenig Features, leeres DataFrame, etc.)
       - RuntimeError wenn Leakage erkannt wird — kein Artefakt wird geschrieben
+    """
+```
+
+---
+
+## Feature-Engineering-Strategie (basierend auf TS-Charakteristiken)
+
+Diese Strategie passt die Feature-Erstellung an die Ergebnisse von Step 11 an:
+
+| TS-Charakteristik | Empfehlung | Feature-Aktion |
+|---|---|---|
+| **Trend erkannt** | SARIMA, Prophet, XGBoost | Differencing-Features: `diff_1`, `diff_7`, `diff_365` |
+| **Saisonalität erkannt** | SARIMA, Prophet, Prophet-QR | Seasonal Lags: `y_lag_24`, `y_lag_168` (12h, 1W für stündliche Daten) |
+| **Stationär** | Gradient Boosting, Linear Regression | Keine Differencing nötig; Raw Lags reichen |
+| **Nicht-stationär** | SARIMA, Prophet, ETS | Differencing Features MUSS erstellt werden |
+| **White Noise erkannt** | Naive, Exponential Smoothing | Nur triviale Lag-Features; komplex engineered Features bringen nichts |
+| **Multiple Series** | XGBoost mit Gruppierung, LightGBM | Categorical Features für Serie-ID + Cross-Series Features |
+
+### Konkrete Implementierung:
+
+```python
+def create_adaptive_features(
+    exploration_output: dict,
+    df: pl.DataFrame,
+    target_col: str,
+) -> pl.DataFrame:
+    """
+    Erstellt Features adaptiv basierend auf time_series_characteristics.
+    
+    Ablauf:
+    1. Lies exploration_output["time_series"]["time_series_characteristics"]
+    2. Lies exploration_output["time_series"]["significant_lags"]
+    3. Für jeden empfohlenen Modelltyp in model_recommendations:
+       - Erstelle Feature-Subset für dieses Modell
+    4. Union aller Subsets in final feature_matrix
+    
+    Beispiel:
+        if time_series_characteristics["trend_detected"]:
+            features["diff_1"] = df[target_col].diff(1)
+            features["diff_7"] = df[target_col].diff(7)
+        
+        if time_series_characteristics["seasonality_detected"]:
+            # Erkenne Frequenz aus exploration_output["exploration"]["frequency"]
+            seasonal_lag = infer_seasonal_lag(frequency)
+            for lag in significant_lags:
+                if lag % seasonal_lag == 0:
+                    features[f"y_lag_{lag}"] = df[target_col].shift(lag)
     """
 ```
 
@@ -638,3 +705,119 @@ def compute_scaling_metadata(
 - [ ] Rolling-Features: `.shift(1)` vor jeder Rolling-Berechnung; Verletzung → Feature ausschließen
 - [ ] `scaling_metadata`-Block im Output; binäre Features in `never_scale`
 - [ ] Tests unter `tests/test_feature_extraction.py`
+
+---
+
+## 🤖 AGENT IMPLEMENTATION DIRECTIVE
+
+**ACHTUNG: Diese Sektion ist für den Agent zur Implementierung. ALLE 14 Funktionen MÜSSEN vorhanden sein.**
+
+### Erforderliche 14 Funktionen (ALLES IN EINER DATEI)
+
+**PRAGMATISCH HALTEN: 5-15 Zeilen pro Funktion, nicht über-engineered**
+
+1. **Z — auto_detect_target_column()**
+   - Input: `df`, `numeric_cols`, `explicit_target=None`
+   - Output: `(target_col: str, detection_info: dict)`
+   - Logik: Wenn `explicit_target` → validiere gegen `numeric_cols`. Sonst → höchste Varianz
+
+2. **A — compute_lag_mutual_information()**
+   - Input: `df`, `target_col`, `max_lag=48`
+   - Output: `pl.DataFrame` mit Spalten `[lag, mutual_information]`
+   - Nutze: `sklearn.feature_selection.mutual_info_regression`
+
+3. **B — find_best_lags()**
+   - Input: `df`, `target_col`, `max_lag=48`, `top_n=10`
+   - Output: `dict` mit `best_lags`, `acf_values`, `pacf_values`
+   - Nutze: ACF + PACF + MI kombiniert
+
+4. **C — detect_seasonality()**
+   - Input: `df`, `target_col`, `frequency_str="10min"`
+   - Output: `dict` mit `has_seasonality`, `period`, `strength`
+   - Simple: Erkenne periodisches Muster in Daten
+
+5. **D — create_differencing_features()**
+   - Input: `df`, `target_col`
+   - Output: `dict[str, pl.Series]` mit `diff_1`, `diff_7`, ggf. `diff_365`
+   - Logik: Nur wenn non-stationary erkannt
+
+6. **E — create_temporal_features()**
+   - Input: `df`, `time_col`
+   - Output: `dict[str, pl.Series]` mit `hour_of_day`, `day_of_week`, `month`, `quarter`
+   - Logik: Extrahiere aus Datetime-Spalte
+
+7. **F — detect_leakage()**
+   - Input: `df`, `target_col`, `threshold=0.98`
+   - Output: `dict` mit `leakage_status: "pass"|"fail"`, `candidates: list[str]`
+   - Logik: Pearson-Korrelation > threshold mit Target → Leakage verdacht
+
+8. **G — create_adaptive_features()**
+   - Input: `df`, `target_col`, `exploration_output`
+   - Output: `dict[str, pl.Series]` mit adaptierten Features
+   - Logik: IF trend_detected → diff. IF seasonality → seasonal_lags. IF stationär → raw features.
+
+9. **H — create_lag_features()**
+   - Input: `df`, `target_col`, `lags: list[int]`
+   - Output: `dict[str, pl.Series]` mit `lag_1`, `lag_3`, etc.
+   - Logik: `df[col].shift(lag)` für jeden Lag
+
+10. **I — create_rolling_features()**
+    - Input: `df`, `target_col`, `windows: list[int]`
+    - Output: `dict[str, pl.Series]` mit `rolling_mean_X`
+    - Logik: `.shift(1)` ERST, dann `.rolling(window).mean()`
+
+11. **J — validate_feature_count()**
+    - Input: `features: dict`
+    - Output: `None` (oder raise `ValueError`)
+    - Logik: `len(features) >= 2` oder `ValueError: "Too few features"`
+
+12. **K — generate_model_subsets()**
+    - Input: `feature_dict`, `model_recommendations: list[str]`, `analysis_data`
+    - Output: `dict[model_name: list[feature_names]]`
+    - Logik: Pro Modelltyp → Subset von Features (z.B. SARIMA braucht `diff_*`, GB braucht Alles)
+
+13. **L — create_state_space_embedding()**
+    - Input: `df`, `target_col`, `embedding_dim=3`
+    - Output: `dict[str, pl.Series]` mit embedded Features
+    - Logik: Simple: Wenn Zeitreihe → erstelle `[y_t-2, y_t-1, y_t]` als Embedding
+
+14. **M — serialize_artifacts()**
+    - Input: `feature_df`, `output_json`, `output_dir`
+    - Output: `(features_parquet_path: str, audit_json_path: str)`
+    - Logik: Schreibe `.parquet` und `.json` in `output_dir`
+
+### Audit Trail (MUSS im Output-JSON sein)
+
+```python
+"audit_trail": {
+    "Z_auto_detect_target": True,
+    "A_compute_lag_mi": True,
+    "B_find_best_lags": True,
+    "C_detect_seasonality": True,
+    "D_differencing": True,
+    "E_temporal_features": True,
+    "F_detect_leakage": True,
+    "G_adaptive_features": True,
+    "H_lag_features": True,
+    "I_rolling_features": True,
+    "J_validate_features": True,
+    "K_model_subsets": True,
+    "L_state_space": True,
+    "M_serialize": True,
+}
+```
+
+### Validierungsregel für Agent
+
+✅ **SUCCESS**: Wenn diese Bedingungen ALLE erfüllt sind:
+- Datei `step_12_features.py` enthält ALLE 14 Funktionen (grep `^def `)
+- Audit Trail zeigt alle 14 als `True`
+- Leakage-Detection ist implementiert → RuntimeError bei leakage_status="fail"
+- Features werden aus `exploration_output` Fields genutzt (trend, seasonality, model_recommendations)
+- Minimum 2 Features nach Validierung
+
+❌ **FAIL**: Wenn:
+- Weniger als 14 Funktionen im Code
+- Audit Trail unvollständig
+- Funktionen sind Stubs ohne Logik
+- exploration_output Fields werden NICHT genutzt
