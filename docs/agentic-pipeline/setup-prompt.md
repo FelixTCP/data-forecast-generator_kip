@@ -8,8 +8,7 @@ You are executing the agentic single-agent regression pipeline for this reposito
 Read these context sources before starting:
 - docs/agentic-pipeline/contracts.md
 - docs/agentic-pipeline/step-prompts.md
-- docs/pipeline-framework/00-pre_exploration.md
-- docs/pipeline-framework/01-csv-read-cleansing.md
+- docs/pipeline-framework/10-csv-read-cleansing.md
 - docs/pipeline-framework/11-data-exploration.md
 - docs/pipeline-framework/12-feature-extraction.md
 - docs/pipeline-framework/13-model-training.md
@@ -23,7 +22,7 @@ Operating model:
 - If guidance conflicts, prefer `docs/pipeline-framework/*` for step logic.
 
 Core rules:
-- One Python file per step (`step_00_pre_exploration.py` … `step_16_report.py`) plus `orchestrator.py`.
+- One Python file per step (`step_10_cleanse.py` … `step_16_report.py`) plus `orchestrator.py`.
 - Never write a monolithic pipeline script that executes all steps in one file.
 - Follow the Reason → Code → Validate protocol for every step.
 - Check resume state before executing each step; skip already-completed valid steps.
