@@ -1,7 +1,7 @@
 # Step Prompts (Runtime)
 
 These prompts are runtime wrappers. The canonical step requirements live in
-`docs/pipeline-framework/01-...16-...md`.
+`docs/pipeline-framework/10-...16-...md`.
 
 Use this execution protocol for every step:
 1. **Reason** — read the corresponding step spec, confirm inputs/outputs/failure modes
@@ -10,43 +10,22 @@ Use this execution protocol for every step:
 
 ---
 
-## 00-pre_exploration
+## 10-csv-read-cleansing
 
 ```markdown
 PHASE 1 — REASON:
-- Read docs/pipeline-framework/00-pre_exploration.md.
-- Confirm required outputs for step 01:
-  - OUTPUT_DIR/step-00_profiler.json
-  - OUTPUT_DIR/step-00_data_profile_report.md
-
-PHASE 2 — CODE:
-- Write CODE_DIR/step_00_pre_exploration.py.
-- CLI args: --csv-path, --output-dir, --run-id.
-- Implement all behavior from step 00 spec exactly.
-
-PHASE 3 — VALIDATE:
-- step-00_profiler.json exists.
-- step-00_data_profile_report.md exists.
-```
-
----
-
-## 01-csv-read-cleansing
-
-```markdown
-PHASE 1 — REASON:
-- Read docs/pipeline-framework/01-csv-read-cleansing.md.
+- Read docs/pipeline-framework/10-csv-read-cleansing.md.
 - Confirm required outputs for step 11:
   - OUTPUT_DIR/cleaned.parquet
-  - OUTPUT_DIR/step-01-cleanse.json with target normalization, null/dtype report, time column detection.
+  - OUTPUT_DIR/step-10-cleanse.json with target normalization, null/dtype report, time column detection.
 
 PHASE 2 — CODE:
-- Write CODE_DIR/step_01_cleanse.py.
+- Write CODE_DIR/step_10_cleanse.py.
 - CLI args: --csv-path, --target-column, --output-dir, --run-id.
-- Implement all behavior from step 01 spec exactly.
+- Implement all behavior from step 10 spec exactly.
 
 PHASE 3 — VALIDATE:
-- step-01-cleanse.json exists and reports row_count_after > 0.
+- step-10-cleanse.json exists and reports row_count_after > 0.
 - target_column_normalized present.
 - cleaned.parquet exists.
 ```

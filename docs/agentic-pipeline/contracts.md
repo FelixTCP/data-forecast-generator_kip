@@ -34,8 +34,7 @@ This pipeline is for real forecasting. Any target leakage invalidates the run.
 
 | Step                      | Script file                       | Output JSON                |
 | ------------------------- | --------------------------------- | -------------------------- |
-| 00 — Pre-Exploration      | `CODE_DIR/step_00_pre_exploration.py` | `step-00_profiler.json`, `step-00_data_profile_report.md`  |
-| 01 — CSV Read & Cleansing | `CODE_DIR/step_01_cleanse.py`     | `step-01-cleanse.json`     |
+| 10 — CSV Read & Cleansing | `CODE_DIR/step_10_cleanse.py`     | `step-10-cleanse.json`     |
 | 11 — Data Exploration     | `CODE_DIR/step_11_exploration.py` | `step-11-exploration.json` |
 | 12 — Feature Extraction   | `CODE_DIR/step_12_features.py`    | `step-12-features.json`    |
 | 13 — Model Training       | `CODE_DIR/step_13_training.py`    | `step-13-training.json`    |
@@ -68,12 +67,10 @@ If any of these checks fail, the step must be re-run.
 ## Required Files per Run
 
 - `OUTPUT_DIR/progress.json`
-- `OUTPUT_DIR/step-00_profiler.json`
-- `OUTPUT_DIR/step-00_data_profile_report.md`
 - `OUTPUT_DIR/cleaned.parquet`
 - `OUTPUT_DIR/features.parquet`
 - `OUTPUT_DIR/holdout.npz`
-- `OUTPUT_DIR/step-01-cleanse.json`
+- `OUTPUT_DIR/step-10-cleanse.json`
 - `OUTPUT_DIR/step-11-exploration.json`
 - `OUTPUT_DIR/step-12-features.json`
 - `OUTPUT_DIR/step-13-training.json`
@@ -95,8 +92,7 @@ If any of these checks fail, the step must be re-run.
   "status": "running",
   "current_step": "13-model-training",
   "completed_steps": [
-    "00-pre-exploration",
-    "01-csv-read-cleansing",
+    "10-csv-read-cleansing",
     "11-data-exploration",
     "12-feature-extraction"
   ],

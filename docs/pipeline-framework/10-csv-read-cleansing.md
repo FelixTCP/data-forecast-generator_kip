@@ -1,18 +1,18 @@
-# #01 Context Engineering: CSV Read / Cleansing
+# #10 Context Engineering: CSV Read / Cleansing
 
 ## Objective
 
-Load customer CSV robustly and produce a typed, clean `polars.DataFrame` exported to a Parquet file, alongside a tracked issues report. Implement every recommended cleansing step from the Data Profile Report.
+Load customer CSV robustly and produce a typed, clean `polars.DataFrame` exported to a Parquet file, alongside a tracked issues report.
 
 ## Inputs
 
 - CSV path
-- `OUTPUT_DIR/step-00_data_profile_report.md` (for the exact schema, pitfalls, and cleaning instructions)
 - optional schema hints
 
 ## Outputs
 
 - `$OUTPUT_DIR/cleaned.parquet`: The exported cleaned dataset
+- `$OUTPUT_DIR/step-10-cleanse.json`: Structured cleansing report for downstream steps
 - `clean_df`: Evaluation result (`polars.DataFrame`)
 - quality report (`missingness`, invalid casts, duplicates, outliers, applied fixes)
 - updated `PipelineContext.notes`
@@ -29,10 +29,10 @@ Load customer CSV robustly and produce a typed, clean `polars.DataFrame` exporte
 
 ```markdown
 Implement `load_and_clean_csv(csv_path: str, config: dict, output_path: str) -> tuple[pl.DataFrame, dict]`.
-Read `OUTPUT_DIR/step-00_data_profile_report.md` to identify schema pitfalls and cleansing steps.
+Apply robust schema inference and defensive cleansing defaults so the step is self-contained.
 Use only the `polars` Lazy API (`pl.scan_csv()`), executing `.collect()` only before returning/writing the Parquet file to `output_path`.
 Return a `quality_report` with null-rate per column, inferred dtypes, duplicate rows, and applied fixes.
-Write a `pytest`-compatible test file to `$CODE_DIR/tests/test_01_ingest.py`.
+Write a `pytest`-compatible test file to `$CODE_DIR/tests/test_10_ingest.py`.
 ```
 
 ## Code Skeleton
