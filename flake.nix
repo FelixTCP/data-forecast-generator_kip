@@ -59,10 +59,10 @@
             echo "shell: $SHELL"
             echo ""
             echo "Quick commands:"
-            echo "  uv pip install -e .      # Install project dependencies"
-            echo "  pytest           # Run tests"
-            echo "  ruff check src tests  # Lint code"
-            echo "  ruff format src tests # Format code"
+            echo "  uv sync --extra dev      # Install project dependencies"
+            echo "  pytest                   # Run tests"
+            echo "  ruff check tests scripts # Lint code"
+            echo "  ruff format tests scripts # Format code"
             echo ""
           '';
         };

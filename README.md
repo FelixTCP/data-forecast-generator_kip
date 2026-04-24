@@ -2,6 +2,8 @@
 
 Automated discovery and development of regression forecasting models from customer CSV data using LLM-driven analysis.
 
+Current system details: see [CURRENT_SYSTEM_DOCUMENTATION.md](CURRENT_SYSTEM_DOCUMENTATION.md).
+
 ## Quick Start
 
 ### Prerequisites
@@ -16,8 +18,9 @@ Automated discovery and development of regression forecasting models from custom
 nix flake update
 nix develop
 
-# Install project dependencies (Nix shell provides tooling)
-uv pip install -e .
+# Prepare dependencies
+uv sync --extra dev
+uv pip install pandas statsmodels scipy pyarrow
 
 # Verify installation
 pytest --version
@@ -31,7 +34,8 @@ Python 3.12+ with pip:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-uv pip install -e ".[dev]"
+uv sync --extra dev
+uv pip install pandas statsmodels scipy pyarrow
 ```
 
 ## Development
@@ -49,20 +53,20 @@ pytest tests/test_data_loader.py
 pytest tests/test_data_loader.py::test_valid_csv
 
 # With coverage
-pytest --cov=src --cov-report=html
+pytest
 ```
 
 ### Code Quality
 
 ```bash
 # Lint
-ruff check src tests
+ruff check tests scripts
 
 # Format
-ruff format src tests
+ruff format tests scripts
 
 # Type check
-mypy src
+mypy .
 ```
 
 ### Local Development Loop
@@ -70,90 +74,54 @@ mypy src
 ```bash
 # Make changes, then:
 pytest tests/test_module.py -v
-ruff format src tests
+ruff format tests scripts
 git add . && git commit -m "feat: ..."
 ```
 
-### Run the MVP pipeline (`forecast`)
+### Run the pipeline
 
 ```bash
-# Install editable package (once per env)
-uv pip install -e ".[dev]"
+RUN_ID="singleagent_$(date -u +%Y%m%dT%H%M%SZ)"
+OUT="output/$RUN_ID"
+mkdir -p "$OUT/code"
+cp output/manual_run_001/code/*.py "$OUT/code/"
 
-# Execute full AGENTIC pipeline (Copilot CLI is called for each step)
-uv run forecast --csv ./data/your_file.csv --target-column your_target --output-dir ./artifacts
-
-# Optional split strategy
-uv run forecast --csv ./data/your_file.csv --target-column your_target --split-mode auto
-
-# Budget-friendly defaults (small/fast model)
-uv run forecast --csv ./data/your_file.csv --target-column your_target --budget-mode low
-
-# Explicit model override
-uv run forecast --csv ./data/your_file.csv --target-column your_target --copilot-model gpt-5-mini --reasoning-effort low
-
-# Reuse generated code from previous identical command fingerprint
-uv run forecast --csv ./data/your_file.csv --target-column your_target --continue
+uv run python "$OUT/code/orchestrator.py" \
+  --csv-path data/appliances_energy_prediction.csv \
+  --target-column appliances \
+  --output-dir "$OUT" \
+  --run-id "$RUN_ID" \
+  --split-mode auto
 ```
 
-This mode is instruction-first: step logic is executed by Copilot CLI prompts using
-`docs/agentic-pipeline/` contracts and `docs/pipeline-framework/` step guidance.
-Pipeline progress is visualized with `tqdm` while steps execute.
-Required run artifacts now include `model.joblib` for the selected model.
-
-### Verbose debugging artifacts
-Each run now writes rich debug artifacts under `artifacts/<run_id>/debug/`:
-- `run_context.json` (full runtime inputs/profile)
-- `<step>/prompt.md` (exact prompt sent)
-- `<step>/response.md` (raw Copilot response)
-- `<step>/meta.json` (model/reasoning metadata)
-
-It also writes `code_audit.json` and a persistent hashed code workspace:
-- `artifacts/.agent_code/<command_hash>/workspace/` (generated code)
-- `artifacts/.agent_code/<command_hash>/snapshots/` (pre-reset backups)
-
-### Direct `copilot -p` workflow (without CLI orchestrator)
-If you want to debug prompt-by-prompt manually:
-
-```bash
-scripts/run_agentic_prompts.sh \
-  ./data/appliances_energy_prediction.csv \
-  appliances \
-  ./artifacts/manual_debug_run
-```
-
-Prompt templates are in `prompts/agentic/` and rendered prompts/responses are saved to `OUTPUT_DIR/debug/`.
-Generated step code is stored under a hashed directory in `artifacts/.agent_code/<command_hash>/workspace`
-and audited per run in `code_audit.json`.
+The run writes its code, progress file, model artifacts, JSON step outputs, leakage audit, and final report under `output/<RUN_ID>/`.
 
 ### Quick inference check for `model.joblib`
 
 ```bash
 # Predict with model artifact
 uv run python scripts/infer_model.py \
-  --model ./artifacts/<run_id>/model.joblib \
+  --run-dir output/<RUN_ID> \
   --csv ./data/appliances_energy_prediction.csv \
-  --target-column appliances \
-  --output-csv ./artifacts/<run_id>/predictions.csv
+  --target-column appliances
 ```
 
 ## Architecture
 
-See the session `plan.md` for the detailed implementation plan.
+See [CURRENT_SYSTEM_DOCUMENTATION.md](CURRENT_SYSTEM_DOCUMENTATION.md) for the current architecture and run contract.
 
-**Core modules**:
+**Current core runtime**:
 
-- `src/data/` - CSV loading & validation
-- `src/analysis/` - LLM-based CSV analysis
-- `src/pipeline/` - Feature engineering & regression models
-- `src/evaluation/` - Model evaluation & metrics
-- `src/artifacts/` - Model serialization
+- `output/<RUN_ID>/code/` - one standalone Python script per pipeline step
+- `runtime_utils.py` - shared progress, JSON, and code-audit helpers
+- `orchestrator.py` - thin runner that executes steps in order
+- `scripts/` - post-run inference and plotting utilities
 
 **Pipeline framework docs (Issue #8, sub-issues #10-#16):**
 
 - `docs/agentic-pipeline/contracts.md` - Runtime contracts, file layout, and resume rules
 - `docs/agentic-pipeline/step-prompts.md` - Runtime Reason→Code→Validate wrappers per step
-- `docs/pipeline-framework/10-csv-read-cleansing.md` ... `16-result-presentation.md` - Canonical per-step logic
+- `docs/pipeline-framework/00-pre_exploration.md`, `01-csv-read-cleansing.md`, `11-data-exploration.md` ... `16-result-presentation.md` - Canonical per-step logic
 
 ## Configuration
 
@@ -185,7 +153,7 @@ See `.github/workflows/tests.yml`
 
 1. Create feature branch: `git checkout -b feat/my-feature`
 2. Implement with tests
-3. Run `pytest` and `ruff format src tests`
+3. Run `pytest` and `ruff format tests scripts`
 4. Push and create PR
 5. CI/CD validates automatically
 

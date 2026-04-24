@@ -11,6 +11,8 @@ Ausführen der Pipeline auf csv
 Auswerten des Ergebnis der Pipeline
 Das Artefakt ist ein vollständiges Paket mit gefitteten Model-Artefakt, Auswertung und Potential-Analyse.
 
+Aktueller Arbeitsstand: Die Pipeline wird run-basiert ausgefuehrt. Pro Lauf liegen Step-Skripte und Artefakte unter `output/<RUN_ID>/`, inklusive `code/`, `model.joblib`, Evaluations-JSONs und Abschlussreport.
+
 ### PHASE 1: Claude-Template oder GitHub-Copilot-Template 
 Single Prompt, Repo-Template (Readme.md, Ordnerstruktur, project.toml, code-snippets….)
 ### PHASE 2: Auswerten der Qualität der erzeugten MVPS’s/ Projekte mit geeigneten Metriken 

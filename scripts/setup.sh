@@ -18,7 +18,7 @@ nix flake update
 
 # Install dependencies
 echo "📦 Installing Python dependencies..."
-nix develop -c bash -c 'uv pip install -e .'
+nix develop -c bash -c 'uv sync --extra dev'
 
 echo ""
 echo "✅ Setup complete!"
@@ -27,4 +27,4 @@ echo "Next steps:"
 echo "  1. Enter dev environment: nix develop"
 echo "  2. Copy .env.example to .env and add ANTHROPIC_API_KEY"
 echo "  3. Run tests: pytest"
-echo "  4. Start coding!"
+echo "  4. Run the pipeline as described in CURRENT_SYSTEM_DOCUMENTATION.md"

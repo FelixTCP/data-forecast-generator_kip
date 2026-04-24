@@ -1,24 +1,25 @@
-# 🎯 START HERE
+# START HERE
 
-Your development workspace is ready! This file guides you through the next steps.
+This file points to the current run-based workflow.
 
 ## ✅ What Was Set Up
 
-A complete, production-ready Python development environment with:
+A Python development environment with:
 - **NixOS flake.nix** - Reproducible dev environment
 - **uv + ruff + pytest** - Fast, modern Python tooling
 - **GitHub Actions CI/CD** - Automatic testing on every push
-- **Comprehensive documentation** - 8 guides to help you code
-- **Project structure** - Ready for 8 core modules
+- **Current system documentation** - see `CURRENT_SYSTEM_DOCUMENTATION.md`
+- **Run-based pipeline structure** - step scripts and artifacts under `output/<RUN_ID>/`
 
 **Total setup**: 13 configuration/documentation files
 
 ## 🚀 Quick Start (30 seconds)
 
 ```bash
-cd /home/felix/Uni/data-forecast-generator_kip
+# Run from the repository root
 nix develop
-uv pip install -e .
+uv sync --extra dev
+uv pip install pandas statsmodels scipy pyarrow
 ```
 
 Done! ✓ You now have Python 3.12 + all tools + all dependencies.
@@ -31,8 +32,8 @@ Done! ✓ You now have Python 3.12 + all tools + all dependencies.
 |---|---|
 | Quick overview of everything | **[INDEX.md](INDEX.md)** (2 min) |
 | Setup & common commands | **[QUICK_START.md](QUICK_START.md)** (3 min) |
-| See module structure & code | **[IMPLEMENTATION_OUTLINE.md](IMPLEMENTATION_OUTLINE.md)** (10 min) |
-| Full 15-step plan with specs | **[plan.md](plan.md)** in session folder (20 min) |
+| Understand current workflow | **[CURRENT_SYSTEM_DOCUMENTATION.md](CURRENT_SYSTEM_DOCUMENTATION.md)** (10 min) |
+| See historical module outline | **[IMPLEMENTATION_OUTLINE.md](IMPLEMENTATION_OUTLINE.md)** (10 min) |
 | Architecture & conventions | **[.github/copilot-instructions.md](.github/copilot-instructions.md)** (5 min) |
 | Detailed setup reference | **[SETUP_SUMMARY.md](SETUP_SUMMARY.md)** (10 min) |
 
@@ -40,11 +41,11 @@ Done! ✓ You now have Python 3.12 + all tools + all dependencies.
 
 **First time?** Follow this order:
 
-1. ✅ Setup (you did this): `nix develop` + `uv pip install -e .`
+1. ✅ Setup: `nix develop` + `uv sync --extra dev`
 2. → Read **[INDEX.md](INDEX.md)** (quick navigation guide)
 3. → Read **[QUICK_START.md](QUICK_START.md)** (setup & commands)
-4. → Read **[IMPLEMENTATION_OUTLINE.md](IMPLEMENTATION_OUTLINE.md)** (module structure)
-5. → **Start coding**: Module 1 at `src/data/loader.py`
+4. → Read **[CURRENT_SYSTEM_DOCUMENTATION.md](CURRENT_SYSTEM_DOCUMENTATION.md)** (current run model)
+5. → **Run the pipeline** with a new `output/<RUN_ID>/` directory
 
 Total time: ~15 minutes → ready to code
 
@@ -66,67 +67,59 @@ cp .env.example .env
 # Edit .env and add ANTHROPIC_API_KEY from https://console.anthropic.com
 ```
 
-## 📂 Project Structure
+## 📂 Current Run Structure
 
 ```
-src/                          # You code here
-├── data/                      # Module 1: Data loading
-├── analysis/                  # Module 2: LLM analysis
-├── pipeline/                  # Modules 3-4: Features & regression
-├── evaluation/                # Module 5: Metrics
-├── artifacts/                 # Module 6: Model serialization
-├── orchestrator.py            # Module 7: Pipeline glue
-└── cli/                       # Module 8: User interface
-
-tests/                         # Write tests for each module
-├── test_*.py                  # One test file per module
-├── fixtures/                  # Test data & mocks
-└── data/                      # Example CSVs
+output/<RUN_ID>/
+├── code/                      # Step scripts for this run
+├── progress.json
+├── cleaned.parquet
+├── features.parquet
+├── model.joblib
+├── holdout.npz
+├── step-*.json
+└── step-16-report.md
 ```
 
-## 🎓 Start Implementing
+## Run the Pipeline
 
-### Phase 1 (MVP): 8 Modules
+```bash
+RUN_ID="singleagent_$(date -u +%Y%m%dT%H%M%SZ)"
+OUT="output/$RUN_ID"
+mkdir -p "$OUT/code"
+cp output/manual_run_001/code/*.py "$OUT/code/"
 
-1. **Data Loader** - CSV loading & validation
-2. **CSV Analyzer** - LLM-based use case discovery  
-3. **Feature Engineer** - Feature preprocessing
-4. **Regressor** - Model training
-5. **Evaluator** - Model metrics & diagnostics
-6. **Artifact Generator** - Model serialization
-7. **Orchestrator** - End-to-end pipeline
-8. **CLI** - User interface
-
-See **[IMPLEMENTATION_OUTLINE.md](IMPLEMENTATION_OUTLINE.md)** for:
-- Full pseudocode for each module
-- Class names & method signatures
-- Test structure & fixtures
-- Key imports
+uv run python "$OUT/code/orchestrator.py" \
+  --csv-path data/appliances_energy_prediction.csv \
+  --target-column appliances \
+  --output-dir "$OUT" \
+  --run-id "$RUN_ID" \
+  --split-mode auto
+```
 
 ## 🔄 Development Workflow
 
-For each module:
+For a pipeline change:
 
 ```bash
 # 1. Create feature branch
-git checkout -b feat/data-loader
+git checkout -b feat/pipeline-step
 
-# 2. Write tests first (TDD)
-vim tests/test_data_loader.py
-pytest tests/test_data_loader.py
+# 2. Run a fresh pipeline once
+# See CURRENT_SYSTEM_DOCUMENTATION.md for the full command
 
-# 3. Implement module
-vim src/data/loader.py
-pytest tests/test_data_loader.py
+# 3. Adjust the relevant step script
+vim output/<RUN_ID>/code/step_13_training.py
+pytest
 
 # 4. Format & lint
-ruff format src tests
-ruff check src tests
+ruff format tests scripts
+ruff check tests scripts
 
 # 5. Commit & push
 git add .
-git commit -m "feat: implement data loader"
-git push origin feat/data-loader
+git commit -m "feat: adjust pipeline step"
+git push origin feat/pipeline-step
 
 # 6. Create PR on GitHub
 # → GitHub Actions runs automatically
@@ -140,17 +133,17 @@ git push origin feat/data-loader
 # Testing
 pytest                                # Run all tests
 pytest tests/test_data_loader.py     # Specific file
-pytest --cov=src                     # Coverage report
+pytest                               # Run current tests
 
 # Code quality
-ruff check src tests                 # Lint check
-ruff format src tests                # Auto-format code
-mypy src                             # Type check
+ruff check tests scripts             # Lint check
+ruff format tests scripts            # Auto-format code
+mypy .                               # Type check
 
 # Development
 nix develop                          # Enter dev environment
 nix flake update                     # Update dependencies
-uv pip install -e .           # Install locally
+uv sync --extra dev                  # Sync environment
 ```
 
 ## 🎯 Success Criteria
@@ -158,8 +151,8 @@ uv pip install -e .           # Install locally
 - ✓ Setup works: `pytest --version` shows 7.4+
 - ✓ Dependencies installed: `import sklearn` works
 - ✓ Tests pass locally before pushing
-- ✓ Code formatted: `ruff format src tests`
-- ✓ Linting passes: `ruff check src tests`
+- ✓ Code formatted: `ruff format tests scripts`
+- ✓ Linting passes: `ruff check tests scripts`
 - ✓ GitHub Actions passes on PR
 - ✓ 80%+ test coverage achieved
 - ✓ Commit message: "feat: description"
@@ -168,19 +161,17 @@ uv pip install -e .           # Install locally
 
 **Setup issues?** → See [SETUP_SUMMARY.md](SETUP_SUMMARY.md) - Troubleshooting
 
-**Implementation questions?** → See [IMPLEMENTATION_OUTLINE.md](IMPLEMENTATION_OUTLINE.md)
+**Current workflow?** → See [CURRENT_SYSTEM_DOCUMENTATION.md](CURRENT_SYSTEM_DOCUMENTATION.md)
 
 **Architecture?** → See [.github/copilot-instructions.md](.github/copilot-instructions.md)
-
-**Full plan?** → See `plan.md` (in session folder)
 
 **Lost?** → Start with [INDEX.md](INDEX.md) - Navigation guide
 
 ## 🚀 You're Ready!
 
-Everything is set up. All infrastructure is in place. All docs are written.
+Everything is set up for the current run-based workflow.
 
-**Next step:** Read [QUICK_START.md](QUICK_START.md) (3 minutes) → Start coding!
+**Next step:** Read [CURRENT_SYSTEM_DOCUMENTATION.md](CURRENT_SYSTEM_DOCUMENTATION.md), then run the pipeline.
 
 Good luck! 🎉
 

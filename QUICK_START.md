@@ -1,15 +1,14 @@
-# 🚀 Quick Start
+# Quick Start
 
 ## 30-Second Setup
 
 ```bash
-cd /home/felix/Uni/data-forecast-generator_kip
-
 # Enter dev environment
 nix develop
 
-# Install project dependencies (Nix shell provides tooling)
-uv pip install -e .
+# Install runtime dependencies
+uv sync --extra dev
+uv pip install pandas statsmodels scipy pyarrow
 
 # Verify everything works
 pytest --version && ruff --version
@@ -20,7 +19,7 @@ Done! You now have:
 - ✅ All dependencies (scikit-learn, polars, anthropic, etc.)
 - ✅ Testing framework (pytest)
 - ✅ Linter (ruff) + formatter
-- ✅ GitHub Copilot CLI
+- ✅ Run-based pipeline tooling
 
 ## Common Commands
 
@@ -31,23 +30,31 @@ pytest tests/test_data_loader.py         # Specific file
 pytest tests/test_data_loader.py::test_valid_csv -v  # Specific test with verbose
 
 # Code Quality
-ruff check src tests                      # Lint
-ruff format src tests                     # Auto-format
-mypy src                                  # Type check
+ruff check tests scripts                  # Lint
+ruff format tests scripts                 # Auto-format
+mypy .                                    # Type check
 
-# Coverage
-pytest --cov=src --cov-report=html       # Generate HTML coverage report
+# Coverage / tests
+pytest                                   # Run current tests
 ```
 
-## Next: Start Implementing
+## Run the Pipeline
 
-1. **Read the plan**: `/home/felix/.copilot/session-state/0044af14-0c57-421e-b7b4-3e1da6914e94/plan.md`
-2. **Check implementation outline**: `IMPLEMENTATION_OUTLINE.md` (in this repo)
-3. **Start with Module 1**: `src/data/loader.py`
-   - Write tests first in `tests/test_data_loader.py`
-   - Implement classes according to outline
-   - Run `pytest tests/test_data_loader.py`
-   - Submit PR when complete
+```bash
+RUN_ID="singleagent_$(date -u +%Y%m%dT%H%M%SZ)"
+OUT="output/$RUN_ID"
+mkdir -p "$OUT/code"
+cp output/manual_run_001/code/*.py "$OUT/code/"
+
+uv run python "$OUT/code/orchestrator.py" \
+  --csv-path data/appliances_energy_prediction.csv \
+  --target-column appliances \
+  --output-dir "$OUT" \
+  --run-id "$RUN_ID" \
+  --split-mode auto
+```
+
+For the full current workflow, read `CURRENT_SYSTEM_DOCUMENTATION.md`.
 
 ## Development Cycle
 
@@ -56,11 +63,11 @@ pytest --cov=src --cov-report=html       # Generate HTML coverage report
 git checkout -b feat/my-feature
 
 # Code + test
-# Edit src/module.py and tests/test_module.py
+# Edit the relevant step script under output/<RUN_ID>/code/
 
 # Verify locally
 pytest tests/test_module.py
-ruff format src tests
+ruff format tests scripts
 
 # Commit & push
 git commit -m "feat: description"
@@ -75,47 +82,22 @@ git push origin feat/my-feature
 
 | File | Purpose |
 |------|---------|
-| `plan.md` | Full implementation roadmap (15 modules) |
-| `IMPLEMENTATION_OUTLINE.md` | Code structure & class signatures |
+| `CURRENT_SYSTEM_DOCUMENTATION.md` | Current run-based system documentation |
+| `IMPLEMENTATION_OUTLINE.md` | Historical implementation outline |
 | `.github/copilot-instructions.md` | Architecture & conventions |
 | `SETUP_SUMMARY.md` | Detailed setup reference |
 | `.github/workflows/tests.yml` | CI/CD pipeline |
 | `pyproject.toml` | Project configuration |
 | `flake.nix` | NixOS dev environment |
 
-## Example: First Implementation
-
-**Goal**: Implement `DataLoader` class
+## Example: Re-run Training Step
 
 ```bash
-# 1. Create the module
-touch src/data/__init__.py src/data/loader.py
-
-# 2. Write tests (TDD)
-# Edit tests/test_data_loader.py with:
-#   - test_valid_csv()
-#   - test_missing_values()
-#   - test_malformed_csv()
-# Use fixtures from tests/fixtures/sample_data.py
-
-# 3. Implement
-# Edit src/data/loader.py:
-#   - class LoadedDataFrame
-#   - class DataLoader
-#   - method load_csv()
-
-# 4. Test locally
-pytest tests/test_data_loader.py -v
-
-# 5. Lint & format
-ruff format src tests
-
-# 6. Commit
-git add .
-git commit -m "feat: implement data loader with validation"
-
-# 7. Push & PR
-git push origin feat/data-loader
+uv run python output/<RUN_ID>/code/step_13_training.py \
+  --output-dir output/<RUN_ID> \
+  --run-id <RUN_ID> \
+  --split-mode auto \
+  --target-column appliances
 ```
 
 ## Configuration
@@ -130,6 +112,6 @@ cp .env.example .env
 
 - `README.md` - Quick reference
 - `.github/copilot-instructions.md` - Architecture details
-- `plan.md` - Full specifications
-- `IMPLEMENTATION_OUTLINE.md` - Code structure & signatures
+- `CURRENT_SYSTEM_DOCUMENTATION.md` - Full current workflow
+- `IMPLEMENTATION_OUTLINE.md` - Historical module outline
 - Docstrings in code - Implementation details

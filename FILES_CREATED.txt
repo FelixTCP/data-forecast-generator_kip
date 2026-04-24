@@ -1,5 +1,8 @@
 # Files Created for Data Forecast Generator Setup
 
+Note: This is a historical setup inventory. For the current run-based workflow,
+commands, artifacts, and validation gates, see CURRENT_SYSTEM_DOCUMENTATION.md.
+
 ## Infrastructure Files
 
 ### NixOS Development Environment
@@ -69,25 +72,21 @@
    - Testing strategy
    - Common tasks
 
-### Planning
-✅ /home/felix/.copilot/session-state/0044af14-0c57-421e-b7b4-3e1da6914e94/plan.md
-   - 15-step implementation roadmap
-   - Phase 1, 2, 3 breakdown
-   - Module descriptions with file locations
-   - Testing structure
-   - Artifact specification
+### Current Runtime Reference
+✅ CURRENT_SYSTEM_DOCUMENTATION.md
+   - Current run-based workflow
+   - Run commands
+   - Artifact layout
+   - Validation gates
 
 ## Directory Structure
 
-✅ src/
-   ├── __init__.py
-   ├── data/          (to be created)
-   ├── analysis/      (to be created)
-   ├── pipeline/      (to be created)
-   ├── evaluation/    (to be created)
-   ├── artifacts/     (to be created)
-   ├── cli/           (to be created)
-   └── orchestrator.py (to be created)
+✅ output/<RUN_ID>/
+   ├── code/          (step scripts for each run)
+   ├── progress.json
+   ├── model.joblib
+   ├── holdout.npz
+   └── step-*.json
 
 ✅ tests/
    ├── __init__.py
@@ -106,36 +105,27 @@
 ✅ FILES_CREATED.txt (this file)
    - Complete list of what was set up
 
-## What's NOT Created Yet (For Implementation)
+## Current Runtime Files
 
-These will be created as you follow the implementation outline:
+The current pipeline runs from per-run step scripts:
 
-- src/data/loader.py (Module 1)
-- src/analysis/csv_analyzer.py (Module 2)
-- src/pipeline/feature_engineer.py (Module 3)
-- src/pipeline/regressor.py (Module 4)
-- src/evaluation/metrics.py (Module 5)
-- src/artifacts/generator.py (Module 6)
-- src/artifacts/loader.py (Module 6b)
-- src/orchestrator.py (Module 7)
-- src/cli/main.py (Module 8)
-- tests/test_data_loader.py
-- tests/test_csv_analyzer.py
-- tests/test_feature_engineer.py
-- tests/test_regressor.py
-- tests/test_evaluation.py
-- tests/test_artifacts.py
-- tests/test_orchestrator.py
-- tests/test_cli.py
-- tests/fixtures/sample_data.py
-- tests/fixtures/mock_responses.py
+- output/<RUN_ID>/code/runtime_utils.py
+- output/<RUN_ID>/code/orchestrator.py
+- output/<RUN_ID>/code/step_00_pre_exploration.py
+- output/<RUN_ID>/code/step_01_cleanse.py
+- output/<RUN_ID>/code/step_11_exploration.py
+- output/<RUN_ID>/code/step_12_features.py
+- output/<RUN_ID>/code/step_13_training.py
+- output/<RUN_ID>/code/step_14_evaluation.py
+- output/<RUN_ID>/code/step_15_selection.py
+- output/<RUN_ID>/code/step_16_report.py
 
 ## Key Statistics
 
 - Config files: 3 (flake.nix, pyproject.toml, .env.example)
 - Documentation files: 7 (QUICK_START.md, SETUP_SUMMARY.md, etc.)
 - CI/CD workflows: 1 (tests.yml)
-- Directories created: 5 (src, tests, examples, scripts, .github/workflows)
+- Directories used: data, output, tests, examples, scripts, .github/workflows
 - Python modules initialized: 2 (__init__.py files)
 - Total lines of documentation: ~1500+
 - Total lines of configuration: ~500+
@@ -143,18 +133,18 @@ These will be created as you follow the implementation outline:
 ## Usage After Setup
 
 1. **Enter dev environment**: `nix develop`
-2. **Install dependencies**: `uv pip install -e .`
+2. **Install dependencies**: `uv sync --extra dev`
 3. **Check quick start**: Read `QUICK_START.md`
-4. **Check implementation plan**: Read `IMPLEMENTATION_OUTLINE.md`
-5. **Start coding**: Create first module in `src/`
+4. **Check current workflow**: Read `CURRENT_SYSTEM_DOCUMENTATION.md`
+5. **Run pipeline**: Create a new `output/<RUN_ID>/`
 6. **Run tests**: `pytest`
 7. **Push to GitHub**: Automatic CI/CD validation
 
 ## Files to Read First
 
 1. QUICK_START.md (this repo)
-2. plan.md (session state)
-3. IMPLEMENTATION_OUTLINE.md (this repo)
+2. CURRENT_SYSTEM_DOCUMENTATION.md (this repo)
+3. IMPLEMENTATION_OUTLINE.md (historical outline)
 4. .github/copilot-instructions.md (for future Copilot sessions)
 
 ---

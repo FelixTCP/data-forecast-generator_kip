@@ -37,7 +37,16 @@ dist/
 data/customer_*.csv
 artifacts/*/
 outputs/*/
+output/*
+!output/
+!output/manual_run_001/
+output/manual_run_001/*
+!output/manual_run_001/code/
+!output/manual_run_001/code/*.py
 *.joblib
+*.parquet
+*.npz
+*.log
 model_cache/
 
 # Environment

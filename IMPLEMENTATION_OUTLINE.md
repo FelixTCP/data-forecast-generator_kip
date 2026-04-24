@@ -1,6 +1,7 @@
 # Implementation Outline - Phase 1 MVP
 
-Quick reference for building the core pipeline. See `plan.md` for detailed specifications.
+Historical module outline. The current working system is run-based and documented in
+`CURRENT_SYSTEM_DOCUMENTATION.md`.
 
 ## 1. Data Loading & Validation
 **File**: `src/data/loader.py`

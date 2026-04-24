@@ -8,6 +8,11 @@ import polars as pl
 import pytest
 from sklearn.dummy import DummyRegressor
 
+pytest.skip(
+    "Historical forecast CLI tests; current workflow runs per-run step scripts under output/<RUN_ID>/code.",
+    allow_module_level=True,
+)
+
 from data_forecast_generator import orchestrator
 from data_forecast_generator.cli import main
 

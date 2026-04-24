@@ -1,4 +1,6 @@
-# Setup Complete ✅
+# Setup Summary
+
+Current runtime details: see [CURRENT_SYSTEM_DOCUMENTATION.md](CURRENT_SYSTEM_DOCUMENTATION.md).
 
 ## What's Been Created
 
@@ -36,14 +38,17 @@ nix develop
   3. Run tests with pytest + coverage
   4. Upload coverage to Codecov
 
-### 5. **Project Structure** (Created)
+### 5. **Project Structure**
 ```
 .
-├── src/                    # Main source code
 ├── tests/                  # Test suite
-│   ├── fixtures/          # Test data/mocks
-│   ├── data/              # Example CSVs
 │   └── test_*.py          # Test files
+├── data/                   # Example CSV inputs
+├── output/                 # Run directories and artifacts
+│   └── <RUN_ID>/
+│       ├── code/           # Step scripts for this run
+│       ├── model.joblib
+│       └── step-*.json
 ├── examples/              # Customer examples
 ├── scripts/               # Utility scripts
 ├── .github/
@@ -66,13 +71,12 @@ nix develop
 
 ### First Time Setup
 ```bash
-cd /home/felix/Uni/data-forecast-generator_kip
-
 # Enter dev environment
 nix develop
 
-# Create venv, activate, install package + dependencies
-uv pip install -e .
+# Install dependencies used by the run-based pipeline
+uv sync --extra dev
+uv pip install pandas statsmodels scipy pyarrow
 
 # Verify tools work
 pytest --version
@@ -91,28 +95,28 @@ pytest
 pytest tests/test_data_loader.py::test_valid_csv
 
 # Lint
-ruff check src tests
+ruff check tests scripts
 
 # Format
-ruff format src tests
+ruff format tests scripts
 
 # Type check
-mypy src
+mypy .
 
 # Coverage report
-pytest --cov=src --cov-report=html
+pytest
 ```
 
 ### Development Workflow
 
 1. **Create feature branch**: `git checkout -b feat/my-feature`
-2. **Write code in `src/`**
-3. **Write tests in `tests/test_*.py`**
+2. **Run or adjust the step scripts in `output/<RUN_ID>/code/`**
+3. **Write tests in `tests/test_*.py` where useful**
 4. **Run locally**:
    ```bash
    pytest tests/test_my_feature.py
-   ruff format src tests
-   mypy src
+   ruff format tests scripts
+   mypy .
    ```
 5. **Commit**: `git commit -m "feat: description"`
 6. **Push**: `git push origin feat/my-feature`
@@ -130,30 +134,23 @@ Edit `.env` with your:
 - `ARTIFACT_OUTPUT_DIR`: Where to save models
 - Other settings as needed
 
-## Implementation Plan
+## Current Pipeline Entry Point
 
-See `/home/felix/.copilot/session-state/0044af14-0c57-421e-b7b4-3e1da6914e94/plan.md` for:
-- 15-step implementation roadmap
-- Module descriptions with file locations
-- Testing strategy
-- Artifact specification
-- Phase 2 & 3 features
+Create a new run directory, copy the current step scripts, then run the orchestrator:
 
-### Phase 1 Module Order (MVP)
-1. **Data Loader** (`src/data/loader.py`) - CSV ingestion
-2. **CSV Analyzer** (`src/analysis/csv_analyzer.py`) - LLM analysis
-3. **Feature Engineer** (`src/pipeline/feature_engineer.py`) - Feature work
-4. **Regressor** (`src/pipeline/regressor.py`) - Model training
-5. **Evaluation** (`src/evaluation/metrics.py`) - Model metrics
-6. **Artifacts** (`src/artifacts/generator.py`) - Model serialization
-7. **Orchestrator** (`src/orchestrator.py`) - Glue everything
-8. **CLI** (`src/cli/main.py`) - User interface
+```bash
+RUN_ID="singleagent_$(date -u +%Y%m%dT%H%M%SZ)"
+OUT="output/$RUN_ID"
+mkdir -p "$OUT/code"
+cp output/manual_run_001/code/*.py "$OUT/code/"
 
-Each module gets:
-- Implementation file
-- Corresponding test file with fixtures
-- Type hints and docstrings
-- Unit + integration tests
+uv run python "$OUT/code/orchestrator.py" \
+  --csv-path data/appliances_energy_prediction.csv \
+  --target-column appliances \
+  --output-dir "$OUT" \
+  --run-id "$RUN_ID" \
+  --split-mode auto
+```
 
 ## Key Files Reference
 
@@ -166,7 +163,7 @@ Each module gets:
 | `.env.example` | Environment variable template |
 | `.gitignore` | Git ignore rules |
 | `README.md` | Quick start guide |
-| `plan.md` | Full implementation plan |
+| `CURRENT_SYSTEM_DOCUMENTATION.md` | Current run-based system documentation |
 
 ## Tools & Versions
 
@@ -182,10 +179,10 @@ Each module gets:
 ## Next Steps
 
 1. ✅ Enter dev environment: `nix develop`
-2. ✅ Install dependencies: `uv pip install -e .`
+2. ✅ Install dependencies: `uv sync --extra dev`
 3. ✅ Verify setup: `pytest --version`
-4. ➜ Start implementing modules (see plan.md)
-5. ➜ Write tests first (TDD approach recommended)
+4. ➜ Run the pipeline from `output/<RUN_ID>/code`
+5. ➜ Inspect `progress.json`, `step-*.json`, `model.joblib`, and `step-16-report.md`
 6. ➜ Push to GitHub when ready
 
 ## Troubleshooting
@@ -199,15 +196,15 @@ Each module gets:
 
 **Pytest not finding tests**
 - Check `tests/__init__.py` exists
-- Run from project root: `cd /home/felix/Uni/data-forecast-generator_kip && pytest`
+- Run from the repository root: `pytest`
 
-**Import errors in tests**
-- Install in dev mode: `uv pip install -e .`
-- Check `src/__init__.py` exists
+**Missing runtime dependency**
+- Run `uv sync --extra dev`
+- Then run `uv pip install pandas statsmodels scipy pyarrow`
 
 ## Questions?
 
 Refer to:
 - `.github/copilot-instructions.md` - Architecture & conventions
-- `plan.md` - Implementation roadmap
+- `CURRENT_SYSTEM_DOCUMENTATION.md` - Current runtime model and run commands
 - `README.md` - Quick reference
