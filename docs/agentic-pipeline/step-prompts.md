@@ -153,7 +153,11 @@ PHASE 1 — REASON:
 - Read docs/pipeline-framework/15-model-selection.md.
 - Confirm required outputs for step 16:
   - OUTPUT_DIR/step-15-selection.json with selected_model,
-    weighted_score, rationale, full_ranking, quality_flag.
+    weighted_score, rationale, full_ranking, quality_flag,
+    baselines, candidate_analysis, and artifact paths.
+  - OUTPUT_DIR/step-15-model-selection-report.md with baseline summary,
+    ranking table, model analysis, and selection rationale.
+  - OUTPUT_DIR/step-15-model-selection-metrics.png with candidate metric plots.
 
 PHASE 2 — CODE:
 - Write CODE_DIR/step_15_selection.py.
@@ -162,8 +166,11 @@ PHASE 2 — CODE:
 
 PHASE 3 — VALIDATE:
 - step-15-selection.json exists.
+- step-15-model-selection-report.md exists and contains Markdown tables.
+- step-15-model-selection-metrics.png exists when candidates exist.
 - quality_flag present.
 - if viable candidate exists: selected_model and rationale present.
+- baselines and candidate_analysis present.
 - full_ranking includes eligible and ineligible candidates.
 ```
 

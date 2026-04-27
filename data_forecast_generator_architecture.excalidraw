@@ -328,7 +328,7 @@
       "type": "arrow",
       "x": 1245,
       "y": 335,
-      "width": -40,
+      "width": 40,
       "height": 0,
       "angle": 0,
       "strokeColor": "#64748b",
@@ -975,9 +975,9 @@
       "id": "arrow-step-0-1",
       "type": "arrow",
       "x": 436,
-      "y": 735.0,
+      "y": 735,
       "width": 41,
-      "height": 0.0,
+      "height": 0,
       "angle": 0,
       "strokeColor": "#64748b",
       "backgroundColor": "transparent",
@@ -1006,7 +1006,7 @@
         ],
         [
           41,
-          0.0
+          0
         ]
       ],
       "lastCommittedPoint": null,
@@ -1020,9 +1020,9 @@
       "id": "arrow-step-1-2",
       "type": "arrow",
       "x": 831,
-      "y": 735.0,
+      "y": 735,
       "width": 41,
-      "height": 0.0,
+      "height": 0,
       "angle": 0,
       "strokeColor": "#64748b",
       "backgroundColor": "transparent",
@@ -1051,7 +1051,7 @@
         ],
         [
           41,
-          0.0
+          0
         ]
       ],
       "lastCommittedPoint": null,
@@ -1065,9 +1065,9 @@
       "id": "arrow-step-2-3",
       "type": "arrow",
       "x": 1226,
-      "y": 735.0,
+      "y": 735,
       "width": 41,
-      "height": 0.0,
+      "height": 0,
       "angle": 0,
       "strokeColor": "#64748b",
       "backgroundColor": "transparent",
@@ -1096,7 +1096,7 @@
         ],
         [
           41,
-          0.0
+          0
         ]
       ],
       "lastCommittedPoint": null,
@@ -1109,9 +1109,9 @@
     {
       "id": "arrow-step-12-13",
       "type": "arrow",
-      "x": 1445.0,
+      "x": 1445,
       "y": 870,
-      "width": -1185.0,
+      "width": 1185,
       "height": 48,
       "angle": 0,
       "strokeColor": "#64748b",
@@ -1140,7 +1140,7 @@
           0
         ],
         [
-          -1185.0,
+          -1185,
           48
         ]
       ],
@@ -1155,9 +1155,9 @@
       "id": "arrow-step-4-5",
       "type": "arrow",
       "x": 436,
-      "y": 1055.0,
+      "y": 1055,
       "width": 41,
-      "height": 0.0,
+      "height": 0,
       "angle": 0,
       "strokeColor": "#64748b",
       "backgroundColor": "transparent",
@@ -1186,7 +1186,7 @@
         ],
         [
           41,
-          0.0
+          0
         ]
       ],
       "lastCommittedPoint": null,
@@ -1200,9 +1200,9 @@
       "id": "arrow-step-5-6",
       "type": "arrow",
       "x": 831,
-      "y": 1055.0,
+      "y": 1055,
       "width": 41,
-      "height": 0.0,
+      "height": 0,
       "angle": 0,
       "strokeColor": "#64748b",
       "backgroundColor": "transparent",
@@ -1231,7 +1231,7 @@
         ],
         [
           41,
-          0.0
+          0
         ]
       ],
       "lastCommittedPoint": null,
@@ -1245,9 +1245,9 @@
       "id": "arrow-step-6-7",
       "type": "arrow",
       "x": 1226,
-      "y": 1055.0,
+      "y": 1055,
       "width": 41,
-      "height": 0.0,
+      "height": 0,
       "angle": 0,
       "strokeColor": "#64748b",
       "backgroundColor": "transparent",
@@ -1276,7 +1276,7 @@
         ],
         [
           41,
-          0.0
+          0
         ]
       ],
       "lastCommittedPoint": null,
@@ -1515,8 +1515,8 @@
       "type": "text",
       "x": 60,
       "y": 1585,
-      "width": 1200,
-      "height": 79,
+      "width": 1443.882873881191,
+      "height": 45,
       "angle": 0,
       "strokeColor": "#475569",
       "backgroundColor": "transparent",
@@ -1529,16 +1529,16 @@
       "frameId": null,
       "roundness": null,
       "seed": 1041,
-      "version": 2,
-      "versionNonce": 8243679,
+      "version": 102,
+      "versionNonce": 1058842607,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1777000000000,
+      "updated": 1777018136664,
       "link": null,
       "locked": false,
       "fontSize": 18,
       "fontFamily": 1,
-      "text": "Zuletzt verifizierter End-to-End-Run: output/singleagent_20260424T073352Z | Target appliances | selected_model ridge | quality acceptable | 38/38 Gates bestanden",
+      "text": "Zuletzt verifizierter End-to-End-Run: output/singleagent_20260424T073352Z | Target appliances | selected_model ridge | quality acceptable | 38/38 Gates\nbestanden",
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": null,

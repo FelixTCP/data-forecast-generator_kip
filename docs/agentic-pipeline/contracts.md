@@ -40,7 +40,7 @@ This pipeline is for real forecasting. Any target leakage invalidates the run.
 | 12 — Feature Extraction   | `CODE_DIR/step_12_features.py`    | `step-12-features.json`    |
 | 13 — Model Training       | `CODE_DIR/step_13_training.py`    | `step-13-training.json`    |
 | 14 — Model Evaluation     | `CODE_DIR/step_14_evaluation.py`  | `step-14-evaluation.json`  |
-| 15 — Model Selection      | `CODE_DIR/step_15_selection.py`   | `step-15-selection.json`   |
+| 15 — Model Selection      | `CODE_DIR/step_15_selection.py`   | `step-15-selection.json`, `step-15-model-selection-report.md`, `step-15-model-selection-metrics.png` |
 | 16 — Result Presentation  | `CODE_DIR/step_16_report.py`      | `step-16-report.md`        |
 | Orchestrator              | `CODE_DIR/orchestrator.py`        | —                          |
 
@@ -81,6 +81,8 @@ If any of these checks fail, the step must be re-run.
 - `OUTPUT_DIR/candidate-*.joblib` (all trained candidates)
 - `OUTPUT_DIR/step-14-evaluation.json`
 - `OUTPUT_DIR/step-15-selection.json`
+- `OUTPUT_DIR/step-15-model-selection-report.md`
+- `OUTPUT_DIR/step-15-model-selection-metrics.png`
 - `OUTPUT_DIR/step-16-report.md`
 - `OUTPUT_DIR/code_audit.json` (Python file inventory + hashes per step)
 - `OUTPUT_DIR/leakage_audit.json` (explicit leakage diagnostics and pass/fail decision)

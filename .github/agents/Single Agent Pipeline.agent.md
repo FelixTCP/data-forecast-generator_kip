@@ -136,9 +136,12 @@ Before executing a step, check whether it can be skipped:
 
 ### After Step 15
 - `step-15-selection.json` exists
+- `step-15-model-selection-report.md` exists and contains a Markdown table
+- `step-15-model-selection-metrics.png` exists when candidates exist
 - `quality_flag` key is present and is one of: `acceptable`, `marginal`, `subpar`, `subpar_after_expansion`, `no_viable_candidate`
 - If `quality_flag` is NOT `no_viable_candidate`: `selected_model` is non-empty and `rationale` contains at least one sentence
 - If `quality_flag` is `no_viable_candidate`: `selected_model` is null/absent and a clear message is present — do **not** produce a `model.joblib` with a worthless model; step 16 must report failure
+- `baselines` and `candidate_analysis` are present
 - `full_ranking` is present and lists all candidates including ineligible ones
 
 ### After Step 16
@@ -200,9 +203,11 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 
 ### Step 15 — Model Selection (`step_15_selection.py`)
 - Use the weighted scoring rule from `docs/pipeline-framework/15-model-selection.md` (50% R², 25% RMSE, 15% MAE, 10% stability).
+- Document sensible baselines from Step 14 (mean baseline and naive lag baseline when present).
 - Tie-break: prefer lower complexity.
-- Emit full ranking table and explicit rationale for the winner.
-- Output: `step-15-selection.json`
+- Emit full ranking table, explicit rationale for the winner, and analysis explaining why models performed well or poorly.
+- Write a technical Markdown report with tables and at least one matplotlib PNG plot when candidates exist.
+- Output: `step-15-selection.json`, `step-15-model-selection-report.md`, `step-15-model-selection-metrics.png`
 
 ### Step 16 — Result Presentation (`step_16_report.py`)
 - Write `step-16-report.md` with exactly these 6 sections:

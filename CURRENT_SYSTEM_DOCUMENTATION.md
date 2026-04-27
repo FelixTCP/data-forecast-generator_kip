@@ -228,15 +228,21 @@ Wichtige Felder:
 
 Step 15 waehlt aus den evaluierten Kandidaten ein Modell aus. Die Auswahl basiert auf einem gewichteten Score aus R2, RMSE, MAE und Stabilitaet. Kandidaten mit negativem R2 gelten als nicht geeignet.
 
+Der Schritt dokumentiert zudem die Baselines aus Step 14, analysiert kurz, warum Kandidaten gut oder schlecht funktionieren, und erzeugt einen technischen Markdown-Report mit Tabelle sowie einen einfachen Metrik-Plot.
+
 Output:
 
 - `step-15-selection.json`
+- `step-15-model-selection-report.md`
+- `step-15-model-selection-metrics.png`
 
 Wichtige Felder:
 
 - `selected_model`
 - `weighted_score`
 - `rationale`
+- `baselines`
+- `candidate_analysis`
 - `quality_flag`
 - `full_ranking`
 
