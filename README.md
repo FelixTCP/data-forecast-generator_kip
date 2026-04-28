@@ -83,14 +83,14 @@ uv pip install -e ".[dev]"
 # Execute full AGENTIC pipeline (Copilot CLI is called for each step)
 uv run forecast --csv ./data/your_file.csv --target-column your_target --output-dir ./artifacts
 
-# Optional split strategy
-uv run forecast --csv ./data/your_file.csv --target-column your_target --split-mode auto
+# Splitting strategy
+Time-series (chronological) splitting is always used; there is no `--split-mode` option.
 
 # Budget-friendly defaults (small/fast model)
 uv run forecast --csv ./data/your_file.csv --target-column your_target --budget-mode low
 
 # Explicit model override
-uv run forecast --csv ./data/your_file.csv --target-column your_target --copilot-model gpt-5-mini --reasoning-effort low
+uv run forecast --csv ./data/your_file.csv --target-column your_target --copilot-model claude-haiku-4.5 --reasoning-effort low
 
 # Reuse generated code from previous identical command fingerprint
 uv run forecast --csv ./data/your_file.csv --target-column your_target --continue
@@ -100,6 +100,43 @@ This mode is instruction-first: step logic is executed by Copilot CLI prompts us
 `docs/agentic-pipeline/` contracts and `docs/pipeline-framework/` step guidance.
 Pipeline progress is visualized with `tqdm` while steps execute.
 Required run artifacts now include `model.joblib` for the selected model.
+
+### Streamlit UI for Single Agent Pipeline
+
+```bash
+# Ensure dependencies are installed in the existing uv environment
+uv sync
+
+# Launch the training & analysis frontend
+uv run streamlit run scripts/streamlit_single_agent_app.py
+```
+
+In the UI, drag-and-drop a `.csv`, pick the target column, select a Copilot model, then click
+**Run Pipeline**. The app invokes Copilot with the custom
+`Single Agent Pipeline` agent contract in `.github/agents/Single Agent Pipeline.agent.md`.
+Features:
+- Real-time pipeline progress monitoring
+- Live model training status (current model, completed models)
+- Professional metrics dashboard (R², RMSE, MAE)
+- Candidate model comparison charts
+- Inference visualizations (actual vs predicted, residuals, distribution)
+- Final markdown report
+
+### Streamlit Inference & Forecasting App
+
+```bash
+# Launch the inference app to forecast future values
+uv run streamlit run scripts/streamlit_inference_app.py
+```
+
+Use the inference app to:
+- Select any completed pipeline run
+- Specify k (forecast steps ahead)
+- Generate k-step ahead forecasts with confidence bands
+- View detailed forecast metrics and comparisons
+- Analyze forecast distribution vs historical data
+- Download forecast results as CSV
+- Inspect feature importances (for tree-based models)
 
 ### Verbose debugging artifacts
 Each run now writes rich debug artifacts under `artifacts/<run_id>/debug/`:

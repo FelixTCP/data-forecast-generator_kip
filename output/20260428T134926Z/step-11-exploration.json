@@ -1,0 +1,251 @@
+{
+  "step": "11-data-exploration",
+  "run_id": "20260428T134926Z",
+  "timestamp": "2026-04-28T15:53:03.034369Z",
+  "shape": {
+    "rows": 19735,
+    "columns": 29
+  },
+  "numeric_columns": [
+    "appliances",
+    "lights",
+    "t1",
+    "rh_1",
+    "t2",
+    "rh_2",
+    "t3",
+    "rh_3",
+    "t4",
+    "rh_4",
+    "t5",
+    "rh_5",
+    "t6",
+    "rh_6",
+    "t7",
+    "rh_7",
+    "t8",
+    "rh_8",
+    "t9",
+    "rh_9",
+    "t_out",
+    "press_mm_hg",
+    "rh_out",
+    "windspeed",
+    "visibility",
+    "tdewpoint",
+    "rv1",
+    "rv2"
+  ],
+  "high_cardinality": [],
+  "low_variance_columns": [],
+  "time_series_detected": true,
+  "time_column": "date",
+  "multiple_series_detected": false,
+  "time_series_characteristics": {
+    "trend_detected": false,
+    "seasonality_detected": true,
+    "stationarity": "stationary",
+    "white_noise": false
+  },
+  "model_recommendations": [
+    "XGBoost"
+  ],
+  "mi_ranking": [
+    {
+      "feature": "t9",
+      "mi_score": 0.12640697087424968,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t5",
+      "mi_score": 0.1163808651944418,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_6",
+      "mi_score": 0.11122187307079745,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t3",
+      "mi_score": 0.10826852793623765,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t4",
+      "mi_score": 0.10754986373382813,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t8",
+      "mi_score": 0.10726398577798335,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t7",
+      "mi_score": 0.10410051278855903,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t1",
+      "mi_score": 0.10272116403040599,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_1",
+      "mi_score": 0.09343141426554169,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t6",
+      "mi_score": 0.0883442358906974,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t2",
+      "mi_score": 0.08382725933391733,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "press_mm_hg",
+      "mi_score": 0.08058435633081906,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_8",
+      "mi_score": 0.0803124314178465,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_3",
+      "mi_score": 0.07694536614137171,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_9",
+      "mi_score": 0.07694101400288211,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_5",
+      "mi_score": 0.07628049582120955,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "t_out",
+      "mi_score": 0.07467689160297564,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_4",
+      "mi_score": 0.07332939225536261,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_2",
+      "mi_score": 0.06694905621883329,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_7",
+      "mi_score": 0.06662034441894704,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "lights",
+      "mi_score": 0.06659052879136595,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rh_out",
+      "mi_score": 0.059685716079406426,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "tdewpoint",
+      "mi_score": 0.041910156413678123,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "visibility",
+      "mi_score": 0.03235282108227455,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "windspeed",
+      "mi_score": 0.0185419109665661,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "rv1",
+      "mi_score": 0.0,
+      "below_noise_baseline": true
+    },
+    {
+      "feature": "rv2",
+      "mi_score": 0.0,
+      "below_noise_baseline": true
+    }
+  ],
+  "noise_mi_baseline": 0.0015238913830577516,
+  "redundant_columns": [
+    "t7",
+    "t3",
+    "t5",
+    "t_out",
+    "rv2"
+  ],
+  "correlation_matrix_summary": {
+    "max_pair": [],
+    "max_corr": 0.0
+  },
+  "significant_lags": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "useful_lag_features": [],
+  "recommended_features": [
+    "rv1",
+    "rh_6",
+    "visibility",
+    "rh_4",
+    "t8",
+    "press_mm_hg",
+    "rh_9",
+    "rh_5",
+    "rh_1",
+    "tdewpoint",
+    "rh_8",
+    "rh_out",
+    "t9",
+    "rh_7",
+    "lights",
+    "windspeed",
+    "t1",
+    "t4",
+    "t6",
+    "rh_2",
+    "t2",
+    "rh_3"
+  ],
+  "excluded_features": {
+    "t7": "redundant",
+    "t3": "redundant",
+    "t5": "redundant",
+    "t_out": "redundant",
+    "rv2": "redundant"
+  },
+  "target_candidates": [
+    "appliances"
+  ],
+  "client_facing_summary": "Dataset contains 22 predictive features. Target variable shows no trend and seasonality. Recommended models: XGBoost",
+  "context": {}
+}

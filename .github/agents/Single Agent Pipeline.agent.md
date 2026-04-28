@@ -24,7 +24,6 @@ Resolve these from the user's message or from sensible defaults:
 | `TARGET_COLUMN` | Regression target column name | *(required)* |
 | `OUTPUT_DIR` | Directory for all run artifacts | `output/<RUN_ID>/` |
 | `RUN_ID` | Unique run identifier | `YYYYMMDDTHHMMSSZ` (current UTC timestamp) |
-| `SPLIT_MODE` | Train/test split strategy | `auto` |
 | `CODE_DIR` | Directory for generated step Python files | `output/<RUN_ID>/code/` |
 | `CONTINUE_MODE` | Resume from last completed step | `false` |
 
@@ -113,7 +112,7 @@ Before executing a step, check whether it can be skipped:
 - `step-12-features.json` exists
 - `features` list is non-empty (if empty, all features were filtered — diagnose step 11 output before continuing)
 - `features_excluded` key exists (audit trail of what was dropped and why)
-- `split_strategy.resolved_mode` is one of `random` or `time_series`
+- `split_strategy.resolved_mode` is `time_series`
 - The parquet path in `artifacts.features_parquet` exists on disk
 - No feature in `features` appears in `step-11-exploration.json["excluded_features"]` (leakage guard against re-including dropped features)
 
@@ -180,13 +179,23 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 
 ### Step 13 — Model Training (`step_13_training.py`) *(most critical)*
 - Read `features.parquet` and reconstruct feature list from `step-12-features.json`.
-- Determine split: chronological (`TimeSeriesSplit`) if time column detected and `SPLIT_MODE=auto`; otherwise `train_test_split(shuffle=True)`.
-- Train candidates: Ridge, RandomForest, GradientBoosting. Add XGBoost only if already installed.
-- For each candidate: fit, record CV scores (5 folds), and persist as `candidate-<name>.joblib`.
-- Persist best model as `model.joblib` — must be a fitted sklearn estimator or Pipeline exposing `.predict(X)`.
+- Determine split: chronological (`TimeSeriesSplit`) — always use a chronological/time-series split.
+- Model discovery and agent-driven selection: Examine `step-11-exploration.json` (autocorrelations, seasonality indicators, lag importance, and exogenous feature availability) and decide which model families to evaluate. Candidate families to consider include (but are not limited to):
+  - Scikit-learn regressors: Ridge, ElasticNet, RandomForestRegressor, HistGradientBoostingRegressor, GradientBoostingRegressor, SVR
+  - Boosted-tree libraries (only if installed): XGBoost, LightGBM
+  - Time-series-specialized approaches (prefer when indicated by the exploration phase): naive/lag baselines, AR, MA, ARIMA (pmdarima or statsmodels), SARIMAX (seasonal ARIMA with exogenous regressors), state-space models and ETS, and simple exponential smoothing / Holt-Winters (statsmodels)
+  - Prophet or other lightweight forecasting wrappers only if present in the environment
+- For each chosen candidate family: map inputs appropriately (scikit-learn pipelines expect X/y; ARIMA-like models may require a univariate endogenous series and optional exogenous X); train candidate models, record CV or backtest scores (chronological splits), and persist per-candidate artifacts such as `candidate-<name>.joblib` or family-appropriate files.
+- Progress reporting (mandatory): During model training, update `OUTPUT_DIR/progress.json` with `current_step: "13-model-training"` and add per-model substatus fields to allow live UI display:
+  - `current_model`: short name of the candidate currently being trained (e.g. "ridge", "arima")
+  - `completed_models`: list of model names already completed
+  - `model_progress` (optional): numeric 0.0-1.0 or an object `{ "current": 2, "total": 6 }` to indicate per-model progress
+  - `model_history`: append per-model summaries (model_name, status, cv_mean, fit_time_sec, notes)
+- For each candidate: fit, record CV/backtest scores (chronological splits), and persist results; on transient failures retry once and mark failures explicitly in `model_history`.
+- Persist best model as `model.joblib` — must be a fitted, loadable estimator or forecasting object exposing `predict(...)` (or equivalent forecasting API documented in `step-13-training.json`).
 - **Do NOT pickle classes defined under `__main__`.**
-- Save the holdout arrays as `holdout.npz` (`X_test`, `y_test`).
-- Output: `step-13-training.json`, `model.joblib`, `candidate-*.joblib`, `holdout.npz`
+- Save holdout data in `holdout.npz` (or an appropriate per-family holdout artifact) containing `X_test`/`y_test` or equivalent arrays for time-series models.
+- Output: `step-13-training.json`, `model.joblib`, `candidate-*.joblib` (or family-specific artifacts), `holdout.npz` and the `model_history` entries reflected in `progress.json`.
 
 ### Step 14 — Model Evaluation (`step_14_evaluation.py`)
 - Read the full spec at `docs/pipeline-framework/14-model-evaluation.md`.

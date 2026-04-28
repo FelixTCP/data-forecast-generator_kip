@@ -1,0 +1,86 @@
+{
+  "step": "15-model-selection",
+  "run_id": "20260428T134926Z",
+  "timestamp": "2026-04-28T15:59:29.836418Z",
+  "quality_flag": "acceptable",
+  "selected_model": "elasticnet",
+  "rationale": "Selected elasticnet based on weighted scoring (50% R\u00b2, 25% RMSE, 15% MAE, 10% stability). This model achieved R\u00b2=0.5472 on the holdout test set. Overall quality assessment: acceptable.",
+  "full_ranking": [
+    {
+      "model": "elasticnet",
+      "r2": 0.5471735646516311,
+      "rmse": 60.515796835535006,
+      "mae": 26.94709819676628,
+      "score": 0.486224671473611,
+      "eligible": true,
+      "reason": "candidate"
+    },
+    {
+      "model": "elasticnet_l1",
+      "r2": 0.5469661754495868,
+      "rmse": 60.52965301219672,
+      "mae": 27.211600810313797,
+      "score": 0.4861215871104177,
+      "eligible": true,
+      "reason": "candidate"
+    },
+    {
+      "model": "ridge_strong",
+      "r2": 0.5447783494096059,
+      "rmse": 60.675634223167656,
+      "mae": 27.390744100042788,
+      "score": 0.48553146402038383,
+      "eligible": true,
+      "reason": "candidate"
+    },
+    {
+      "model": "ridge",
+      "r2": 0.5446884967138537,
+      "rmse": 60.68162207578329,
+      "mae": 27.400795515430822,
+      "score": 0.48550673748011736,
+      "eligible": true,
+      "reason": "candidate"
+    },
+    {
+      "model": "hist_gradient_boosting",
+      "r2": 0.5385158046724449,
+      "rmse": 61.091569970047246,
+      "mae": 31.632763691356686,
+      "score": 0.48325186993834296,
+      "eligible": true,
+      "reason": "candidate"
+    },
+    {
+      "model": "random_forest",
+      "r2": -0.13978721104592262,
+      "rmse": 96.00962199884492,
+      "mae": 64.46603121024185,
+      "score": 0.30992152579489496,
+      "eligible": true,
+      "reason": "candidate"
+    },
+    {
+      "model": "gradient_boosting",
+      "r2": -0.37976131499920074,
+      "rmse": 105.63427406573095,
+      "mae": 78.52920390451641,
+      "score": 0.2492902328220124,
+      "eligible": true,
+      "reason": "candidate"
+    }
+  ],
+  "scoring_methodology": {
+    "r2_weight": 0.5,
+    "rmse_weight": 0.25,
+    "mae_weight": 0.15,
+    "stability_weight": 0.1,
+    "note": "Higher score = better model. R\u00b2 normalized to [0,1], RMSE/MAE converted to [0,1] via 1/(1+error)."
+  },
+  "notes": [
+    "Evaluated 7 eligible candidates",
+    "Quality assessment: acceptable",
+    "Selected model: elasticnet",
+    "Best holdout R\u00b2: 0.5472"
+  ]
+}

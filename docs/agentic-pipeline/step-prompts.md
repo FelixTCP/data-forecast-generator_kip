@@ -67,7 +67,7 @@ PHASE 1 — REASON:
 
 PHASE 2 — CODE:
 - Write CODE_DIR/step_12_features.py.
-- CLI args: --target-column, --split-mode, --output-dir, --run-id.
+- CLI args: --target-column, --output-dir, --run-id.
 - Implement all behavior from step 12 spec exactly.
 
 PHASE 3 — VALIDATE:
@@ -91,7 +91,7 @@ PHASE 1 — REASON:
 
 PHASE 2 — CODE:
 - Write CODE_DIR/step_13_training.py.
-- CLI args: --split-mode, --output-dir, --run-id, [--target-column].
+- CLI args: --output-dir, --run-id, [--target-column].
 - Implement all behavior from step 13 spec exactly.
 
 PHASE 3 — VALIDATE:

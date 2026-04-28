@@ -22,10 +22,8 @@ Train candidate models reproducibly, log full training history, and output artif
 
 ## Recommended MVP Defaults
 
-- Split mode:
-  - `TimeSeriesSplit` if time dependency exists (which it should in most cases!)
-  - otherwise `train_test_split(shuffle=True, random_state=42)`
-- CV: 5 folds (or `TimeSeriesSplit(n_splits=5)`)
+- Split: Use chronological TimeSeriesSplit for both CV and holdout (always chronological for time-series data).
+- CV: 5 folds implemented as `TimeSeriesSplit(n_splits=5)`
 - Search: `RandomizedSearchCV` for non-trivial spaces, `GridSearchCV` for small spaces
 - Caching: use `joblib.Memory` for sklearn pipeline caching
 - Reproducibility: fixed `random_state` on split and models
@@ -46,13 +44,15 @@ Train candidate models reproducibly, log full training history, and output artif
 Implement `train_models(X, y, preprocessor, config) -> dict` in `src/pipeline/regressor.py`.
 Requirements:
 
-1. support split mode: `random`, `time_series`
+1. use chronological time-series split (`TimeSeriesSplit`) for CV and holdout
 2. support optional hyperparameter search per candidate model
 3. log training history table with: model_name, params, cv_mean, cv_std, fit_time_sec
 4. cache sklearn pipeline transformations via `joblib.Memory`
 5. return serializable output containing best_model_name, best_params, and per-candidate metrics
-6. include unit tests for split strategy selection and deterministic results with fixed seeds
+6. include unit tests for deterministic results with fixed seeds
 7. include leakage sentry checks that fail on forbidden target-derived predictors
+8. During training, update `OUTPUT_DIR/progress.json` to surface model-level progress. At minimum include `current_model` (string) and `completed_models` (list). Optionally include `model_progress` (float 0.0-1.0 or object with current/total) and append per-model summaries to `model_history`.
+9. The function should let the agent choose which model families to evaluate based on exploratory analysis (autocorrelation, seasonality, lag importance, presence of exogenous features). If a library is not installed (e.g., statsmodels, pmdarima, xgboost), skip that family and note it in the returned summary.
 ```
 
 ## Reference Architecture
@@ -77,23 +77,19 @@ class CandidateResult:
     fit_time_sec: float
 
 
-def _make_cv(split_mode: str, n_splits: int, random_state: int):
-    if split_mode == "time_series":
-        return TimeSeriesSplit(n_splits=n_splits)
-    if split_mode == "random":
-        return KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
-    raise ValueError(f"Unknown split_mode={split_mode}")
+def _make_cv(n_splits: int):
+    # Always use TimeSeriesSplit for chronological cross-validation on time-series data
+    return TimeSeriesSplit(n_splits=n_splits)
 
 
 def train_models(X, y, preprocessor, config: dict) -> dict:
     random_state = int(config.get("random_state", 42))
-    split_mode = config.get("split_mode", "random")
     n_splits = int(config.get("n_splits", 5))
 
     cache_dir = Path(config.get("cache_dir", ".cache/sklearn"))
     memory = joblib.Memory(location=cache_dir, verbose=0)
 
-    cv = _make_cv(split_mode=split_mode, n_splits=n_splits, random_state=random_state)
+    cv = _make_cv(n_splits=n_splits)
 
     history: list[CandidateResult] = []
     trained_estimators: dict[str, object] = {}
@@ -163,7 +159,7 @@ def train_models(X, y, preprocessor, config: dict) -> dict:
 ```json
 {
   "run_id": "2026-04-03T15:00:00Z",
-  "split_mode": "random",
+  "split_mode": "time_series",
   "random_state": 42,
   "records": [
     {
@@ -179,7 +175,7 @@ def train_models(X, y, preprocessor, config: dict) -> dict:
 
 ## Test Matrix for #13
 
-- split strategy selection (`random` vs `time_series`)
+- split setting is always time_series (chronological)
 - deterministic scores when seed fixed
 - search strategy path (`none/grid/random`)
 - history serialization

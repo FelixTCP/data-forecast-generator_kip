@@ -1,0 +1,141 @@
+{
+  "step": "13-model-training",
+  "run_id": "20260428T134926Z",
+  "timestamp": "2026-04-28T15:58:49.674131Z",
+  "model": {
+    "type": "sklearn-compatible",
+    "best_candidate": "elasticnet",
+    "path": "/home/felix/Uni/data-forecast-generator_kip/output/20260428T134926Z/model.joblib"
+  },
+  "model_candidates": {
+    "ridge": {
+      "path": "/home/felix/Uni/data-forecast-generator_kip/output/20260428T134926Z/candidate-ridge.joblib",
+      "r2": 0.5446884967138537,
+      "rmse": 60.68162207578329,
+      "mae": 27.400795515430822,
+      "fit_time": 0.04509282112121582,
+      "status": "success"
+    },
+    "ridge_strong": {
+      "path": "/home/felix/Uni/data-forecast-generator_kip/output/20260428T134926Z/candidate-ridge_strong.joblib",
+      "r2": 0.5447783494096059,
+      "rmse": 60.675634223167656,
+      "mae": 27.390744100042788,
+      "fit_time": 0.03917121887207031,
+      "status": "success"
+    },
+    "elasticnet": {
+      "path": "/home/felix/Uni/data-forecast-generator_kip/output/20260428T134926Z/candidate-elasticnet.joblib",
+      "r2": 0.5471735646516311,
+      "rmse": 60.515796835535006,
+      "mae": 26.94709819676628,
+      "fit_time": 0.3997201919555664,
+      "status": "success"
+    },
+    "elasticnet_l1": {
+      "path": "/home/felix/Uni/data-forecast-generator_kip/output/20260428T134926Z/candidate-elasticnet_l1.joblib",
+      "r2": 0.5469661754495868,
+      "rmse": 60.52965301219672,
+      "mae": 27.211600810313797,
+      "fit_time": 0.3596923351287842,
+      "status": "success"
+    },
+    "random_forest": {
+      "path": "/home/felix/Uni/data-forecast-generator_kip/output/20260428T134926Z/candidate-random_forest.joblib",
+      "r2": -0.13978721104592262,
+      "rmse": 96.00962199884492,
+      "mae": 64.46603121024185,
+      "fit_time": 32.6405816078186,
+      "status": "success"
+    },
+    "hist_gradient_boosting": {
+      "path": "/home/felix/Uni/data-forecast-generator_kip/output/20260428T134926Z/candidate-hist_gradient_boosting.joblib",
+      "r2": 0.5385158046724449,
+      "rmse": 61.091569970047246,
+      "mae": 31.632763691356686,
+      "fit_time": 0.7893962860107422,
+      "status": "success"
+    },
+    "gradient_boosting": {
+      "path": "/home/felix/Uni/data-forecast-generator_kip/output/20260428T134926Z/candidate-gradient_boosting.joblib",
+      "r2": -0.37976131499920074,
+      "rmse": 105.63427406573095,
+      "mae": 78.52920390451641,
+      "fit_time": 21.24803614616394,
+      "status": "success"
+    }
+  },
+  "best_r2": 0.5471735646516311,
+  "model_history": [
+    {
+      "model": "ridge",
+      "r2": 0.5446884967138537,
+      "rmse": 60.68162207578329,
+      "mae": 27.400795515430822,
+      "fit_time": 0.04509282112121582,
+      "status": "completed"
+    },
+    {
+      "model": "ridge_strong",
+      "r2": 0.5447783494096059,
+      "rmse": 60.675634223167656,
+      "mae": 27.390744100042788,
+      "fit_time": 0.03917121887207031,
+      "status": "completed"
+    },
+    {
+      "model": "elasticnet",
+      "r2": 0.5471735646516311,
+      "rmse": 60.515796835535006,
+      "mae": 26.94709819676628,
+      "fit_time": 0.3997201919555664,
+      "status": "completed"
+    },
+    {
+      "model": "elasticnet_l1",
+      "r2": 0.5469661754495868,
+      "rmse": 60.52965301219672,
+      "mae": 27.211600810313797,
+      "fit_time": 0.3596923351287842,
+      "status": "completed"
+    },
+    {
+      "model": "random_forest",
+      "r2": -0.13978721104592262,
+      "rmse": 96.00962199884492,
+      "mae": 64.46603121024185,
+      "fit_time": 32.6405816078186,
+      "status": "completed"
+    },
+    {
+      "model": "hist_gradient_boosting",
+      "r2": 0.5385158046724449,
+      "rmse": 61.091569970047246,
+      "mae": 31.632763691356686,
+      "fit_time": 0.7893962860107422,
+      "status": "completed"
+    },
+    {
+      "model": "gradient_boosting",
+      "r2": -0.37976131499920074,
+      "rmse": 105.63427406573095,
+      "mae": 78.52920390451641,
+      "fit_time": 21.24803614616394,
+      "status": "completed"
+    }
+  ],
+  "split_strategy": {
+    "type": "time_series",
+    "n_splits": 5,
+    "holdout_size": 3289
+  },
+  "artifacts": {
+    "model": "/home/felix/Uni/data-forecast-generator_kip/output/20260428T134926Z/model.joblib",
+    "holdout": "/home/felix/Uni/data-forecast-generator_kip/output/20260428T134926Z/holdout.npz"
+  },
+  "notes": [
+    "Trained 7 candidate models",
+    "Best model: elasticnet (R\u00b2=0.5472)",
+    "Used chronological time-series split for evaluation"
+  ]
+}

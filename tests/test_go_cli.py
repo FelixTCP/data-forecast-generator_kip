@@ -190,15 +190,13 @@ def test_forecast_cli_passes_split_mode_to_agent_prompt(
             str(out_dir),
             "--target-column",
             "appliances",
-            "--split-mode",
-            "auto",
         ]
     )
     assert code == 0
 
     training_prompts = [p for p in seen_prompts if "Run step 13" in p]
     assert training_prompts, "Expected step 13 training prompt"
-    assert "Use split mode: auto." in training_prompts[0]
+    assert "Use split mode: time_series." in training_prompts[0]
 
 
 def test_forecast_cli_budget_mode_applies_low_cost_defaults(
@@ -243,7 +241,7 @@ def test_forecast_cli_budget_mode_applies_low_cost_defaults(
     )
     assert code == 0
     assert captured
-    assert all(model == "gpt-5-mini" for model, _ in captured)
+    assert all(model == "claude-haiku-4.5" for model, _ in captured)
     assert all(reasoning == "low" for _, reasoning in captured)
 
 
@@ -271,10 +269,10 @@ def test_forecast_cli_continue_reuses_hashed_workspace(
         del reasoning_effort
         if str(run_dir_1) in prompt:
             return _fake_agent_runner_factory(run_dir_1)(
-                prompt, tmp_path, copilot_model="gpt-5-mini", reasoning_effort="low"
+                prompt, tmp_path, copilot_model="claude-haiku-4.5", reasoning_effort="low"
             )
         return _fake_agent_runner_factory(run_dir_2)(
-            prompt, tmp_path, copilot_model="gpt-5-mini", reasoning_effort="low"
+            prompt, tmp_path, copilot_model="claude-haiku-4.5", reasoning_effort="low"
         )
 
     monkeypatch.setattr(orchestrator, "_run_copilot_prompt", fake_runner)

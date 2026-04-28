@@ -5,8 +5,7 @@ CSV_PATH="${1:-}"
 TARGET_COLUMN="${2:-}"
 OUTPUT_DIR="${3:-artifacts/manual_$(date -u +%Y%m%dT%H%M%SZ)}"
 CODE_DIR="${4:-${OUTPUT_DIR}/code}"
-SPLIT_MODE="${SPLIT_MODE:-auto}"
-COPILOT_MODEL="${COPILOT_MODEL:-gpt-5-mini}"
+COPILOT_MODEL="${COPILOT_MODEL:-claude-haiku-4.5}"
 REASONING_EFFORT="${REASONING_EFFORT:-low}"
 
 if [[ -z "$CSV_PATH" ]]; then
@@ -30,7 +29,7 @@ render_prompt() {
     -e "s|{{TARGET_COLUMN}}|$TARGET_COLUMN|g" \
     -e "s|{{OUTPUT_DIR}}|$OUTPUT_DIR|g" \
     -e "s|{{CODE_DIR}}|$CODE_DIR|g" \
-    -e "s|{{SPLIT_MODE}}|$SPLIT_MODE|g" \
+
     "$in_file" > "$out_file"
 }
 
@@ -41,9 +40,18 @@ run_prompt() {
   local response="$OUTPUT_DIR/debug/${label}_response.md"
 
   render_prompt "$template" "$rendered"
-  copilot --allow-all-tools --allow-all-paths --allow-all-urls --no-ask-user \
-    --model "$COPILOT_MODEL" --reasoning-effort "$REASONING_EFFORT" \
-    -s -p "$(cat "$rendered")" > "$response"
+  case "${COPILOT_MODEL}" in
+    gpt*|*gpt*)
+      copilot --allow-all-tools --allow-all-paths --allow-all-urls --no-ask-user \
+        --model "$COPILOT_MODEL" --reasoning-effort "$REASONING_EFFORT" \
+        -s -p "$(cat "$rendered")" > "$response"
+      ;;
+    *)
+      copilot --allow-all-tools --allow-all-paths --allow-all-urls --no-ask-user \
+        --model "$COPILOT_MODEL" \
+        -s -p "$(cat "$rendered")" > "$response"
+      ;;
+  esac
 }
 
 run_prompt setup prompts/agentic/setup_prompt.md

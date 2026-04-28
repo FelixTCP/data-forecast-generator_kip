@@ -25,7 +25,6 @@ This pipeline is for real forecasting. Any target leakage invalidates the run.
 - `RUN_ID`: unique run id (UTC timestamp)
 - `OUTPUT_DIR`: run artifact directory (recommended: `output/<RUN_ID>/`)
 - `CODE_DIR`: generated step script directory (default: `OUTPUT_DIR/code/`)
-- `SPLIT_MODE`: `auto|random|time_series` (default: `auto`)
 - `CONTINUE_MODE`: `true|false` (default: `false`)
 
 ## Code Organisation Contract
@@ -86,16 +85,15 @@ If any of these checks fail, the step must be re-run.
 
 ```json
 {
-  "run_id": "20260404T000000Z",
+  "run_id": "20260410T120000Z",
   "csv_path": "data/file.csv",
   "target_column": "appliances",
   "status": "running",
   "current_step": "13-model-training",
-  "completed_steps": [
-    "10-csv-read-cleansing",
-    "11-data-exploration",
-    "12-feature-extraction"
-  ],
+  "current_model": "ridge",
+  "completed_models": ["ridge", "random_forest"],
+  "model_progress": 0.5,
+  "completed_steps": ["10-csv-read-cleansing", "11-data-exploration", "12-feature-extraction"],
   "errors": []
 }
 ```
