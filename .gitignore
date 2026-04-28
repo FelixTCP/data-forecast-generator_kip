@@ -38,6 +38,9 @@ data/customer_*.csv
 artifacts/*/
 outputs/*/
 *.joblib
+
+# Generated pipeline code & artifacts (per-run, all artifacts ignored)
+output/
 model_cache/
 
 # Environment

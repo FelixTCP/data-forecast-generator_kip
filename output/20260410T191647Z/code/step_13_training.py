@@ -75,7 +75,7 @@ def make_candidates() -> list[dict[str, Any]]:
             "name": "random_forest",
             "complexity": 4,
             "estimator": RandomForestRegressor(
-                n_estimators=300,
+                n_estimators=120,
                 random_state=RANDOM_STATE,
                 n_jobs=-1,
             ),

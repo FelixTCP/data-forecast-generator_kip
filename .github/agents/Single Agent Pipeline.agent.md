@@ -1,6 +1,6 @@
 ---
 name: Single Agent Pipeline
-description: Executes the full CSV-to-forecast regression pipeline (steps 10–16) end-to-end as a single agent. Generates one Python file per step under CODE_DIR, validates each step's output before proceeding, supports resuming from the last completed step, and writes all artifacts and a final report to OUTPUT_DIR.
+description: Executes the full CSV-to-forecast regression pipeline (steps 10–17) end-to-end as a single agent. Generates one Python file per step under CODE_DIR, validates each step's output before proceeding, supports resuming from the last completed step, and writes all artifacts, a final report, and a critical self-audit to OUTPUT_DIR.
 argument-hint: "CSV path and target column, e.g.: data/appliances_energy_prediction.csv, target=appliances"
 tools: ['vscode', 'execute', 'read', 'edit', 'search', 'todo']
 ---
@@ -24,6 +24,7 @@ Resolve these from the user's message or from sensible defaults:
 | `TARGET_COLUMN` | Regression target column name | *(required)* |
 | `OUTPUT_DIR` | Directory for all run artifacts | `output/<RUN_ID>/` |
 | `RUN_ID` | Unique run identifier | `YYYYMMDDTHHMMSSZ` (current UTC timestamp) |
+| `SPLIT_MODE` | Train/test split strategy | `auto` |
 | `CODE_DIR` | Directory for generated step Python files | `output/<RUN_ID>/code/` |
 | `CONTINUE_MODE` | Resume from last completed step | `false` |
 
@@ -44,6 +45,7 @@ CODE_DIR/
 ├── step_14_evaluation.py
 ├── step_15_selection.py
 ├── step_16_report.py
+├── step_17_audit.py
 └── orchestrator.py        # thin wrapper: calls steps in order, handles resume, surfaces errors
 ```
 
@@ -111,10 +113,18 @@ Before executing a step, check whether it can be skipped:
 ### After Step 12
 - `step-12-features.json` exists
 - `features` list is non-empty (if empty, all features were filtered — diagnose step 11 output before continuing)
-- `features_excluded` key exists (audit trail of what was dropped and why)
-- `split_strategy.resolved_mode` is `time_series`
+- `features` contains **at least 2 entries** — run `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-12-features.json')); assert len(d['features'])>=2, f'only {len(d[\"features\"])} feature(s) — minimum is 2'"` — must not raise
+- `features_excluded` key exists **and its value is a dict** (not a list) — run `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-12-features.json')); assert isinstance(d.get('features_excluded'), dict), 'features_excluded must be a dict, not a list'"` — must not raise
+- `split_strategy.resolved_mode` is one of `random` or `time_series`
 - The parquet path in `artifacts.features_parquet` exists on disk
 - No feature in `features` appears in `step-11-exploration.json["excluded_features"]` (leakage guard against re-including dropped features)
+- **Script structure checks** (run after writing `step_12_features.py`, before executing it):
+  - `step_12_features.py` contains `--exclude-features` CLI argument — run `Select-String -Path CODE_DIR/step_12_features.py -Pattern 'exclude.features'` — must match
+  - `step_12_features.py` imports tqdm — run `Select-String -Path CODE_DIR/step_12_features.py -Pattern 'import tqdm|from tqdm'` — must match
+  - `step_12_features.py` contains `sys.exit(2)` for leakage abort — run `Select-String -Path CODE_DIR/step_12_features.py -Pattern 'sys\.exit\(2\)'` — must match
+- **Conditional checks:**
+  - If `step-11-exploration.json["multiple_series_detected"]` is `true`: `step_12_features.py` contains `.over(` — run `Select-String -Path CODE_DIR/step_12_features.py -Pattern '\.over\('` — must match
+  - If `step-11-exploration.json["significant_lags"]` is non-empty OR `step-11-exploration.json["useful_lag_features"]` is non-empty: at least one feature name in `features` contains `_lag_` or `_roll_`
 
 ### After Step 13
 - `step-13-training.json` exists
@@ -142,8 +152,28 @@ Before executing a step, check whether it can be skipped:
 
 ### After Step 16
 - `step-16-report.md` exists and is at least 500 bytes
-- `progress.json` has `"status": "completed"`
 - Report file contains all 6 required section headings
+- `progress.json` has `"status": "completed"` (temporary — Step 17 will add `final_audit_result`)
+
+### After Step 17
+- `step-17-audit.json` exists and contains `"step": "17-critical-self-audit"`
+- `overall_audit_result` is exactly `"pass"` or `"fail"` — no other values
+- All five checks present in `"checks"` dict: `temporal_consistency`, `multi_series_detection`, `feature_target_alignment`, `model_performance_baseline`, `data_distribution_drift`
+- Each check has `status` (pass/marginal/fail), `severity` (low/medium/high), `findings` (list), `confidence` (float) — no check may have `status="warning"`
+- If `overall_audit_result == "fail"`: `critical_findings` is a non-empty list; each entry has `check`, `status`, `severity`, `description`
+- `remediation_actions` is a list of objects (not flat strings); each entry has `action_id`, `severity`, `description`, `affected_steps`, `suggested_parameters`, `expected_improvement`
+- `progress.json` has `"final_audit_result"` key set to `"pass"` or `"fail"`
+- **JSON structure checks** — run all of these as a single validation script after the step exits 0:
+  - `audit_confidence` key exists at top level and its value is a float in [0.0, 1.0] — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); v=d['audit_confidence']; assert isinstance(v,float) and 0.0<=v<=1.0"`
+  - `data_profile` is an **object** (not a string) with keys `detected_profile`, `confidence`, `characteristics` — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); p=d['data_profile']; assert isinstance(p,dict) and 'detected_profile' in p and 'confidence' in p and 'characteristics' in p"`
+  - `audit_timestamp` key exists and is a non-empty string — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); assert d.get('audit_timestamp')"`
+  - `checks.data_distribution_drift` contains `ks_stats` key whose value is a **dict** with at least one feature entry — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); ks=d['checks']['data_distribution_drift']['ks_stats']; assert isinstance(ks,dict) and len(ks)>0"`
+  - `checks.data_distribution_drift` contains key `drifted_features` (NOT `high_drift_features`) — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); c=d['checks']['data_distribution_drift']; assert 'drifted_features' in c and 'high_drift_features' not in c"`
+  - `checks.multi_series_detection` contains `potential_group_columns` key (list, may be empty) — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); c=d['checks']['multi_series_detection']; assert isinstance(c.get('potential_group_columns'), list)"`
+  - `checks.model_performance_baseline` contains `best_r2` (float) and `profile` (string) — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); c=d['checks']['model_performance_baseline']; assert isinstance(c.get('best_r2'),(int,float)) and isinstance(c.get('profile'),str)"`
+  - `next_steps` key exists at top level and is a list — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); assert isinstance(d.get('next_steps'),list)"`
+  - **If any of these checks fails: fix `step_17_audit.py` and re-run step 17 — do not proceed to progress.json update**
+- **Remediation loop:** after step 17, the orchestrator reads `remediation_actions`; for each auto-remediable action (`remove_monotonic_index_features` → restart from step 12; `improve_model_performance` → restart from step 13), re-run the affected steps and re-run step 17. Loop runs at most `MAX_REMEDIATION_ITERATIONS = 3` times. `split_by_grouping_column` is logged only — not auto-executed.
 
 ---
 
@@ -179,23 +209,13 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 
 ### Step 13 — Model Training (`step_13_training.py`) *(most critical)*
 - Read `features.parquet` and reconstruct feature list from `step-12-features.json`.
-- Determine split: chronological (`TimeSeriesSplit`) — always use a chronological/time-series split.
-- Model discovery and agent-driven selection: Examine `step-11-exploration.json` (autocorrelations, seasonality indicators, lag importance, and exogenous feature availability) and decide which model families to evaluate. Candidate families to consider include (but are not limited to):
-  - Scikit-learn regressors: Ridge, ElasticNet, RandomForestRegressor, HistGradientBoostingRegressor, GradientBoostingRegressor, SVR
-  - Boosted-tree libraries (only if installed): XGBoost, LightGBM
-  - Time-series-specialized approaches (prefer when indicated by the exploration phase): naive/lag baselines, AR, MA, ARIMA (pmdarima or statsmodels), SARIMAX (seasonal ARIMA with exogenous regressors), state-space models and ETS, and simple exponential smoothing / Holt-Winters (statsmodels)
-  - Prophet or other lightweight forecasting wrappers only if present in the environment
-- For each chosen candidate family: map inputs appropriately (scikit-learn pipelines expect X/y; ARIMA-like models may require a univariate endogenous series and optional exogenous X); train candidate models, record CV or backtest scores (chronological splits), and persist per-candidate artifacts such as `candidate-<name>.joblib` or family-appropriate files.
-- Progress reporting (mandatory): During model training, update `OUTPUT_DIR/progress.json` with `current_step: "13-model-training"` and add per-model substatus fields to allow live UI display:
-  - `current_model`: short name of the candidate currently being trained (e.g. "ridge", "arima")
-  - `completed_models`: list of model names already completed
-  - `model_progress` (optional): numeric 0.0-1.0 or an object `{ "current": 2, "total": 6 }` to indicate per-model progress
-  - `model_history`: append per-model summaries (model_name, status, cv_mean, fit_time_sec, notes)
-- For each candidate: fit, record CV/backtest scores (chronological splits), and persist results; on transient failures retry once and mark failures explicitly in `model_history`.
-- Persist best model as `model.joblib` — must be a fitted, loadable estimator or forecasting object exposing `predict(...)` (or equivalent forecasting API documented in `step-13-training.json`).
+- Determine split: chronological (`TimeSeriesSplit`) if time column detected and `SPLIT_MODE=auto`; otherwise `train_test_split(shuffle=True)`.
+- Train candidates: Ridge, RandomForest, GradientBoosting. Add XGBoost only if already installed.
+- For each candidate: fit, record CV scores (5 folds), and persist as `candidate-<name>.joblib`.
+- Persist best model as `model.joblib` — must be a fitted sklearn estimator or Pipeline exposing `.predict(X)`.
 - **Do NOT pickle classes defined under `__main__`.**
-- Save holdout data in `holdout.npz` (or an appropriate per-family holdout artifact) containing `X_test`/`y_test` or equivalent arrays for time-series models.
-- Output: `step-13-training.json`, `model.joblib`, `candidate-*.joblib` (or family-specific artifacts), `holdout.npz` and the `model_history` entries reflected in `progress.json`.
+- Save the holdout arrays as `holdout.npz` (`X_test`, `y_test`).
+- Output: `step-13-training.json`, `model.joblib`, `candidate-*.joblib`, `holdout.npz`
 
 ### Step 14 — Model Evaluation (`step_14_evaluation.py`)
 - Read the full spec at `docs/pipeline-framework/14-model-evaluation.md`.
@@ -223,6 +243,22 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
   6. Next iteration recommendations
 - Set `progress.json` status to `"completed"`.
 - Output: `step-16-report.md`
+
+### Step 17 — Critical Self-Audit (`step_17_audit.py`)
+- Read the full spec at `docs/pipeline-framework/17-critical-self-audit.md`.
+- Inputs: `step-10-cleanse.json` (or `step-01-cleanse.json`), `step-11-exploration.json`, `step-12-features.json`, `step-13-training.json`, `step-14-evaluation.json`, `cleaned.parquet`, `features.parquet`, `holdout.npz`.
+- Detect data profile (stocks_multi_series, appliances_consumption, weather_driven, generic_regression) and store `data_profile` in the output.
+- Run all five checks in a `tqdm` loop:
+  1. **temporal_consistency** — gap detection + interval regularity on time column
+  2. **multi_series_detection** — variance_between_groups / variance_within_groups; ratio > 2.0 → fail/high
+  3. **feature_target_alignment** — MI retention rate and excluded feature ratio
+  4. **model_performance_baseline** — profile-dependent R² thresholds (financial: ≥0.30 pass; ≥0.10 marginal; <0.10 fail) plus overfitting check (holdout R² < 0.8 × CV R² → downgrade one level)
+  5. **data_distribution_drift** — KS statistic per feature between train/holdout; KS ≥ 0.25 → fail/high; KS = 1.000 → monotonic index rule (fail/high, dedicated finding)
+- Status values: **ONLY** `"pass"`, `"marginal"`, `"fail"` — `"warning"` is forbidden.
+- `overall_audit_result = "fail"` if any check has `status=="fail"` OR `severity=="high"`.
+- `critical_findings` must be non-empty when `overall_audit_result == "fail"`.
+- Write `final_audit_result` to `progress.json`.
+- Output: `step-17-audit.json`
 
 ---
 
@@ -262,6 +298,7 @@ OUTPUT_DIR/
 ├── step-14-evaluation.json
 ├── step-15-selection.json
 ├── step-16-report.md
+├── step-17-audit.json
 └── code/
     ├── step_10_cleanse.py
     ├── step_11_exploration.py
@@ -270,6 +307,7 @@ OUTPUT_DIR/
     ├── step_14_evaluation.py
     ├── step_15_selection.py
     ├── step_16_report.py
+    ├── step_17_audit.py
     └── orchestrator.py
 ```
 
@@ -283,7 +321,8 @@ OUTPUT_DIR/
   "status": "running",
   "current_step": "13-model-training",
   "completed_steps": ["10-csv-read-cleansing", "11-data-exploration", "12-feature-extraction"],
-  "errors": []
+  "errors": [],
+  "final_audit_result": null
 }
 ```
 
@@ -326,10 +365,11 @@ Context is passed between scripts by serializing it under the `"context"` key of
 
 ## Acceptance Criteria
 
-- All 7 step scripts exist under `CODE_DIR` and are individually executable from the CLI.
+- All 8 step scripts exist under `CODE_DIR` and are individually executable from the CLI.
 - Running any single step script in isolation (given prior step outputs) produces correct output without requiring a full pipeline re-run.
 - `model.joblib` loads cleanly in a fresh Python process and `model.predict(X)` runs without error.
 - `step-16-report.md` is human-readable and addresses all 6 sections.
-- `progress.json` has `"status": "completed"` at the end.
+- `step-17-audit.json` is valid JSON with all five checks present and no `"warning"` status values.
+- `progress.json` has `"status": "completed"` and `"final_audit_result"` set to `"pass"` or `"fail"` at the end.
 - All step scripts are inventoried in `code_audit.json`.
 - Every validation gate passes for every step.

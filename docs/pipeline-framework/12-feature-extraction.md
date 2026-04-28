@@ -1,4 +1,4 @@
-# Step 12 — Feature Extraction & Model Preselection
+﻿# Step 12 — Feature Extraction & Model Preselection
 
 **Module**: `src/data_forecast_generator/pipeline/feature_extraction.py`  
 **Input**: Output from `data_exploration.py` (Step 11)  

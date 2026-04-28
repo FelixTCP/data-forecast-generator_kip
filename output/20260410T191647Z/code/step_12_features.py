@@ -132,13 +132,16 @@ def main() -> int:
             features_excluded[col] = "missing_from_cleaned_parquet"
 
         if time_column and time_column in df.columns:
+            time_dtype = df.schema[time_column]
             t = pl.col(time_column)
+            # Date columns do not support hour directly; cast to datetime first.
+            t_hour = t.cast(pl.Datetime("us")) if time_dtype == pl.Date else t
             df = df.with_columns(
                 [
                     t.dt.year().alias("year"),
                     t.dt.month().alias("month"),
                     t.dt.weekday().alias("day_of_week"),
-                    t.dt.hour().alias("hour"),
+                    t_hour.dt.hour().alias("hour"),
                 ]
             )
             created_features.extend(
@@ -214,6 +217,10 @@ def main() -> int:
             if col not in df.columns:
                 continue
             if is_numeric_dtype(df.schema[col]):
+                non_null_count = int(df.select(pl.col(col).is_not_null().sum()).item())
+                if non_null_count == 0:
+                    features_excluded[col] = "all_null_after_construction"
+                    continue
                 numeric_features.append(col)
             else:
                 dropped_non_numeric.append(col)
