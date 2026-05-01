@@ -242,3 +242,78 @@ PHASE 3 — VALIDATE:
 - If overall_audit_result=="fail": critical_findings is non-empty.
 - remediation_actions is a list of objects (not flat strings).
 ```
+
+---
+
+## Orchestrator
+
+```markdown
+PHASE 1 — REASON:
+- Read docs/agentic-pipeline/contracts.md (Remediation Loop Contract section).
+- Read docs/self-audit/remediation.md (full action table: AUTO vs MANUAL).
+- Confirm the orchestrator must implement ALL [AUTO] remediation actions by re-running affected steps.
+
+PHASE 2 — CODE:
+- Write CODE_DIR/orchestrator.py FROM SCRATCH using create_file. Do not copy from previous runs.
+- CLI args: --csv-path, --target-column, --output-dir, --run-id, --split-mode, --resume, --force-step.
+- MAX_REMEDIATION_ITERATIONS = 3.
+
+**Remediation loop (after step 17 completes):**
+- Read step-17-audit.json.
+- If overall_audit_result == "pass": finalize immediately.
+- If overall_audit_result == "fail":
+  1. Collect all remediation_actions whose action_id maps to an [AUTO] action (see mapping below).
+  2. If NO auto-executable actions exist: log "No auto-remediable actions — manual review required" and break.
+  3. Otherwise: apply ALL auto actions, delete output files of affected steps (from earliest step through 17), re-run affected steps in order, then re-run step 17.
+  4. Re-read step-17-audit.json. Repeat loop (max 3 iterations).
+
+**Full [AUTO] action → restart-step mapping (implement ALL of these, no exceptions):**
+
+| action_id (or substring) | Earliest restart step | Parameters injected |
+|---|---|---|
+| `remove_monotonic_index_features` | 12 | `--exclude-features <list>` |
+| `extend_lag_window` | 12 | `--max-lag <N>` |
+| `add_seasonal_features` | 12 | `--add-seasonal-features` |
+| `use_time_series_split` | 12 | `--split-mode timeseries` |
+| `improve_model_performance` | 13 | `--n-estimators <N>`, add ElasticNet/HistGBM |
+| `increase_regularization` | 13 | `--increase-regularization` |
+| `try_alternative_models` | 13 | `--expand-model-search` |
+
+**[MANUAL] actions — log only, write `remediation_required.json`, exit code 1:**
+- `handle_temporal_gaps`
+- `remove_outliers_by_isolation`
+
+**`split_by_grouping_column` is now `[AUTO]`** — must be implemented in `apply_remediation()`:
+- Detect `group_column` from audit JSON (`checks.multi_series_detection.potential_group_columns[0]`).
+- Pass `--group-column <col>` to step 12 and 13.
+- Steps 12/13 loop over unique group values with tqdm, fit one sub-model per group.
+- `model.joblib` = `{"type": "grouped", "models": {group_val: model, ...}, "weights": {group_val: r2, ...}}`.
+- Restart from step 12 through 17.
+
+**CRITICAL: A `fail` audit MUST ALWAYS trigger action. If NO auto-executable action applies after all iterations, exit with code `1` and write `remediation_required.json`. Never silently accept a fail.**
+
+**Steps to delete and re-run when restart is at step 12:**
+- Delete: step-12-features.json, features.parquet, leakage_audit.json,
+  step-13-training.json, model.joblib, candidate-*.joblib, holdout.npz,
+  step-14-evaluation.json, step-15-selection.json, step-16-report.md, step-17-audit.json
+- Re-run: 12, 13, 14, 15, 16, 17
+
+**Steps to delete and re-run when restart is at step 13:**
+- Delete: step-13-training.json, model.joblib, candidate-*.joblib, holdout.npz,
+  step-14-evaluation.json, step-15-selection.json, step-16-report.md, step-17-audit.json
+- Re-run: 13, 14, 15, 16, 17
+
+**After the loop, regardless of final audit result:**
+- Write final_audit_result to progress.json.
+- Build code_audit.json.
+- Exit with code 0 when status == "completed" and final_audit_result in ("pass", "fail").
+- Exit with code 1 only when a step crashes.
+
+PHASE 3 — VALIDATE:
+- orchestrator.py exists and is executable.
+- MAX_REMEDIATION_ITERATIONS = 3.
+- apply_remediation() handles all 7 [AUTO] action_ids (check by substring match).
+- Remediation loop continues until overall_audit_result=="pass" OR iteration limit reached.
+- Loop does NOT break early just because apply_remediation returned True once;
+  it must re-read step-17-audit.json after each remediation and continue if still "fail".
+```

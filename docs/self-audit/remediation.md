@@ -13,13 +13,14 @@ When the audit fails or detects high-severity issues, this document defines the 
 | `increase_regularization` | `[AUTO]` | Overfitting detected | 13 | Automatic |
 | `try_alternative_models` | `[AUTO]` | Model class under-performs | 13 | Automatic |
 | `use_time_series_split` | `[AUTO]` | Strong temporal signal | 12, 13 | Automatic |
-| `split_by_grouping_column` | `[MANUAL]` | Multi-series detected | 12, 13, 14, 15 | User review required |
+| `split_by_grouping_column` | `[AUTO]` | Multi-series detected | 12, 13, 14, 15 | Automatic — trains per-group sub-models |
 | `handle_temporal_gaps` | `[MANUAL]` | Large temporal gaps | 10, 12 | User review required |
 | `remove_outliers_by_isolation` | `[MANUAL]` | Distribution drift/anomalies | 10, 13 | User review required |
 
 **Orchestrator Behavior:**
 - **`[AUTO]` actions:** Orchestrator injects parameters and re-runs affected steps. Loop repeats up to `MAX_REMEDIATION_ITERATIONS = 3` until `overall_audit_result == "pass"` or limit reached.
-- **`[MANUAL]` actions:** Orchestrator logs action in remediation_actions list; user must review findings and manually adjust parameters or data before re-running.
+- **CRITICAL: A `fail` audit result MUST ALWAYS trigger at least one remediation iteration.** If all collected actions are AUTO, the orchestrator executes them immediately. If only MANUAL actions remain after exhausting AUTO options, the orchestrator still writes a `remediation_required.json` and exits with code `1` to signal that the run requires human intervention before it can be marked complete.
+- **`[MANUAL]` actions:** Logged in `remediation_actions`; pipeline exits with code `1` and writes `remediation_required.json` explaining required steps.
 
 ---
 
@@ -27,25 +28,26 @@ When the audit fails or detects high-severity issues, this document defines the 
 
 ### Category A: Data Preprocessing & Feature Engineering
 
-**Action: `split_by_grouping_column`** `[MANUAL]`
+**Action: `split_by_grouping_column`** `[AUTO]`
 - **Triggered by:** Multi-series detection failure (multiple time series detected; model trained on mixed series).
 - **Severity:** High.
-- **Auto-Executable:** ❌ No — requires domain expert review and parameter decision.
-- **Description:** Re-run pipeline separately for each group (e.g., each entity, machine, location, device, or any grouping column).
+- **Auto-Executable:** ✅ Yes — orchestrator automatically re-runs steps 12–17 with per-group training.
+- **Description:** Re-run pipeline separately for each detected group (entity, machine, location, stock, city, etc.). Train one sub-model per group value, then ensemble predictions weighted by per-group R².
 - **Affected steps:** 12 (Feature Extraction), 13 (Model Training), 14 (Evaluation), 15 (Selection).
-- **Parameters:**
+- **Parameters injected automatically:**
   ```json
   {
-    "group_column": "<detected_grouping_column>",
+    "group_column": "<auto-detected grouping column>",
     "train_separate_models": true,
-    "ensemble_method": "average"  // or "weighted_by_r2"
+    "ensemble_method": "weighted_by_r2"
   }
   ```
-- **Expected improvement:** R² typically +0.2 to +0.5 per group; enables group-specific modeling.
+- **Expected improvement:** R² typically +0.2 to +0.5 per group; eliminates cross-entity contamination.
 - **Implementation:**
   - Pass `--group-column=<column_name>` to step 12, 13, 14, 15.
-  - Create sub-models for each group value.
-  - Ensemble predictions or report per-group metrics.
+  - Steps 12/13 loop over unique group values, fitting one sub-model each (tqdm progress bar over groups).
+  - Step 14 reports per-group R² + weighted ensemble R².
+  - `model.joblib` contains a dict `{group_value: fitted_model}` plus `ensemble_weights`.
 
 ---
 

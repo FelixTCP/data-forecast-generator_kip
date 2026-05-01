@@ -85,16 +85,20 @@ If any of the three checks above fail, the step must be re-run (re-execution is 
 1. After all 9 steps complete, the orchestrator reads `step-17-audit.json`.
 2. `overall_audit_result == "pass"` → Pipeline is immediately finalized.
 3. `overall_audit_result == "fail"`:
-   - Auto-executable `remediation_actions` are collected (see `17-critical-self-audit.md`).
-   - `OUTPUT_DIR/remediation_config.json` is updated with new excluded features or parameter flags.
+   - **This MUST ALWAYS trigger action. A fail result can never be silently accepted.**
+   - All `remediation_actions` with `[AUTO]` type are collected (see `docs/self-audit/remediation.md`).
+   - `OUTPUT_DIR/remediation_config.json` is updated with injected parameters.
    - Output files of all steps from the earliest affected step through Step 17 are deleted.
-   - These steps are re-executed in order — Step 12 receives the `--exclude-features` parameter.
-   - `step-17-audit.json` is re-read. Loop runs for at most 3 iterations.
+   - Those steps are re-executed in order with the new parameters.
+   - `step-17-audit.json` is re-read. Loop runs for at most `MAX_REMEDIATION_ITERATIONS = 3` iterations.
+   - If after all iterations the audit is still `fail`, the orchestrator writes `remediation_required.json` and exits with **code `1`** — the run is NOT finalized as complete.
 4. At the end, `progress.json` receives the `final_audit_result` field (`"pass"` or `"fail"`).
+   - `status = "completed"` is only written when `final_audit_result == "pass"`.
+   - `status = "remediation_required"` is written when `final_audit_result == "fail"` after all iterations.
 
-### Not auto-executable
+### All actions are now AUTO-executable
 
-`split_by_grouping_column` requires per-group training and is only logged — it does not trigger a restart.
+`split_by_grouping_column` is now `[AUTO]`: the orchestrator automatically re-runs steps 12–17 with `--group-column` injection, training one sub-model per group and ensembling predictions. See `docs/self-audit/remediation.md` for the full implementation spec.
 
 ### State File: `remediation_config.json`
 

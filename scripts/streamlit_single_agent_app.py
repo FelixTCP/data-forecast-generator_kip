@@ -71,6 +71,7 @@ def _run_pipeline(
     prompt: str, working_dir: Path, model: str = "claude-haiku-4.5"
 ) -> subprocess.CompletedProcess[str]:
     command = [
+        "gh",
         "copilot",
         "--allow-all-tools",
         "--allow-all-paths",
@@ -95,6 +96,7 @@ def _start_pipeline_process(
     prompt: str, working_dir: Path, model: str = "claude-haiku-4.5"
 ) -> subprocess.Popen[str]:
     command = [
+        "gh",
         "copilot",
         "--allow-all-tools",
         "--allow-all-paths",
