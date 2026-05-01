@@ -1,0 +1,60 @@
+# docker-compose.yml — data-forecast-generator
+#
+# Compatible with:  docker compose v2 · podman compose · podman 4+ built-in compose
+#
+# Quick start:
+#   1. Copy .env.example → .env and fill in GITHUB_TOKEN
+#   2a. Docker:  docker compose up --build
+#   2b. Podman:  podman compose up --build
+#               (or: podman-compose up --build)
+#
+# Windows (Podman Desktop):
+#   podman machine start   # if not already running
+#   podman compose up --build
+
+services:
+
+  # ── Agent pipeline UI ────────────────────────────────────────────────────
+  # Upload a CSV, pick a target column, and run the full forecasting pipeline
+  # via GitHub Copilot CLI (copilot command).
+  agent-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Pass explicit DNS to the build environment (fixes Podman/rootless VM network issues)
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    image: data-forecast-generator:latest
+    ports:
+      - "8501:8501"
+    environment:
+      # GitHub token with Copilot access — required for the copilot CLI
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      # Optional: override default model
+      - COPILOT_MODEL=${COPILOT_MODEL:-claude-haiku-4.5}
+    volumes:
+      # Persist pipeline run artifacts and uploaded CSVs on the host
+      - ./output:/app/output
+      - ./artifacts/ui_uploads:/app/artifacts/ui_uploads
+    restart: unless-stopped
+
+  # ── Inference / XAI app ─────────────────────────────────────────────────
+  # Browse completed pipeline runs, make predictions, and inspect SHAP values.
+  # Reads artifacts from the shared output volume — no copilot CLI needed.
+  inference-app:
+    image: data-forecast-generator:latest
+    # Reuse the image built by the agent-app service (no duplicate build)
+    depends_on:
+      - agent-app
+    ports:
+      - "8502:8502"
+    command: >
+      streamlit run scripts/streamlit_inference_app.py
+        --server.address=0.0.0.0
+        --server.port=8502
+    volumes:
+      - ./output:/app/output
+    restart: unless-stopped

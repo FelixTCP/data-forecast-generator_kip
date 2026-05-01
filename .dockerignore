@@ -1,0 +1,59 @@
+# Version control
+.git/
+.gitignore
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+.Python
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE & tooling
+.vscode/
+.idea/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+
+# Test suite (not needed at runtime)
+tests/
+
+# Demo/sample data — keep out of image
+data/
+
+# Runtime artifacts — should be mounted as volumes
+output/
+artifacts/ui_uploads/
+
+# Secrets — never bake into the image
+.env
+.env.local
+.secrets
+
+# Nix tooling
+flake.nix
+flake.lock
+result
+result-*
+
+# Dev docs & setup notes
+SETUP_SUMMARY.md
+QUICK_START.md
+START_HERE.md
+FILES_CREATED.txt
+IMPLEMENTATION_OUTLINE.md
+INDEX.md
