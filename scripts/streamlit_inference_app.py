@@ -9,8 +9,8 @@ from pathlib import Path
 
 import joblib
 import numpy as np
-import pandas as pd
 import plotly.graph_objects as go
+import polars as pl
 import streamlit as st
 
 try:
@@ -200,24 +200,22 @@ def _render_shap_explanations(model, X_test: np.ndarray, features_info: dict) ->
         sample_features = X_sample[sample_idx]
 
         # Create contribution dataframe
-        contrib_df = pd.DataFrame({
+        contrib_df = pl.DataFrame({
             "Feature": feature_names[: len(sample_shap)],
-            "Value": sample_features[: len(sample_shap)],
-            "SHAP": sample_shap,
-            "|SHAP|": np.abs(sample_shap),
-        })
-
-        contrib_df = contrib_df.sort_values("|SHAP|", ascending=False).head(15)
+            "Value": [float(v) for v in sample_features[: len(sample_shap)]],
+            "SHAP": [float(v) for v in sample_shap],
+            "|SHAP|": [float(v) for v in np.abs(sample_shap)],
+        }).sort("|SHAP|", descending=True).head(15)
 
         fig2 = go.Figure()
-        colors = ["red" if x < 0 else "blue" for x in contrib_df["SHAP"]]
+        colors = ["red" if x < 0 else "blue" for x in contrib_df["SHAP"].to_list()]
         fig2.add_trace(
             go.Bar(
-                y=contrib_df["Feature"],
-                x=contrib_df["SHAP"],
+                y=contrib_df["Feature"].to_list(),
+                x=contrib_df["SHAP"].to_list(),
                 orientation="h",
                 marker_color=colors,
-                text=[f"{x:.4f}" for x in contrib_df["SHAP"]],
+                text=[f"{x:.4f}" for x in contrib_df["SHAP"].to_list()],
                 textposition="outside",
             )
         )
@@ -256,7 +254,7 @@ def _render_feature_analysis(features_info: dict, X_test: np.ndarray) -> None:
             "Max": float(np.max(col_data)),
         })
 
-    stats_df = pd.DataFrame(stats_data)
+    stats_df = pl.DataFrame(stats_data)
     st.dataframe(stats_df, use_container_width=True, hide_index=True)
 
     # Feature distributions
@@ -381,12 +379,12 @@ def main() -> None:
     st.markdown("---")
     st.subheader("💾 Export Results")
 
-    forecast_export = pd.DataFrame({
-        "step": np.arange(1, k + 1),
-        "forecasted_value": forecasts,
+    forecast_export = pl.DataFrame({
+        "step": np.arange(1, k + 1).tolist(),
+        "forecasted_value": forecasts.tolist(),
     })
 
-    csv = forecast_export.to_csv(index=False)
+    csv = forecast_export.write_csv()
     st.download_button(
         label="📥 Download Forecast (CSV)",
         data=csv,
