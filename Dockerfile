@@ -35,6 +35,9 @@ COPY pyproject.toml uv.lock ./
 ENV UV_SYSTEM_PYTHON=1
 RUN uv sync --no-dev --no-install-project
 
+# uv sync creates a venv at /app/.venv — put its bin on PATH
+ENV PATH="/app/.venv/bin:$PATH"
+
 # ── Application source ────────────────────────────────────────────────────────
 COPY scripts/   ./scripts/
 COPY docs/      ./docs/
