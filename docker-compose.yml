@@ -18,21 +18,13 @@ services:
   # Upload a CSV, pick a target column, and run the full forecasting pipeline
   # via GitHub Copilot CLI (copilot command).
   agent-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      # Pass explicit DNS to the build environment (fixes Podman/rootless VM network issues)
-      args:
-        - BUILDKIT_INLINE_CACHE=1
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    image: data-forecast-generator:latest
+    image: docker.io/felixtcp/data-forecast-generator:latest
     ports:
       - "8501:8501"
     environment:
-      # GitHub token with Copilot access — required for the copilot CLI
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      # GitHub OAuth token — use 'gh auth login' on host, then 'gh auth token' to get it.
+      # Set GH_TOKEN in .env (OAuth tokens start with gho_ and work with Copilot CLI).
+      - GH_TOKEN=${GH_TOKEN}
       # Optional: override default model
       - COPILOT_MODEL=${COPILOT_MODEL:-claude-haiku-4.5}
     volumes:
@@ -45,7 +37,7 @@ services:
   # Browse completed pipeline runs, make predictions, and inspect SHAP values.
   # Reads artifacts from the shared output volume — no copilot CLI needed.
   inference-app:
-    image: data-forecast-generator:latest
+    image: docker.io/felixtcp/data-forecast-generator:latest
     # Reuse the image built by the agent-app service (no duplicate build)
     depends_on:
       - agent-app
