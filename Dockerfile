@@ -15,10 +15,12 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # ── GitHub Copilot CLI ────────────────────────────────────────────────────────
-# nixpkgs 'github-copilot-cli' maps to the @github-copilot/cli npm package.
-# Authentication requires GITHUB_TOKEN (with Copilot permission) at runtime.
-RUN npm install -g @github-copilot/cli \
- && copilot --version || true
+# Pin global npm prefix to /usr/local so the binary lands in /usr/local/bin
+# (predictable, guaranteed to be in PATH). Authentication via GITHUB_TOKEN.
+RUN npm config set prefix /usr/local \
+ && npm install -g @github-copilot/cli \
+ && ls /usr/local/bin/copilot \
+ && echo "copilot installed: $(copilot --version 2>&1 || true)"
 
 # ── uv (fast Python package manager) ─────────────────────────────────────────
 RUN pip install --no-cache-dir uv
@@ -35,8 +37,10 @@ COPY pyproject.toml uv.lock ./
 ENV UV_SYSTEM_PYTHON=1
 RUN uv sync --no-dev --no-install-project
 
-# uv sync creates a venv at /app/.venv — put its bin on PATH
-ENV PATH="/app/.venv/bin:$PATH"
+# uv sync creates a venv at /app/.venv — put its bin on PATH.
+# Also spell out /usr/local/bin explicitly so copilot is always found
+# regardless of how the process is launched (shell or exec form).
+ENV PATH="/app/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 
 # ── Application source ────────────────────────────────────────────────────────
 COPY scripts/   ./scripts/
