@@ -170,10 +170,44 @@ Before executing a step, check whether it can be skipped:
   - `checks.data_distribution_drift` contains `ks_stats` key whose value is a **dict** with at least one feature entry — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); ks=d['checks']['data_distribution_drift']['ks_stats']; assert isinstance(ks,dict) and len(ks)>0"`
   - `checks.data_distribution_drift` contains key `drifted_features` (NOT `high_drift_features`) — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); c=d['checks']['data_distribution_drift']; assert 'drifted_features' in c and 'high_drift_features' not in c"`
   - `checks.multi_series_detection` contains `potential_group_columns` key (list, may be empty) — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); c=d['checks']['multi_series_detection']; assert isinstance(c.get('potential_group_columns'), list)"`
-  - `checks.model_performance_baseline` contains `best_r2` (float) and `profile` (string) — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); c=d['checks']['model_performance_baseline']; assert isinstance(c.get('best_r2'),(int,float)) and isinstance(c.get('profile'),str)"`
+- `checks.model_performance_baseline` contains `best_r2` (float) and `profile` (string) — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); c=d['checks']['model_performance_baseline']; assert isinstance(c.get('best_r2'),(int,float)) and isinstance(c.get('profile'),str)"`
   - `next_steps` key exists at top level and is a list — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); assert isinstance(d.get('next_steps'),list)"`
   - **If any of these checks fails: fix `step_17_audit.py` and re-run step 17 — do not proceed to progress.json update**
-- **Remediation loop:** after step 17, the orchestrator reads `remediation_actions`; for each auto-remediable action (`remove_monotonic_index_features` → restart from step 12; `improve_model_performance` → restart from step 13), re-run the affected steps and re-run step 17. Loop runs at most `MAX_REMEDIATION_ITERATIONS = 3` times. `split_by_grouping_column` is logged only — not auto-executed.
+- **Remediation loop — MANDATORY when `overall_audit_result == "fail"` (max 3 iterations):**
+
+  A `fail` audit result MUST ALWAYS trigger the remediation loop. Silently accepting a fail is forbidden.
+
+  **Step-by-step procedure for each iteration:**
+  1. Read `remediation_actions` from `step-17-audit.json`.
+  2. Classify each action as `[AUTO]` or `[MANUAL]` using this table:
+
+     | action_id (substring match) | Type | Restart from step |
+     |---|---|---|
+     | `remove_monotonic_index_features` | AUTO | 12 |
+     | `extend_lag_window` | AUTO | 12 |
+     | `add_seasonal_features` | AUTO | 12 |
+     | `use_time_series_split` | AUTO | 12 |
+     | `split_by_grouping_column` | AUTO | 12 |
+     | `improve_model_performance` | AUTO | 13 |
+     | `increase_regularization` | AUTO | 13 |
+     | `try_alternative_models` | AUTO | 13 |
+     | `handle_temporal_gaps` | MANUAL | — |
+     | `remove_outliers_by_isolation` | MANUAL | — |
+
+  3. Determine the **earliest restart step** across all AUTO actions.
+  4. Log: `"Self-audit FAIL — remediation iteration N/3. Restarting from step <X>. Actions: <list>."` 
+  5. Write/update `OUTPUT_DIR/remediation_config.json` with `iteration`, `applied_actions`, injected parameters.
+  6. Delete all output artifacts from the restart step through step 17:
+     - **Restart at 12:** delete `step-12-features.json`, `features.parquet`, `leakage_audit.json`, `step-13-training.json`, `model.joblib`, `candidate-*.joblib`, `holdout.npz`, `step-14-evaluation.json`, `step-15-selection.json`, `step-16-report.md`, `step-17-audit.json`
+     - **Restart at 13:** delete `step-13-training.json`, `model.joblib`, `candidate-*.joblib`, `holdout.npz`, `step-14-evaluation.json`, `step-15-selection.json`, `step-16-report.md`, `step-17-audit.json`
+  7. Re-run all affected steps in order with injected parameters (e.g. `--exclude-features`, `--max-lag`, `--group-column`).
+  8. Re-run step 17. Read the new `overall_audit_result`.
+     - `"pass"` → exit the loop.
+     - `"fail"` and iterations < 3 → go back to step 1.
+     - `"fail"` after 3 iterations → write `OUTPUT_DIR/remediation_required.json`, set `progress.json status = "remediation_required"`, exit code 1.
+  9. If **no AUTO actions exist** (only MANUAL): write `OUTPUT_DIR/remediation_required.json` with human-readable descriptions of required manual steps, set `status = "remediation_required"`, exit code 1.
+
+- **After the loop** (regardless of final result): set `progress.json final_audit_result` to `"pass"` or `"fail"`. Set `status = "completed"` only when `final_audit_result == "pass"`.
 
 ---
 

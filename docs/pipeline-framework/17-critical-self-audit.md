@@ -231,3 +231,29 @@ audit_confidence = (count of "pass" checks) / 5
 - All algorithm details in `docs/self-audit/*.md` — reference them, don't duplicate.
 - Status values are **strict**: Only "pass", "marginal", "fail". No "warning" ever.
 - Validation gates (from `.agent.md`) apply: all fields mandatory, proper types, no empty dicts where objects required.
+
+
+---
+
+## Post-Execution: Remediation Restart
+
+When `overall_audit_result == "fail"`, the pipeline is **not complete**. You MUST immediately execute the PHASE 4 — REMEDIATE procedure defined in `docs/agentic-pipeline/step-prompts.md` (step 17 section).
+
+### Action-to-restart-step mapping
+
+| action_id | Type | Restart from step |
+|---|---|---|
+| `remove_monotonic_index_features` | AUTO | 12 |
+| `extend_lag_window` | AUTO | 12 |
+| `add_seasonal_features` | AUTO | 12 |
+| `use_time_series_split` | AUTO | 12 |
+| `split_by_grouping_column` | AUTO | 12 |
+| `improve_model_performance` | AUTO | 13 |
+| `increase_regularization` | AUTO | 13 |
+| `try_alternative_models` | AUTO | 13 |
+| `handle_temporal_gaps` | MANUAL | — write `remediation_required.json` |
+| `remove_outliers_by_isolation` | MANUAL | — write `remediation_required.json` |
+
+- Full action specs: `docs/self-audit/remediation.md`.
+- The pipeline is not finalized until `overall_audit_result == "pass"` or 3 remediation iterations have been exhausted.
+- After 3 failed iterations: write `remediation_required.json`, set `status = "remediation_required"`, exit code 1.

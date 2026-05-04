@@ -241,6 +241,41 @@ PHASE 3 — VALIDATE:
 - No check has status="warning".
 - If overall_audit_result=="fail": critical_findings is non-empty.
 - remediation_actions is a list of objects (not flat strings).
+
+PHASE 4 — REMEDIATE (mandatory when overall_audit_result == "fail"):
+- **A `fail` result can NEVER be silently accepted. You MUST always execute this phase.**
+- Read `remediation_actions` from step-17-audit.json.
+- Determine the earliest restart step using this mapping (use the earliest across all actions):
+
+  | action_id (substring match) | Restart from step |
+  |---|---|
+  | `remove_monotonic_index_features` | 12 |
+  | `extend_lag_window` | 12 |
+  | `add_seasonal_features` | 12 |
+  | `use_time_series_split` | 12 |
+  | `split_by_grouping_column` | 12 |
+  | `improve_model_performance` | 13 |
+  | `increase_regularization` | 13 |
+  | `try_alternative_models` | 13 |
+  | `handle_temporal_gaps` (MANUAL) | — log only, write remediation_required.json, exit code 1 |
+  | `remove_outliers_by_isolation` (MANUAL) | — log only, write remediation_required.json, exit code 1 |
+
+- **If at least one [AUTO] action exists:**
+  1. Log: "Self-audit FAIL — starting remediation iteration <N>/3. Restarting from step <earliest_step>. Reason: <action descriptions>."
+  2. Write/update `OUTPUT_DIR/remediation_config.json` with iteration number, applied actions, and injected parameters.
+  3. Delete output artifacts of all steps from the restart step through 17 (see Orchestrator section for exact file lists).
+  4. Re-run the affected steps in order with injected parameters.
+  5. Re-run step 17. Re-read audit result. If still "fail" and iterations < 3 → repeat from step 1.
+  6. If still "fail" after 3 iterations: write `remediation_required.json`, set `progress.json status = "remediation_required"`, exit code 1.
+
+- **If only [MANUAL] actions exist (no AUTO actions):**
+  - Write `OUTPUT_DIR/remediation_required.json` with all manual action details.
+  - Log clearly which manual steps the user must take before re-running.
+  - Set `progress.json status = "remediation_required"`, exit code 1.
+
+- **If overall_audit_result == "pass":**
+  - Set `progress.json final_audit_result = "pass"`, `status = "completed"`.
+  - Pipeline finalized. Exit code 0.
 ```
 
 ---

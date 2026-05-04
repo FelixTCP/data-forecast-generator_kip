@@ -23,7 +23,9 @@
 - [ ] **Rolling Features Causal**: `.shift(1)` BEFORE every `.rolling_mean()` calculation — prevents look-ahead leakage
 - [ ] **Exit Code 2 on Leakage**: If |r| > 0.98, `sys.exit(2)` is called and NO features.parquet is written
 - [ ] **Reconstruction Probe**: After Pearson check, additionally RandomForest R² > 0.999 as a second leakage test
-- [ ] **Mandatory Steps Z-K**: All 11 functions (Z, A, B, C, D, E, F, G, H, I, J, K) are implemented as separate functions and called in this order from `main()`
+- [ ] **Mandatory Steps Z-L**: All 13 functions (Z, A, B, C, D, E, F, G, H, I, L, J, K) are implemented as separate functions and called in this order from `main()`
+- [ ] **Zero-Variance Removal (L)**: After feature engineering and before leakage detection, `remove_zero_variance_features()` is called; all features with `std == 0` (or variance ≤ 1e-10) are removed and logged in `features_excluded`
+- [ ] **Feature Scaling (K)**: `compute_scaling_metadata()` also **performs** the scaling and saves `features_scaled.parquet`; binary/boolean features (0/1) are never scaled
 - [ ] **`features_excluded` as Dict**: Every excluded feature with reason (not as a list)
 - [ ] **Minimum Features Check**: `if len(final_features) < 2: sys.exit(1)` after leakage cleanup
 - [ ] **Monotone Index Features Forbidden**: `trend_t_index`, `trend_t_index_sq` MUST NOT be generated; use `trend_elapsed_days` instead
@@ -100,7 +102,17 @@
 
 9. **`--exclude-features` CLI argument (MANDATORY):** `parser.add_argument("--exclude-features", default="")` — comma-separated list of features to be forcibly excluded. Injected by the orchestrator after Step-17 remediation.
 
-10. **Mandatory Steps Z-K** are separate Python functions — no inline code in `main()` for this logic
+10. **Mandatory Steps Z-L** are separate Python functions — no inline code in `main()` for this logic
+
+11. **Zero-Variance Removal (MANDATORY — Step L):** After feature engineering (G/H/I) and **before** leakage detection (J), call `remove_zero_variance_features()`. Any feature where `df[col].std() <= 1e-10` is removed. Removed features are added to `features_excluded` with reason `"zero_variance"`. If fewer than 2 features remain after removal → `sys.exit(1)`.
+
+12. **Feature Scaling (MANDATORY — Step K):** After leakage check (J), scale the feature matrix and write `features_scaled.parquet`. Rules:
+    - Linear Models / SARIMA / State-Space → `StandardScaler` (zero mean, unit variance)
+    - LSTM / Temporal CNN → `MinMaxScaler` (range 0..1)
+    - Gradient Boosting / Tree-based / RF → no scaling
+    - Binary/boolean features (values only 0 and 1) → **never scale**
+    - The target column is **never scaled**
+    - Scaler objects are persisted via `joblib.dump` to `OUTPUT_DIR/scaler.joblib`
 
 ---
 
@@ -118,7 +130,7 @@
 > **WICHTIG FÃœR AGENTEN**: Dieses Dokument beschreibt ein **CLI-Script**, kein importierbares Modul.
 > Es gibt KEINE `run_analysis()`-Einstiegsfunktion.
 > Der Einstiegspunkt ist `main()` in `if __name__ == "__main__": sys.exit(main())`.
-> Alle Funktionen Zâ€“K sind eigenstÃ¤ndige Hilfsfunktionen, die von `main()` aufgerufen werden.
+> Alle Funktionen Z–L sind eigenstÃ¤ndige Hilfsfunktionen, die von `main()` aufgerufen werden.
 
 ---
 
@@ -131,6 +143,8 @@
 | Leakage â†’ Hard Fail | `RuntimeError` wenn `\|r\| â‰¥ threshold` â€” kein Artefakt wird geschrieben |
 | Leakage-Probe | Paarweise Pearson-Korrelation **und** Rekonstruktions-Probe (RF RÂ² > 0.999) |
 | Mindest-Features | Weniger als 2 Features nach Bereinigung â†’ `ValueError` |
+| Zero-Varianz entfernen | Features mit `std ≈ 0` (Varianz ≤ 1e-10) werden vor Leakage-Check entfernt und in `features_excluded` protokolliert |
+| Feature Scaling | StandardScaler (lineare Modelle/SARIMA), MinMaxScaler (LSTM), kein Scaler (Baummodelle); Binary-Features niemals skalieren; Ergebnis in `features_scaled.parquet` |
 
 ---
 
@@ -826,6 +840,76 @@ def add_features_for_models(
 
 ---
 
+### L — Zero-Varianz-Features entfernen
+
+```python
+
+def remove_zero_variance_features(
+    feature_matrix: pl.DataFrame,
+    target_col: str,
+    variance_threshold: float = 1e-10,
+
+) -> tuple[pl.DataFrame, dict]:
+
+    """
+    Removes features with (near-)zero variance from the feature matrix.
+
+    A feature with std ≤ sqrt(variance_threshold) carries no information for
+    any model and can cause numerical issues in scaling and linear models.
+
+    Procedure:
+    1. Compute std for every column except target_col
+    2. Mark every column where std ≤ sqrt(variance_threshold) as zero-variance
+    3. Drop those columns from feature_matrix
+    4. Return the cleaned matrix and an exclusion dict
+
+    Returns:
+        (cleaned_feature_matrix, excluded_dict)
+        excluded_dict: {feature_name: 'zero_variance'} for every removed feature
+
+    Raises:
+        ValueError: When fewer than 2 features remain after removal
+    """
+
+```
+
+---
+
+### L — Zero-Varianz-Features entfernen
+
+```python
+
+def remove_zero_variance_features(
+    feature_matrix: pl.DataFrame,
+    target_col: str,
+    variance_threshold: float = 1e-10,
+
+) -> tuple[pl.DataFrame, dict]:
+
+    """
+    Removes features with (near-)zero variance from the feature matrix.
+
+    A feature with std ≤ sqrt(variance_threshold) carries no information for
+    any model and can cause numerical issues in scaling and linear models.
+
+    Procedure:
+    1. Compute std for every column except target_col
+    2. Mark every column where std ≤ sqrt(variance_threshold) as zero-variance
+    3. Drop those columns from feature_matrix
+    4. Return the cleaned matrix and an exclusion dict
+
+    Returns:
+        (cleaned_feature_matrix, excluded_dict)
+        excluded_dict: {feature_name: 'zero_variance'} for every removed feature
+
+    Raises:
+        ValueError: When fewer than 2 features remain after removal
+    """
+
+```
+
+---
+
 ### J — Leakage-Erkennung
 
 ```python
@@ -864,7 +948,7 @@ def detect_feature_leakage(
 When `status == "fail"`, `run_analysis` raises a `RuntimeError` — no artifact is written.
 ---
 
-### K — Feature-Scaling-Metadaten
+### K — Feature-Scaling
 
 ```python
 
@@ -872,37 +956,57 @@ def compute_scaling_metadata(
     feature_matrix: pl.DataFrame,
     target_col: str,
     recommended_models: list[str],
+    output_dir: Path,
 
-) -> dict:
+) -> tuple[pl.DataFrame, dict]:
 
     """
-    Determines which features need to be scaled for which model types.
-    Scaling itself is performed in Step 13; this dict is the instruction for it.
+    Scales the feature matrix and persists the scaler(s).
+    Also returns the scaling metadata dict for the JSON artifact.
+
     Rules:
     - Linear Models / SARIMA / State-Space: all numeric features → StandardScaler
-    - Gradient Boosting / Tree-based / RF:  no scaler needed
+    - Gradient Boosting / Tree-based / RF:  no scaler needed (matrix unchanged)
     - LSTM / Temporal CNN:                  all features → MinMaxScaler (0..1)
-    - Binary features (0/1):               never scale
-    Returns:
-        {
+    - Binary features (values exclusively 0 and 1): never scale
+    - Target column: never scaled
 
+    Procedure:
+    1. Identify binary features (unique values ⊆ {0, 1})
+    2. Determine scaler based on top_recommendation
+    3. Fit scaler on features_to_scale (excluding binary + target)
+    4. Transform and rebuild feature_matrix with scaled columns
+    5. Persist scaler: joblib.dump(scaler, output_dir / 'scaler.joblib')
+    6. Write scaled matrix: feature_matrix.write_parquet(output_dir / 'features_scaled.parquet')
+
+    Returns:
+        (scaled_feature_matrix, scaling_metadata_dict)
+        scaling_metadata_dict keys:
+        {
             "scaling_required": bool,
+            "scaler_used": "StandardScaler" | "MinMaxScaler" | None,
+            "scaler_path": str,
+            "features_scaled": list[str],
+            "never_scale": list[str],
             "per_model": {
-                "Gradient Boosting": {"scaler": None,            "features": []},
-                "SARIMA":            {"scaler": "StandardScaler", "features": ["y_lag_1", ...]},
-                "LSTM":              {"scaler": "MinMaxScaler",   "features": ["y_lag_1", ...]},
-                # ...
+                "Gradient Boosting": {"scaler": None,             "features": []},
+                "SARIMA":            {"scaler": "StandardScaler",  "features": ["y_lag_1", ...]},
+                "LSTM":              {"scaler": "MinMaxScaler",    "features": ["y_lag_1", ...]},
             },
-            "never_scale": list[str],   # Binary features (is_weekend, etc.)
         }
+
+    Raises:
+        ValueError: When feature_matrix has no numeric columns to scale
     """
+
 ```
 
 ---
 
+
 ## Implementation Checklist
 
-- [ ] All functions (Z, A–K) fully implemented
+- [ ] All functions (Z, A–L) fully implemented
 - [ ] `import json, logging, time, uuid` and `from pathlib import Path` present
 - [ ] No `argparse`, no CLI code, no `print()`
 - [ ] Input validation with descriptive `ValueError`
@@ -920,6 +1024,9 @@ def compute_scaling_metadata(
 - [ ] Leakage probe: RandomForest R² > 0.999 counts as confirmed leakage
 - [ ] Rolling features: `.shift(1)` before every rolling calculation; violation → exclude feature
 - [ ] `scaling_metadata` block in output; binary features in `never_scale`
+- [ ] `remove_zero_variance_features()` called after I, before J; excluded features in `features_excluded` with reason "zero_variance"
+- [ ] `compute_scaling_metadata()` performs actual scaling and writes `features_scaled.parquet`; scaler persisted as `scaler.joblib`
+- [ ] Binary features never scaled; target column never scaled
 - [ ] Tests under `tests/test_feature_extraction.py`
 
 ---
