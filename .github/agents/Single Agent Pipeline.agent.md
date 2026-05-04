@@ -1,6 +1,6 @@
 ---
 name: Single Agent Pipeline
-description: Executes the full CSV-to-forecast regression pipeline (steps 10–17) end-to-end as a single agent. Generates one Python file per step under CODE_DIR, validates each step's output before proceeding, supports resuming from the last completed step, and writes all artifacts, a final report, and a critical self-audit to OUTPUT_DIR.
+description: Executes the full CSV-to-forecast regression pipeline (steps 10–16) end-to-end as a single agent. Generates one Python file per step under CODE_DIR, validates each step's output before proceeding, supports resuming from the last completed step, and writes all artifacts and a final report to OUTPUT_DIR.
 argument-hint: "CSV path and target column, e.g.: data/appliances_energy_prediction.csv, target=appliances"
 tools: ['vscode', 'execute', 'read', 'edit', 'search', 'todo']
 ---
@@ -45,7 +45,6 @@ CODE_DIR/
 ├── step_14_evaluation.py
 ├── step_15_selection.py
 ├── step_16_report.py
-├── step_17_audit.py
 └── orchestrator.py        # thin wrapper: calls steps in order, handles resume, surfaces errors
 ```
 
@@ -153,61 +152,7 @@ Before executing a step, check whether it can be skipped:
 ### After Step 16
 - `step-16-report.md` exists and is at least 500 bytes
 - Report file contains all 6 required section headings
-- `progress.json` has `"status": "completed"` (temporary — Step 17 will add `final_audit_result`)
-
-### After Step 17
-- `step-17-audit.json` exists and contains `"step": "17-critical-self-audit"`
-- `overall_audit_result` is exactly `"pass"` or `"fail"` — no other values
-- All five checks present in `"checks"` dict: `temporal_consistency`, `multi_series_detection`, `feature_target_alignment`, `model_performance_baseline`, `data_distribution_drift`
-- Each check has `status` (pass/marginal/fail), `severity` (low/medium/high), `findings` (list), `confidence` (float) — no check may have `status="warning"`
-- If `overall_audit_result == "fail"`: `critical_findings` is a non-empty list; each entry has `check`, `status`, `severity`, `description`
-- `remediation_actions` is a list of objects (not flat strings); each entry has `action_id`, `severity`, `description`, `affected_steps`, `suggested_parameters`, `expected_improvement`
-- `progress.json` has `"final_audit_result"` key set to `"pass"` or `"fail"`
-- **JSON structure checks** — run all of these as a single validation script after the step exits 0:
-  - `audit_confidence` key exists at top level and its value is a float in [0.0, 1.0] — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); v=d['audit_confidence']; assert isinstance(v,float) and 0.0<=v<=1.0"`
-  - `data_profile` is an **object** (not a string) with keys `detected_profile`, `confidence`, `characteristics` — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); p=d['data_profile']; assert isinstance(p,dict) and 'detected_profile' in p and 'confidence' in p and 'characteristics' in p"`
-  - `audit_timestamp` key exists and is a non-empty string — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); assert d.get('audit_timestamp')"`
-  - `checks.data_distribution_drift` contains `ks_stats` key whose value is a **dict** with at least one feature entry — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); ks=d['checks']['data_distribution_drift']['ks_stats']; assert isinstance(ks,dict) and len(ks)>0"`
-  - `checks.data_distribution_drift` contains key `drifted_features` (NOT `high_drift_features`) — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); c=d['checks']['data_distribution_drift']; assert 'drifted_features' in c and 'high_drift_features' not in c"`
-  - `checks.multi_series_detection` contains `potential_group_columns` key (list, may be empty) — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); c=d['checks']['multi_series_detection']; assert isinstance(c.get('potential_group_columns'), list)"`
-- `checks.model_performance_baseline` contains `best_r2` (float) and `profile` (string) — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); c=d['checks']['model_performance_baseline']; assert isinstance(c.get('best_r2'),(int,float)) and isinstance(c.get('profile'),str)"`
-  - `next_steps` key exists at top level and is a list — `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-17-audit.json')); assert isinstance(d.get('next_steps'),list)"`
-  - **If any of these checks fails: fix `step_17_audit.py` and re-run step 17 — do not proceed to progress.json update**
-- **Remediation loop — MANDATORY when `overall_audit_result == "fail"` (max 3 iterations):**
-
-  A `fail` audit result MUST ALWAYS trigger the remediation loop. Silently accepting a fail is forbidden.
-
-  **Step-by-step procedure for each iteration:**
-  1. Read `remediation_actions` from `step-17-audit.json`.
-  2. Classify each action as `[AUTO]` or `[MANUAL]` using this table:
-
-     | action_id (substring match) | Type | Restart from step |
-     |---|---|---|
-     | `remove_monotonic_index_features` | AUTO | 12 |
-     | `extend_lag_window` | AUTO | 12 |
-     | `add_seasonal_features` | AUTO | 12 |
-     | `use_time_series_split` | AUTO | 12 |
-     | `split_by_grouping_column` | AUTO | 12 |
-     | `improve_model_performance` | AUTO | 13 |
-     | `increase_regularization` | AUTO | 13 |
-     | `try_alternative_models` | AUTO | 13 |
-     | `handle_temporal_gaps` | MANUAL | — |
-     | `remove_outliers_by_isolation` | MANUAL | — |
-
-  3. Determine the **earliest restart step** across all AUTO actions.
-  4. Log: `"Self-audit FAIL — remediation iteration N/3. Restarting from step <X>. Actions: <list>."` 
-  5. Write/update `OUTPUT_DIR/remediation_config.json` with `iteration`, `applied_actions`, injected parameters.
-  6. Delete all output artifacts from the restart step through step 17:
-     - **Restart at 12:** delete `step-12-features.json`, `features.parquet`, `leakage_audit.json`, `step-13-training.json`, `model.joblib`, `candidate-*.joblib`, `holdout.npz`, `step-14-evaluation.json`, `step-15-selection.json`, `step-16-report.md`, `step-17-audit.json`
-     - **Restart at 13:** delete `step-13-training.json`, `model.joblib`, `candidate-*.joblib`, `holdout.npz`, `step-14-evaluation.json`, `step-15-selection.json`, `step-16-report.md`, `step-17-audit.json`
-  7. Re-run all affected steps in order with injected parameters (e.g. `--exclude-features`, `--max-lag`, `--group-column`).
-  8. Re-run step 17. Read the new `overall_audit_result`.
-     - `"pass"` → exit the loop.
-     - `"fail"` and iterations < 3 → go back to step 1.
-     - `"fail"` after 3 iterations → write `OUTPUT_DIR/remediation_required.json`, set `progress.json status = "remediation_required"`, exit code 1.
-  9. If **no AUTO actions exist** (only MANUAL): write `OUTPUT_DIR/remediation_required.json` with human-readable descriptions of required manual steps, set `status = "remediation_required"`, exit code 1.
-
-- **After the loop** (regardless of final result): set `progress.json final_audit_result` to `"pass"` or `"fail"`. Set `status = "completed"` only when `final_audit_result == "pass"`.
+- `progress.json` has `"status": "completed"`
 
 ---
 
@@ -332,7 +277,6 @@ OUTPUT_DIR/
 ├── step-14-evaluation.json
 ├── step-15-selection.json
 ├── step-16-report.md
-├── step-17-audit.json
 └── code/
     ├── step_10_cleanse.py
     ├── step_11_exploration.py
@@ -341,7 +285,6 @@ OUTPUT_DIR/
     ├── step_14_evaluation.py
     ├── step_15_selection.py
     ├── step_16_report.py
-    ├── step_17_audit.py
     └── orchestrator.py
 ```
 
@@ -355,8 +298,7 @@ OUTPUT_DIR/
   "status": "running",
   "current_step": "13-model-training",
   "completed_steps": ["10-csv-read-cleansing", "11-data-exploration", "12-feature-extraction"],
-  "errors": [],
-  "final_audit_result": null
+  "errors": []
 }
 ```
 
