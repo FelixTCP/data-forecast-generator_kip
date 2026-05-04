@@ -349,6 +349,22 @@ def _render_features_overview(output_dir: Path) -> None:
                     st.write(f"- {feat}")
 
 
+_BENCHMARK_NAMES = {"arima_benchmark", "kmeans_benchmark", "naive_persistence"}
+_BENCHMARK_COLORS = {
+    "arima_benchmark": "rgb(255, 165, 0)",
+    "kmeans_benchmark": "rgb(255, 99, 71)",
+    "naive_persistence": "rgb(180, 180, 180)",
+}
+_BEST_COLOR = "rgb(0, 180, 80)"
+_CANDIDATE_COLOR = "rgb(26, 118, 255)"
+
+
+def _get_model_bar_color(name: str, best_name: str) -> str:
+    if name == best_name:
+        return _BEST_COLOR
+    return _BENCHMARK_COLORS.get(name, _CANDIDATE_COLOR)
+
+
 def _render_metrics_dashboard(evaluation: dict) -> None:
     """Render a comprehensive metrics dashboard."""
     st.subheader("📈 Model Performance Dashboard")
@@ -357,69 +373,143 @@ def _render_metrics_dashboard(evaluation: dict) -> None:
         st.warning("No evaluation metrics available.")
         return
 
-    # Key metrics cards
-    candidates = evaluation.get("candidates", [])
-    if candidates:
-        best_candidate = max(candidates, key=lambda x: x.get("r2", -float("inf")))
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric(
-            "Best R²",
-            f"{best_candidate.get('r2', 0):.4f}",
-            help="Coefficient of determination",
-        )
-        c2.metric("RMSE", f"{best_candidate.get('rmse', 0):.4f}", help="Root Mean Squared Error")
-        c3.metric("MAE", f"{best_candidate.get('mae', 0):.4f}", help="Mean Absolute Error")
-        c4.metric(
-            "Quality", evaluation.get("quality_assessment", "—"), help="Overall quality assessment"
-        )
+    # Merge candidates + benchmarks into one flat list for display
+    all_entries: list[dict] = list(evaluation.get("candidates", []))
+    benchmarks_raw = evaluation.get("benchmarks", {})
+    # Normalise benchmark dict → list with consistent keys
+    bm_entries: list[dict] = []
+    for bm_name, bm_metrics in (benchmarks_raw.items() if isinstance(benchmarks_raw, dict) else []):
+        entry = {"model_name": bm_name}
+        entry["r2"] = bm_metrics.get("holdout_r2", bm_metrics.get("r2"))
+        entry["rmse"] = bm_metrics.get("holdout_rmse", bm_metrics.get("rmse"))
+        entry["mae"] = bm_metrics.get("holdout_mae", bm_metrics.get("mae"))
+        bm_entries.append(entry)
+    # Also accept benchmarks already embedded in the candidates list
+    embedded_bm_names = {e["model_name"] for e in all_entries if e.get("model_name") in _BENCHMARK_NAMES}
+    for bm in bm_entries:
+        if bm["model_name"] not in embedded_bm_names:
+            all_entries.append(bm)
 
-    # Candidate comparison
-    if len(candidates) > 1:
-        st.write("### Candidate Model Comparison")
-        df_candidates = (
-            pl.DataFrame(candidates)
-            .select(["model_name", "r2", "rmse", "mae"])
-            .to_pandas()
-        )
+    # Filter to entries that have at least r2
+    valid_entries = [e for e in all_entries if e.get("r2") is not None]
+
+    if not valid_entries:
+        st.warning("No evaluation metrics with R² scores available.")
+        return
+
+    best_name = evaluation.get("best_model_name") or max(
+        [e for e in valid_entries if e["model_name"] not in _BENCHMARK_NAMES],
+        key=lambda x: x.get("r2", -float("inf")),
+        default=valid_entries[0],
+    ).get("model_name")
+
+    best_entry = next((e for e in valid_entries if e["model_name"] == best_name), valid_entries[0])
+    arima_entry = next((e for e in valid_entries if e["model_name"] == "arima_benchmark"), None)
+    kmeans_entry = next((e for e in valid_entries if e["model_name"] == "kmeans_benchmark"), None)
+
+    # ── Hero metrics row ─────────────────────────────────────────────────────
+    st.markdown(f"#### Best model: `{best_name}`")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Best R²", f"{best_entry.get('r2', 0):.4f}", help="Holdout R²")
+    c2.metric("RMSE", f"{best_entry.get('rmse', 0):.4f}", help="Holdout RMSE")
+    c3.metric("MAE", f"{best_entry.get('mae', 0):.4f}", help="Holdout MAE")
+    c4.metric("Quality", evaluation.get("quality_assessment", "—"))
+
+    # ── Benchmark comparison ──────────────────────────────────────────────────
+    st.markdown("#### Benchmark Comparison")
+    bc1, bc2, bc3 = st.columns(3)
+
+    def _delta_label(best_r2: float | None, bm_r2: float | None) -> str:
+        if best_r2 is None or bm_r2 is None:
+            return "n/a"
+        delta = best_r2 - bm_r2
+        return f"{delta:+.4f}"
+
+    best_r2 = best_entry.get("r2")
+    with bc1:
+        st.markdown("**ARIMA Benchmark**")
+        if arima_entry:
+            st.metric(
+                "ARIMA R²",
+                f"{arima_entry.get('r2', 0):.4f}",
+                delta=_delta_label(best_r2, arima_entry.get("r2")),
+                delta_color="normal",
+                help="Δ = best model − ARIMA (positive is better)",
+            )
+        else:
+            st.info("ARIMA metrics not found in output.")
+    with bc2:
+        st.markdown("**K-Means Benchmark**")
+        if kmeans_entry:
+            st.metric(
+                "K-Means R²",
+                f"{kmeans_entry.get('r2', 0):.4f}",
+                delta=_delta_label(best_r2, kmeans_entry.get("r2")),
+                delta_color="normal",
+                help="Δ = best model − K-Means (positive is better)",
+            )
+        else:
+            st.info("K-Means metrics not found in output.")
+    with bc3:
+        if evaluation.get("benchmark_warning"):
+            st.warning("⚠️ Best model does not beat both benchmarks by ≥ 0.02 R². Consider rerunning with more candidates.")
+        else:
+            st.success("✅ Best model beats both benchmarks by a meaningful margin.")
+
+    # ── Full model R² comparison bar chart ───────────────────────────────────
+    if len(valid_entries) > 1:
+        st.markdown("#### All Models — R² on Holdout")
+
+        # Sort: benchmarks first (by name order), then candidates ascending
+        bm_sorted = sorted([e for e in valid_entries if e["model_name"] in _BENCHMARK_NAMES], key=lambda x: x["model_name"])
+        cand_sorted = sorted([e for e in valid_entries if e["model_name"] not in _BENCHMARK_NAMES], key=lambda x: x.get("r2", -1))
+        ordered = bm_sorted + cand_sorted
+
+        names = [e["model_name"] for e in ordered]
+        r2_vals = [e.get("r2") or 0.0 for e in ordered]
+        colors = [_get_model_bar_color(n, best_name) for n in names]
 
         fig = go.Figure()
         fig.add_trace(
             go.Bar(
-                x=df_candidates["model_name"],
-                y=df_candidates["r2"],
+                x=names,
+                y=r2_vals,
+                marker_color=colors,
+                text=[f"{v:.4f}" for v in r2_vals],
+                textposition="outside",
                 name="R²",
-                marker_color="rgb(26, 118, 255)",
             )
         )
+        # Annotate best model
+        if best_name in names:
+            best_idx = names.index(best_name)
+            fig.add_annotation(
+                x=best_name,
+                y=r2_vals[best_idx],
+                text="★ best",
+                showarrow=False,
+                yshift=18,
+                font=dict(color=_BEST_COLOR, size=11),
+            )
         fig.update_layout(
-            title="Model R² Comparison",
+            title="Model R² Comparison (orange/red = benchmarks, green = best candidate)",
             xaxis_title="Model",
-            yaxis_title="R² Score",
+            yaxis_title="R²",
             hovermode="x unified",
             template="plotly_white",
+            yaxis=dict(range=[min(0, min(r2_vals) - 0.05), min(1.05, max(r2_vals) + 0.12)]),
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        # Error metrics comparison
+        # ── Error metrics comparison ──────────────────────────────────────────
+        rmse_vals = [e.get("rmse") or 0.0 for e in ordered]
+        mae_vals = [e.get("mae") or 0.0 for e in ordered]
+
         fig2 = go.Figure()
-        fig2.add_trace(
-            go.Bar(
-                x=df_candidates["model_name"],
-                y=df_candidates["rmse"],
-                name="RMSE",
-                marker_color="rgb(255, 127, 14)",
-            )
-        )
-        fig2.add_trace(
-            go.Bar(
-                x=df_candidates["model_name"],
-                y=df_candidates["mae"],
-                name="MAE",
-                marker_color="rgb(44, 160, 44)",
-            )
-        )
+        fig2.add_trace(go.Bar(x=names, y=rmse_vals, name="RMSE", marker_color="rgb(255, 127, 14)"))
+        fig2.add_trace(go.Bar(x=names, y=mae_vals, name="MAE", marker_color="rgb(44, 160, 44)"))
         fig2.update_layout(
-            title="Error Metrics Comparison",
+            title="Error Metrics — RMSE & MAE (lower is better)",
             xaxis_title="Model",
             yaxis_title="Error",
             barmode="group",
