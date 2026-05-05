@@ -13,7 +13,7 @@ When the audit fails or detects high-severity issues, this document defines the 
 | `increase_regularization` | `[AUTO]` | Overfitting detected | 13 | Automatic |
 | `try_alternative_models` | `[AUTO]` | Model class under-performs | 13 | Automatic |
 | `use_time_series_split` | `[AUTO]` | Strong temporal signal | 12, 13 | Automatic |
-| `split_by_grouping_column` | `[AUTO]` | Multi-series detected | 12, 13, 14, 15 | Automatic — trains per-group sub-models |
+| `split_by_grouping_column` | `[MANUAL]` | Multi-series detected | 12, 13, 14, 15 | User review required |
 | `handle_temporal_gaps` | `[MANUAL]` | Large temporal gaps | 10, 12 | User review required |
 | `remove_outliers_by_isolation` | `[MANUAL]` | Distribution drift/anomalies | 10, 13 | User review required |
 
@@ -28,26 +28,26 @@ When the audit fails or detects high-severity issues, this document defines the 
 
 ### Category A: Data Preprocessing & Feature Engineering
 
-**Action: `split_by_grouping_column`** `[AUTO]`
+**Action: `split_by_grouping_column`** `[MANUAL]`
 - **Triggered by:** Multi-series detection failure (multiple time series detected; model trained on mixed series).
 - **Severity:** High.
-- **Auto-Executable:** ✅ Yes — orchestrator automatically re-runs steps 12–17 with per-group training.
+- **Auto-Executable:** ❌ No — requires user decision and configuration.
 - **Description:** Re-run pipeline separately for each detected group (entity, machine, location, stock, city, etc.). Train one sub-model per group value, then ensemble predictions weighted by per-group R².
 - **Affected steps:** 12 (Feature Extraction), 13 (Model Training), 14 (Evaluation), 15 (Selection).
-- **Parameters injected automatically:**
+- **Parameters (user-configurable):**
   ```json
   {
-    "group_column": "<auto-detected grouping column>",
+    "group_column": "<user-selected grouping column>",
     "train_separate_models": true,
     "ensemble_method": "weighted_by_r2"
   }
   ```
 - **Expected improvement:** R² typically +0.2 to +0.5 per group; eliminates cross-entity contamination.
-- **Implementation:**
-  - Pass `--group-column=<column_name>` to step 12, 13, 14, 15.
-  - Steps 12/13 loop over unique group values, fitting one sub-model each (tqdm progress bar over groups).
-  - Step 14 reports per-group R² + weighted ensemble R².
-  - `model.joblib` contains a dict `{group_value: fitted_model}` plus `ensemble_weights`.
+- **User Action Required:**
+  - Review multi-series detection output from step 11.
+  - Confirm grouping column (e.g., `store_id`, `machine_id`).
+  - Provide `--group-column=<column_name>` to restart pipeline.
+  - Steps 12/13 will then loop over unique group values, fitting one sub-model each.
 
 ---
 
