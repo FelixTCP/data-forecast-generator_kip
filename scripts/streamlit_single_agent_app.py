@@ -31,6 +31,7 @@ PIPELINE_STEPS = [
     "14-model-evaluation",
     "15-model-selection",
     "16-result-presentation",
+    "17-critical-self-audit",
 ]
 
 
@@ -176,6 +177,19 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
         if completed_models:
             st.write(f"✓ Completed models: {', '.join(completed_models)}")
 
+        # Show audit results if currently on step 17
+        if current_step == "17-critical-self-audit":
+            audit = _load_audit_results(output_dir)
+            if audit:
+                audit_status = audit.get("overall_audit_result", "running")
+                if audit_status == "fail":
+                    st.error("⚠️ Self-Audit FAILED - Remediation in progress...")
+                    remediation = audit.get("remediation", {})
+                    if remediation.get("steps_to_rerun"):
+                        st.warning(f"Re-running steps: {', '.join(remediation.get('steps_to_rerun', []))}")
+                elif audit_status == "pass":
+                    st.success("✅ Self-Audit PASSED")
+
         model_progress = progress.get("model_progress")
         if isinstance(model_progress, (int, float)):
             try:
@@ -214,6 +228,14 @@ def _load_selection_results(output_dir: Path) -> dict | None:
     return json.loads(select_path.read_text(encoding="utf-8"))
 
 
+def _load_audit_results(output_dir: Path) -> dict | None:
+    """Load critical self-audit results."""
+    audit_path = output_dir / "step-17-audit.json"
+    if not audit_path.exists():
+        return None
+    return json.loads(audit_path.read_text(encoding="utf-8"))
+
+
 def _load_features_data(output_dir: Path) -> pl.DataFrame | None:
     """Load features data."""
     features_path = output_dir / "features.parquet"
@@ -237,6 +259,83 @@ def _load_holdout(output_dir: Path) -> tuple | None:
         return None
     data = np.load(holdout_path)
     return data.get("X_test"), data.get("y_test")
+
+
+def _render_audit_results(output_dir: Path) -> None:
+    """Render critical self-audit results with remediation info."""
+    st.subheader("🔍 Critical Self-Audit Results")
+
+    audit = _load_audit_results(output_dir)
+    if not audit:
+        st.info("Audit results not yet available.")
+        return
+
+    overall_result = audit.get("overall_audit_result", "unknown")
+    final_result = audit.get("final_audit_result", "unknown")
+
+    # Overall status badge
+    if overall_result == "pass":
+        st.success(f"✅ Audit Status: **PASSED**")
+    elif overall_result == "fail":
+        st.error(f"❌ Audit Status: **FAILED**")
+    else:
+        st.warning(f"⚠️ Audit Status: **{overall_result.upper()}**")
+
+    # Show final result
+    if final_result and final_result != overall_result:
+        st.info(f"Final Result: **{final_result.upper()}**")
+
+    # Display individual checks
+    checks = audit.get("checks", {})
+    if checks:
+        st.markdown("#### Audit Checks")
+        cols = st.columns(len(checks))
+        for idx, (check_name, check_result) in enumerate(checks.items()):
+            with cols[idx]:
+                passed = check_result.get("passed", False)
+                icon = "✅" if passed else "❌"
+                status = "PASS" if passed else "FAIL"
+                st.metric(check_name.replace("_", " ").title(), status, help=check_name)
+
+    # Show remediation info if failed
+    if overall_result == "fail":
+        st.warning("### ⚠️ Pipeline Remediation Required")
+        
+        remediation_info = audit.get("remediation", {})
+        if remediation_info:
+            affected_step = remediation_info.get("affected_step")
+            max_iterations = remediation_info.get("max_remediation_iterations", 3)
+            current_iteration = remediation_info.get("current_iteration", 1)
+            
+            st.markdown(f"""
+            **Affected Step:** {affected_step}  
+            **Remediation Progress:** {current_iteration}/{max_iterations} iterations
+            
+            The following steps will be **re-executed with automatic fixes**:
+            """)
+            
+            # Show which steps are being re-run
+            steps_to_rerun = remediation_info.get("steps_to_rerun", [])
+            if steps_to_rerun:
+                for step in steps_to_rerun:
+                    st.info(f"🔄 {step}")
+            
+            # Show remediation actions
+            actions = remediation_info.get("remediation_actions", [])
+            if actions:
+                st.markdown("**Automatic Fixes Applied:**")
+                for action in actions:
+                    st.write(f"- {action}")
+        else:
+            st.write("Remediation in progress...")
+
+    # Show data profile detection
+    data_profile = audit.get("data_profile", {})
+    if data_profile:
+        st.markdown("#### Data Profile Detection")
+        profile_type = data_profile.get("profile_type", "unknown")
+        confidence = data_profile.get("confidence", 0)
+        st.info(f"**Detected Profile:** {profile_type} (confidence: {confidence:.1%})")
 
 
 def _render_features_overview(output_dir: Path) -> None:
@@ -784,6 +883,12 @@ def main() -> None:
 
     # Display results
     st.markdown("---")
+
+    # Load and display self-audit results
+    audit = _load_audit_results(output_dir)
+    if audit:
+        _render_audit_results(output_dir)
+        st.markdown("---")
 
     # Load and display metrics
     evaluation = _load_evaluation_metrics(output_dir)

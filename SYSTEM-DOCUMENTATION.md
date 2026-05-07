@@ -51,6 +51,7 @@ output/<RUN_ID>/
 │   ├── step_14_evaluation.py
 │   ├── step_15_selection.py
 │   ├── step_16_report.py
+│   ├── step_17_audit.py
 │   └── orchestrator.py
 ├── progress.json
 ├── cleaned.parquet
@@ -61,7 +62,8 @@ output/<RUN_ID>/
 ├── step-*.json
 ├── step-15-model-selection-report.md
 ├── step-15-model-selection-metrics.png
-└── step-16-report.md
+├── step-16-report.md
+└── step-17-audit.json
 ```
 
 Die Step-Skripte sind einzeln ausfuehrbar. Der Orchestrator ist nur eine duenne Ausfuehrungsschicht, die die Schritte in Reihenfolge startet und den gemeinsamen Run-Kontext uebergibt.
@@ -75,6 +77,7 @@ Die Step-Skripte sind einzeln ausfuehrbar. Der Orchestrator ist nur eine duenne 
 5. `14-model-evaluation`
 6. `15-model-selection`
 7. `16-result-presentation`
+8. `17-critical-self-audit`
 
 ## 3. End-to-End-Ablauf
 
