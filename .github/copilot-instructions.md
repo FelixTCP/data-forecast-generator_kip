@@ -2,121 +2,56 @@
 
 ## Project Overview
 
-This is a Python-based project that automates discovery of data analysis use cases through LLM analysis and implements regression forecasting pipelines. The system is designed in three phases:
+This project runs a Docker-first CSV forecasting workflow. Users interact with a
+Streamlit UI; the UI invokes GitHub Copilot CLI inside the container; Copilot
+runs the custom `Single Agent Pipeline` agent and writes run artifacts.
 
-1. **PHASE 1**: Template/scaffold generation for analysis projects
-2. **PHASE 2**: Quality evaluation of generated MVPs using appropriate metrics
-3. **PHASE 3**: Full-stack system with FastAPI server and integrated AI agent
+Core workflow:
 
-The core workflow: CSV input → LLM analysis → Use case discovery → Regression pipeline development → Model fitting → Results evaluation and reporting.
-
-## Build, Test, and Lint Commands
-
-**Note**: Project is in early phase. Commands should be added as development progresses.
-
-As the project develops, expected tools:
-- **Testing**: pytest (for regression pipeline tests)
-- **Linting/Formatting**: ruff (Python style and formatting)
-- **ML Framework**: scikit-learn (regression pipelines)
-- **LLM Integration**: Likely Claude API or similar
-
-## Architecture & Key Components
-
-### Expected Modules (PHASE 1 focus)
-
-1. **CSV Analysis Module**
-   - LLM-based analysis to identify potential regression use cases
-   - Detection of time-series data, feature relationships, and business value signals
-
-2. **Regression Pipeline**
-   - Implemented with scikit-learn
-   - Automated feature engineering and model selection
-   - Training and evaluation on identified use cases
-
-3. **Artifact Generation**
-   - Fitted model serialization
-   - Pipeline configuration export
-   - Quality metrics and potential analysis reporting
-
-4. **Quality Metrics & Evaluation** (PHASE 2)
-   - Assess goodness-of-fit for regression models
-   - Business impact estimation
-   - Model quality assessment (possibly LLM-as-Judge)
-
-### Directory Structure (Planned)
-
-```
-data-forecast-generator_kip/
-├── .github/
-│   └── copilot-instructions.md (this file)
-├── src/                    # Main source code
-│   ├── csv_analyzer/      # LLM-based CSV analysis
-│   ├── pipeline/          # Regression pipeline implementation
-│   ├── artifacts/         # Model serialization and export
-│   └── evaluation/        # Quality metrics and assessment
-├── tests/                 # Test suite (pytest)
-├── examples/              # Example CSVs and outputs
-├── project.toml           # Poetry/packaging config (to be created)
-├── README.md
-├── project-description.md
-└── LICENSE
+```text
+Browser -> Streamlit -> Copilot CLI -> Single Agent Pipeline -> output/<RUN_ID>/
 ```
 
-## Key Conventions & Patterns
+## Runtime Model
 
-### Language & Framework
-- **Python 3.9+** (assumed for modern type hints)
-- **scikit-learn** for regression pipelines
-- **LLM API** integration (Claude or similar)
-- **FastAPI** for PHASE 3 server (if reached)
+- Docker Compose is the standard development and runtime entrypoint.
+- The training UI lives in `scripts/streamlit_single_agent_app.py`.
+- The inference/XAI UI lives in `scripts/streamlit_inference_app.py`.
+- The custom agent lives in `.github/agents/Single Agent Pipeline.agent.md`.
+- Pipeline contracts and step specs live under `docs/`.
+- Generated runtime code is written per run to `output/<RUN_ID>/code/`.
+- There is no versioned `src/data_forecast_generator` package or local Python CLI.
 
-### Code Organization
-- Keep CSV analysis logic separate from ML pipeline logic
-- Use scikit-learn pipelines for reproducibility
-- Model artifacts should be versioned and serializable (pickle/joblib)
+## Build and Run Commands
 
-### CSV Input Handling
-- Assume customer CSVs may have quality issues (missing values, wrong types, etc.)
-- LLM should identify these issues and suggest solutions
-- Document assumptions about expected CSV structure
+```bash
+cp .env.example .env
+docker compose up --build
+```
 
-### Regression Pipeline
-- Should be configurable (feature selection, model type, hyperparameters)
-- Comprehensive evaluation metrics (R², RMSE, MAE, cross-validation scores)
-- Explainability focus (which features drive predictions)
+Open:
 
-### Testing Strategy
-- Unit tests for pipeline components
-- Integration tests for end-to-end CSV → Model workflow
-- Fixture-based testing with synthetic CSVs for regression models
+- Training UI: `http://localhost:8501`
+- Inference UI: `http://localhost:8502`
 
-### Output/Artifacts
-- Model should be JSON-serializable config + pickle model file
-- Include full evaluation metrics with the artifact
-- Generate human-readable analysis report alongside model
+For local setup convenience:
 
-## Common Tasks
+```bash
+scripts/setup.sh
+```
 
-### When Adding New Analysis Features
-1. Implement in `csv_analyzer` module
-2. Add tests using synthetic test data
-3. Update artifact schema if new metadata needed
-4. Document assumptions about data format
+## Key Conventions
 
-### When Updating Regression Pipeline
-1. Modify scikit-learn pipeline in `pipeline` module
-2. Ensure backward compatibility with old artifacts
-3. Add evaluation metrics to track improvement
-4. Test on diverse synthetic datasets
+- Keep Streamlit as the user-facing orchestration layer.
+- Keep Copilot CLI execution inside Docker for reproducibility.
+- Do not add a monolithic checked-in pipeline implementation.
+- Generated step scripts belong under `output/<RUN_ID>/code/`.
+- Do not reintroduce the old `src/` package layout unless the project explicitly
+  returns to a package-based architecture.
 
-### When Creating PHASE 2 Quality Metrics
-1. Define metrics that correlate with business value
-2. Implement as pluggable evaluation functions
-3. Build tests around metric stability and reproducibility
+## Testing Strategy
 
-## Important Notes
-
-- This is a **template generation system**, not a one-off analysis tool—design for reusability
-- Customer CSVs are the primary input; prioritize robustness and clear error messages
-- Model quality is critical; always include cross-validation and residual analysis
-- Document all assumptions about data structure and analysis approach
+- CI should verify that the Docker image builds and imports the runtime
+  dependencies needed by the Streamlit apps.
+- Do not run an authenticated Copilot pipeline in CI; that requires token access,
+  network availability, and model usage.

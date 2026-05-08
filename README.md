@@ -20,6 +20,33 @@ Der Data Forecast Generator soll aus einer CSV-Datei, einer Zielspalte und Laufp
 6. Modellauswahl
 7. Ergebnisreport
 
+## Docker Quickstart
+
+Docker Compose ist der primaere Startweg. Die Training-App laeuft in Streamlit
+und ruft innerhalb des Containers die GitHub Copilot CLI mit dem Custom Agent
+`Single Agent Pipeline` auf.
+
+```bash
+cp .env.example .env
+# GH_TOKEN in .env eintragen
+mkdir -p output artifacts/ui_uploads
+docker compose up --build
+```
+
+- Training UI: `http://localhost:8501`
+- Inference UI: `http://localhost:8502`
+
+Wenn Docker die Bind-Mount-Verzeichnisse vorher als `root` angelegt hat und
+Uploads fehlschlagen, einmalig die Ownership korrigieren:
+
+```bash
+sudo chown -R "$USER":"$USER" artifacts output
+```
+
+Optional kann `COPILOT_COMPLETION_GRACE_SECONDS` in `.env` gesetzt werden. Wenn
+`progress.json` bereits `completed` meldet, beendet Streamlit nach dieser Frist
+einen noch laufenden Copilot-Wrapper-Prozess.
+
 ## Artefakte
 
 Ein Run liegt unter `output/<RUN_ID>/` und enthaelt typischerweise:
@@ -51,7 +78,7 @@ Der dokumentierte Referenzlauf nutzt:
 ## Modellartefakt pruefen
 
 ```bash
-uv run --no-sync python - <<'PY'
+docker compose exec agent-app python - <<'PY'
 import joblib
 
 model = joblib.load("output/manual_run_001/model.joblib")
@@ -60,12 +87,10 @@ print(hasattr(model, "predict"))
 PY
 ```
 
-## Streamlit-Apps
+## Lokaler Debug-Weg
 
-```bash
-uv run streamlit run scripts/streamlit_single_agent_app.py
-uv run streamlit run scripts/streamlit_inference_app.py
-```
+Fuer lokale Entwicklung ohne Container kann `uv` weiterhin genutzt werden. Der
+reproduzierbare Standardlauf bleibt Docker Compose.
 
 ## Roadmap
 

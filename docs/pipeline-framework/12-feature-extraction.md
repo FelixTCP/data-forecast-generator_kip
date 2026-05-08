@@ -1,9 +1,9 @@
 # Step 12 — Feature Extraction & Model Preselection
 
-**Module**: `src/data_forecast_generator/pipeline/feature_extraction.py`  
-**Input**: Output from `data_exploration.py` (Step 11)  
-**Output**: Feature Matrix + Model Recommendations → `model_training.py` (Step 13)  
-**Artifacts**: `outputs/step-12/features.parquet`, `outputs/step-12/step-12-features.json`
+**Runtime script**: `output/<RUN_ID>/code/step_12_features.py`  
+**Input**: `step-11-exploration.json` and `cleaned.parquet` from the run directory  
+**Output**: Feature Matrix + Model Recommendations for Step 13  
+**Artifacts**: `features.parquet`, `step-12-features.json`
 
 ```
 [10] csv_read_cleansing → [11] data_exploration → [12] feature_extraction → [13] model_training → ...

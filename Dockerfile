@@ -1,6 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # data-forecast-generator
-# Base image: python:3.12-slim  (works on amd64 and arm64; Podman-compatible)
+# Reproducible Streamlit runtime. The UI invokes GitHub Copilot CLI inside the
+# container, which runs the custom Single Agent Pipeline.
 # ─────────────────────────────────────────────────────────────────────────────
 FROM python:3.12-slim
 
@@ -10,6 +11,7 @@ RUN apt-get update \
         ca-certificates \
         curl \
         git \
+        procps \
  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -22,9 +24,9 @@ RUN apt-get update \
 
 # ── GitHub Copilot CLI ────────────────────────────────────────────────────────
 # Pin global npm prefix to /usr/local so the binary lands in /usr/local/bin
-# (predictable, guaranteed to be in PATH). Authentication via GITHUB_TOKEN.
+# (predictable, guaranteed to be in PATH). Authentication via GH_TOKEN.
 RUN npm config set prefix /usr/local \
- && npm install -g @github-copilot/cli \
+ && npm install -g @github/copilot \
  && ls /usr/local/bin/copilot \
  && echo "copilot installed: $(copilot --version 2>&1 || true)"
 
@@ -39,7 +41,7 @@ COPY pyproject.toml uv.lock ./
 # UV_SYSTEM_PYTHON=1  → install into the system Python (no venv needed)
 # --no-dev            → skip pytest / ruff / mypy dev extras
 # --no-install-project→ only deps, skip installing the package itself
-#                       (there is no src/data_forecast_generator in the image)
+#                       (the app is script/agent based, not package based)
 ENV UV_SYSTEM_PYTHON=1
 RUN uv sync --no-dev --no-install-project
 
@@ -67,7 +69,7 @@ USER appuser
 EXPOSE 8501
 EXPOSE 8502
 
-# ── Default: run the single-agent pipeline UI ─────────────────────────────────
+# ── Default: run the Streamlit UI that launches the Copilot agent ─────────────
 # Override with --command to run the inference app instead.
 CMD ["streamlit", "run", "scripts/streamlit_single_agent_app.py", \
      "--server.address=0.0.0.0", "--server.port=8501"]

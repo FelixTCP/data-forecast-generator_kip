@@ -289,7 +289,7 @@ flowchart LR
 ### Modellartefakt laden
 
 ```bash
-uv run --no-sync python - <<'PY'
+docker compose exec agent-app python - <<'PY'
 import joblib
 m = joblib.load("output/manual_run_001/model.joblib")
 print(type(m))
@@ -300,20 +300,33 @@ PY
 ### Frontend starten
 
 ```bash
-uv run streamlit run scripts/streamlit_single_agent_app.py
-uv run streamlit run scripts/streamlit_inference_app.py
+cp .env.example .env
+# GH_TOKEN in .env eintragen
+mkdir -p output artifacts/ui_uploads
+docker compose up --build
 ```
 
-Die Training-/Analyse-App liegt in `scripts/streamlit_single_agent_app.py`. Die Inferenz- und Forecasting-App fuer vorhandene Run-Artefakte liegt in `scripts/streamlit_inference_app.py`. Streamlit gibt nach dem Start die lokale URL aus, typischerweise `http://localhost:8501`.
+Die Training-/Analyse-App liegt in `scripts/streamlit_single_agent_app.py` und ist unter `http://localhost:8501` erreichbar. Sie ruft innerhalb des Containers die GitHub Copilot CLI mit dem Custom Agent `Single Agent Pipeline` auf. Die Inferenz- und Forecasting-App fuer vorhandene Run-Artefakte liegt in `scripts/streamlit_inference_app.py` und ist unter `http://localhost:8502` erreichbar.
 
 ## 6. Laufzeitumgebung
 
-Die Ausfuehrung erfolgt ueber `uv`.
+Die Standardausfuehrung erfolgt ueber Docker Compose. Docker stellt die reproduzierbare Laufzeitumgebung, Streamlit ist die UI- und Orchestrierungsschicht, und die Copilot CLI laeuft innerhalb des Containers. Der Agent erzeugt den Runtime-Code pro Run unter `output/<RUN_ID>/code/`.
 
-Vorbereitung:
+Die Host-Verzeichnisse `output` und `artifacts/ui_uploads` muessen fuer den
+lokalen User schreibbar sein, weil sie als Bind Mounts in den Container gegeben
+werden. Falls Docker sie als `root` angelegt hat:
 
 ```bash
-nix develop
+sudo chown -R "$USER":"$USER" artifacts output
+```
+
+Die Streamlit-App betrachtet `progress.json` als autoritative Statusquelle. Wenn
+der Run dort als `completed` markiert ist, aber der Copilot-Wrapper-Prozess nicht
+von selbst beendet, wird er nach `COPILOT_COMPLETION_GRACE_SECONDS` gestoppt.
+
+Optionaler lokaler Entwicklerweg:
+
+```bash
 uv sync --extra dev --no-install-project
 ```
 

@@ -44,12 +44,6 @@ artifacts/ui_uploads/
 .env.local
 .secrets
 
-# Nix tooling
-flake.nix
-flake.lock
-result
-result-*
-
 # Dev docs & setup notes
 SETUP_SUMMARY.md
 QUICK_START.md

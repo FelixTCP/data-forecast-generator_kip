@@ -7,45 +7,26 @@ on:
     branches: [main, develop]
 
 jobs:
-  test:
+  docker-smoke:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12"]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v2
-        with:
-          version: "latest"
-
-      - name: Install dependencies
+      - name: Check setup script syntax
         run: |
-          uv pip install --system -e ".[dev]"
+          bash -n scripts/setup.sh
 
-      - name: Lint with ruff
+      - name: Build Docker image
         run: |
-          ruff check src tests
-          ruff format --check src tests
+          docker build -t data-forecast-generator:test .
 
-      - name: Type check with mypy
+      - name: Check runtime imports
         run: |
-          mypy src --ignore-missing-imports
-        continue-on-error: true
+          docker run --rm data-forecast-generator:test python -c "import streamlit, polars, sklearn, joblib"
 
-      - name: Run tests with pytest
+      - name: Check compose config
+        env:
+          GH_TOKEN: dummy
         run: |
-          pytest --cov=src --cov-report=xml --cov-report=term-missing
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
+          docker compose config

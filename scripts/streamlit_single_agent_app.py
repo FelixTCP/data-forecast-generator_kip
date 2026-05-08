@@ -5,8 +5,10 @@ Streamlit UI for Single Agent Pipeline - Professional data scientist dashboard.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
+import tempfile
 import time
 from datetime import UTC, datetime
 from io import BytesIO
@@ -23,6 +25,9 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_UPLOAD_DIR = ROOT_DIR / "artifacts" / "ui_uploads"
 DEFAULT_RUNS_DIR = ROOT_DIR / "output"
+COPILOT_COMPLETION_GRACE_SECONDS = float(
+    os.getenv("COPILOT_COMPLETION_GRACE_SECONDS", "20")
+)
 PIPELINE_STEPS = [
     "10-csv-read-cleansing",
     "11-data-exploration",
@@ -47,7 +52,7 @@ def _render_single_agent_prompt(
     run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     code_dir = output_dir / "code"
     return (
-        "Run the custom agent `Single Agent Pipeline` end-to-end.\n\n"
+        "Run the pipeline end-to-end.\n\n"
         f"CSV path: {csv_path}\n"
         f"target={target_column}\n"
         f"OUTPUT_DIR={output_dir}\n"
@@ -72,6 +77,8 @@ def _run_pipeline(
 ) -> subprocess.CompletedProcess[str]:
     command = [
         "copilot",
+        "--agent",
+        "Single Agent Pipeline",
         "--allow-all-tools",
         "--allow-all-paths",
         "--allow-all-urls",
@@ -96,6 +103,8 @@ def _start_pipeline_process(
 ) -> subprocess.Popen[str]:
     command = [
         "copilot",
+        "--agent",
+        "Single Agent Pipeline",
         "--allow-all-tools",
         "--allow-all-paths",
         "--allow-all-urls",
@@ -106,20 +115,78 @@ def _start_pipeline_process(
     if "gpt" in model.lower():
         command.extend(["--reasoning-effort", "low"])
     command.extend(["-s", "-p", prompt])
-    return subprocess.Popen(
+
+    stdout_log = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="copilot-stdout-",
+        suffix=".log",
+        delete=False,
+    )
+    stderr_log = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="copilot-stderr-",
+        suffix=".log",
+        delete=False,
+    )
+    process = subprocess.Popen(
         command,
         cwd=working_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=stdout_log,
+        stderr=stderr_log,
         text=True,
     )
+    process._stdout_log_path = stdout_log.name  # type: ignore[attr-defined]
+    process._stderr_log_path = stderr_log.name  # type: ignore[attr-defined]
+    stdout_log.close()
+    stderr_log.close()
+    return process
 
 
 def _read_progress(output_dir: Path) -> dict | None:
     progress_path = output_dir / "progress.json"
     if not progress_path.exists():
         return None
-    return json.loads(progress_path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(progress_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+
+
+def _progress_is_completed(output_dir: Path) -> bool:
+    progress = _read_progress(output_dir)
+    return bool(progress and progress.get("status") == "completed")
+
+
+def _stop_completed_process(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
+def _collect_process_output(process: subprocess.Popen[str]) -> tuple[str, str]:
+    output: list[str] = []
+    errors: list[str] = []
+    for attr_name, target in (
+        ("_stdout_log_path", output),
+        ("_stderr_log_path", errors),
+    ):
+        path_value = getattr(process, attr_name, None)
+        if not path_value:
+            continue
+        path = Path(path_value)
+        try:
+            if path.exists():
+                target.append(path.read_text(encoding="utf-8", errors="replace"))
+        finally:
+            path.unlink(missing_ok=True)
+    return "".join(output), "".join(errors)
 
 
 def _format_step_label(step: str | None) -> str:
@@ -753,16 +820,31 @@ def main() -> None:
     started_at = time.monotonic()
     process = _start_pipeline_process(prompt, ROOT_DIR, model=selected_model)
     status_placeholder = st.empty()
+    completed_seen_at: float | None = None
 
     while process.poll() is None:
         with status_placeholder.container():
-            _render_live_status(output_dir, started_at)
+            progress = _render_live_status(output_dir, started_at)
+        if progress and progress.get("status") == "completed":
+            if completed_seen_at is None:
+                completed_seen_at = time.monotonic()
+            elif (
+                time.monotonic() - completed_seen_at
+                >= COPILOT_COMPLETION_GRACE_SECONDS
+            ):
+                st.info("Run is complete; stopping the Copilot wrapper process.")
+                _stop_completed_process(process)
+                break
+        else:
+            completed_seen_at = None
         time.sleep(1.0)
 
     with status_placeholder.container():
         _render_live_status(output_dir, started_at)
 
-    stdout, stderr = process.communicate()
+    if process.poll() is None:
+        process.wait(timeout=5)
+    stdout, stderr = _collect_process_output(process)
     result = subprocess.CompletedProcess(
         args=process.args,
         returncode=process.returncode,
@@ -776,7 +858,8 @@ def main() -> None:
         if result.stderr:
             st.code(result.stderr.strip(), language="bash")
 
-    if result.returncode != 0:
+    completed_by_progress = _progress_is_completed(output_dir)
+    if result.returncode != 0 and not completed_by_progress:
         st.error(f"❌ Pipeline failed with exit code {result.returncode}")
         return
 

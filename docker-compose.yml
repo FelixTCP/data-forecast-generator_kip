@@ -3,7 +3,7 @@
 # Compatible with:  docker compose v2 · podman compose · podman 4+ built-in compose
 #
 # Quick start:
-#   1. Copy .env.example → .env and fill in GITHUB_TOKEN
+#   1. Copy .env.example → .env and fill in GH_TOKEN
 #   2a. Docker:  docker compose up --build
 #   2b. Podman:  podman compose up --build
 #               (or: podman-compose up --build)
@@ -18,7 +18,8 @@ services:
   # Upload a CSV, pick a target column, and run the full forecasting pipeline
   # via GitHub Copilot CLI (copilot command).
   agent-app:
-    image: docker.io/felixtcp/data-forecast-generator:latest
+    build: .
+    image: data-forecast-generator:local
     ports:
       - "8501:8501"
     environment:
@@ -27,6 +28,9 @@ services:
       - GH_TOKEN=${GH_TOKEN}
       # Optional: override default model
       - COPILOT_MODEL=${COPILOT_MODEL:-claude-haiku-4.5}
+      # Optional: seconds to wait after progress.json reports completed before
+      # stopping a still-running Copilot wrapper process.
+      - COPILOT_COMPLETION_GRACE_SECONDS=${COPILOT_COMPLETION_GRACE_SECONDS:-20}
     volumes:
       # Persist pipeline run artifacts and uploaded CSVs on the host
       - ./output:/app/output
@@ -37,7 +41,7 @@ services:
   # Browse completed pipeline runs, make predictions, and inspect SHAP values.
   # Reads artifacts from the shared output volume — no copilot CLI needed.
   inference-app:
-    image: docker.io/felixtcp/data-forecast-generator:latest
+    image: data-forecast-generator:local
     # Reuse the image built by the agent-app service (no duplicate build)
     depends_on:
       - agent-app

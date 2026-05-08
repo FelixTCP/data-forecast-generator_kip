@@ -209,6 +209,7 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 
 ### Step 15 — Model Selection (`step_15_selection.py`)
 - Use the weighted scoring rule from `docs/pipeline-framework/15-model-selection.md` (50% R², 25% RMSE, 15% MAE, 10% stability).
+- Treat missing, NaN, infinite, or `None` metrics as invalid for the affected scoring component. Never subtract or compare raw `None` values; normalize metrics only after filtering or imputing with an explicit worst-case score.
 - Tie-break: prefer lower complexity.
 - Emit full ranking table and explicit rationale for the winner.
 - Output: `step-15-selection.json`
@@ -292,6 +293,11 @@ OUTPUT_DIR/
 ## Global Constraints
 
 - Use **`polars`** for all data operations (no pandas).
+- Use valid Polars APIs only. In particular:
+  - Do not use pandas-only join arguments such as `left_index` or `right_index`.
+  - Do not use non-existent string namespace helpers such as `.str.to_float()`.
+  - For numeric string coercion, use `pl.col(name).cast(pl.Float64, strict=False)`.
+  - For joins, create explicit key columns and use `DataFrame.join(..., on=...)` or `left_on`/`right_on`.
 - Use **`scikit-learn`** for all modeling. Add optional sklearn-compatible extras only if already installed.
 - Set `random_state` on every stochastic operation.
 - **Never write a monolithic pipeline script** — one `.py` file per step, period.

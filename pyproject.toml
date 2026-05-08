@@ -42,14 +42,9 @@ dev = [
 [project.urls]
 Repository = "https://github.com/your-org/data-forecast-generator"
 
-[project.scripts]
-forecast = "data_forecast_generator.cli:main"
-
 [tool.uv]
 required-version = ">=0.5.0"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/data_forecast_generator"]
+package = false
 
 [tool.ruff]
 line-length = 100
