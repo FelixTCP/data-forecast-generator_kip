@@ -1,0 +1,63 @@
+{
+  "audit_timestamp": "2026-05-14T19:27:38Z",
+  "code_directory": "/app/output/20260514T192738Z/code",
+  "total_files": 8,
+  "files": [
+    {
+      "filename": "orchestrator.py",
+      "path": "/app/output/20260514T192738Z/code/orchestrator.py",
+      "size_bytes": 3653,
+      "line_count": 110,
+      "type": "orchestrator"
+    },
+    {
+      "filename": "step_10_cleanse.py",
+      "path": "/app/output/20260514T192738Z/code/step_10_cleanse.py",
+      "size_bytes": 7549,
+      "line_count": 224,
+      "type": "step"
+    },
+    {
+      "filename": "step_11_exploration.py",
+      "path": "/app/output/20260514T192738Z/code/step_11_exploration.py",
+      "size_bytes": 17446,
+      "line_count": 454,
+      "type": "step"
+    },
+    {
+      "filename": "step_12_features.py",
+      "path": "/app/output/20260514T192738Z/code/step_12_features.py",
+      "size_bytes": 10547,
+      "line_count": 291,
+      "type": "step"
+    },
+    {
+      "filename": "step_13_training.py",
+      "path": "/app/output/20260514T192738Z/code/step_13_training.py",
+      "size_bytes": 18867,
+      "line_count": 566,
+      "type": "step"
+    },
+    {
+      "filename": "step_14_evaluation.py",
+      "path": "/app/output/20260514T192738Z/code/step_14_evaluation.py",
+      "size_bytes": 9756,
+      "line_count": 275,
+      "type": "step"
+    },
+    {
+      "filename": "step_15_selection.py",
+      "path": "/app/output/20260514T192738Z/code/step_15_selection.py",
+      "size_bytes": 7848,
+      "line_count": 226,
+      "type": "step"
+    },
+    {
+      "filename": "step_16_report.py",
+      "path": "/app/output/20260514T192738Z/code/step_16_report.py",
+      "size_bytes": 9286,
+      "line_count": 269,
+      "type": "step"
+    }
+  ]
+}

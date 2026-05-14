@@ -1,0 +1,153 @@
+{
+  "step": "14-model-evaluation",
+  "run_id": "20260514T192738Z",
+  "timestamp": "2026-05-14T19:34:14.933514+00:00",
+  "best_model_name": "gradient_boosting",
+  "best_model_metrics": {
+    "r2": 0.27947483795371664,
+    "rmse": 16.123782297488127,
+    "mae": 5.0427539862836355
+  },
+  "residuals": {
+    "mean": -1.0985842186334542,
+    "std": 16.086313073273224,
+    "max_abs_error": 176.86941447720687
+  },
+  "target_stats": {
+    "mean": 63.57479762547221,
+    "std": 18.99513348431501,
+    "min": -99.0,
+    "max": 93.1
+  },
+  "quality_assessment": "marginal",
+  "expansion_diagnosis": "",
+  "expansion_results": [],
+  "model_worse_than_mean": false,
+  "candidate_summary": [
+    {
+      "model_name": "ridge",
+      "holdout_r2": 0.022006537729375664,
+      "holdout_rmse": 18.784962205487123,
+      "holdout_mae": 10.095782103472178,
+      "model_worse_than_mean_baseline": false
+    },
+    {
+      "model_name": "elastic_net",
+      "holdout_r2": 0.023026007005752636,
+      "holdout_rmse": 18.775168844957584,
+      "holdout_mae": 10.123525134356619,
+      "model_worse_than_mean_baseline": false
+    },
+    {
+      "model_name": "random_forest",
+      "holdout_r2": 0.277953025529322,
+      "holdout_rmse": 16.14080073828203,
+      "holdout_mae": 5.053824663837963,
+      "model_worse_than_mean_baseline": false
+    },
+    {
+      "model_name": "gradient_boosting",
+      "holdout_r2": 0.27947483795371664,
+      "holdout_rmse": 16.123782297488127,
+      "holdout_mae": 5.0427539862836355,
+      "model_worse_than_mean_baseline": false
+    },
+    {
+      "model_name": "svr",
+      "holdout_r2": 0.25604564880416314,
+      "holdout_rmse": 16.38383229623115,
+      "holdout_mae": 5.821344896975367,
+      "model_worse_than_mean_baseline": false
+    }
+  ],
+  "artifacts": {
+    "model_joblib": "/app/output/20260514T192738Z/model.joblib",
+    "holdout_npz": "/app/output/20260514T192738Z/holdout.npz"
+  },
+  "context": {
+    "dataset_id": "20260514T192738Z",
+    "target_column": "avgtemperature",
+    "features": [
+      "month",
+      "year"
+    ],
+    "split_strategy": {
+      "resolved_mode": "random",
+      "time_column": null
+    },
+    "model_candidates": [
+      {
+        "model_name": "ridge",
+        "best_params": {},
+        "cv_r2_mean": 0.043928769743652764,
+        "cv_r2_std": 0.03890657412122718,
+        "holdout_r2": 0.022006537729375664,
+        "holdout_rmse": 18.784962205487123,
+        "holdout_mae": 10.095782103472178,
+        "delta_r2_vs_arima": 0.022006537729375664,
+        "delta_r2_vs_kmeans": -0.14170026867006769,
+        "fit_time_sec": 0.0010254383087158203
+      },
+      {
+        "model_name": "elastic_net",
+        "best_params": {},
+        "cv_r2_mean": 0.04641580317408116,
+        "cv_r2_std": 0.03650157030458645,
+        "holdout_r2": 0.023026007005752636,
+        "holdout_rmse": 18.775168844957584,
+        "holdout_mae": 10.123525134356619,
+        "delta_r2_vs_arima": 0.023026007005752636,
+        "delta_r2_vs_kmeans": -0.14068079939369071,
+        "fit_time_sec": 0.0007121562957763672
+      },
+      {
+        "model_name": "random_forest",
+        "best_params": {},
+        "cv_r2_mean": 0.5468047056875489,
+        "cv_r2_std": 0.11272178009705869,
+        "holdout_r2": 0.277953025529322,
+        "holdout_rmse": 16.14080073828203,
+        "holdout_mae": 5.053824663837963,
+        "delta_r2_vs_arima": 0.277953025529322,
+        "delta_r2_vs_kmeans": 0.11424621912987865,
+        "fit_time_sec": 0.0559694766998291
+      },
+      {
+        "model_name": "gradient_boosting",
+        "best_params": {},
+        "cv_r2_mean": 0.5440980881809464,
+        "cv_r2_std": 0.12122645009769693,
+        "holdout_r2": 0.27947483795371664,
+        "holdout_rmse": 16.123782297488127,
+        "holdout_mae": 5.0427539862836355,
+        "delta_r2_vs_arima": 0.27947483795371664,
+        "delta_r2_vs_kmeans": 0.11576803155427329,
+        "fit_time_sec": 0.08242678642272949
+      },
+      {
+        "model_name": "svr",
+        "best_params": {},
+        "cv_r2_mean": 0.37646500442308223,
+        "cv_r2_std": 0.2160377530640592,
+        "holdout_r2": 0.25604564880416314,
+        "holdout_rmse": 16.38383229623115,
+        "holdout_mae": 5.821344896975367,
+        "delta_r2_vs_arima": 0.25604564880416314,
+        "delta_r2_vs_kmeans": 0.09233884240471979,
+        "fit_time_sec": 0.8631091117858887
+      }
+    ],
+    "metrics": {
+      "best_r2": 0.27947483795371664,
+      "best_rmse": 16.123782297488127,
+      "best_mae": 5.0427539862836355
+    },
+    "artifacts": {},
+    "notes": [
+      "Evaluated 5 candidate models",
+      "Best: gradient_boosting (R\u00b2=0.279)",
+      "Quality: marginal",
+      "No expansion needed"
+    ]
+  }
+}

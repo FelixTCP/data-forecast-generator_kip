@@ -342,7 +342,11 @@ def _render_features_overview(output_dir: Path) -> None:
     excluded = features_info.get("features_excluded", [])
     if excluded:
         with st.expander("⚠️ Excluded Features", expanded=False):
-            for feat in excluded[:20]:
+            if len(excluded) >= 20:
+                len_excluded = 20
+            else:
+                len_excluded = len(excluded)
+            for feat in excluded[:len_excluded]:
                 if isinstance(feat, dict):
                     st.write(f"- **{feat.get('name', 'unknown')}**: {feat.get('reason', 'unknown reason')}")
                 else:

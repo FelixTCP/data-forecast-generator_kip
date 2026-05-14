@@ -1,0 +1,192 @@
+{
+  "step": "13-model-training",
+  "run_id": "20260514T192738Z",
+  "timestamp": "2026-05-14T19:33:30.966038+00:00",
+  "split_mode": "time_series",
+  "random_state": 42,
+  "n_splits": 5,
+  "split_info": {
+    "train_val_size": 7413,
+    "holdout_size": 1853,
+    "total_rows": 9266
+  },
+  "benchmarks": {
+    "kmeans_benchmark": {
+      "status": "success",
+      "holdout_r2": 0.16370680639944335,
+      "holdout_rmse": 17.370872430763033,
+      "holdout_mae": 8.414991248816186,
+      "fit_time_sec": 0.0
+    },
+    "naive_persistence": {
+      "holdout_r2": 0.04259932325290339,
+      "holdout_rmse": 18.591123140123383,
+      "holdout_mae": 4.319114470842333
+    }
+  },
+  "candidates": [
+    {
+      "model_name": "ridge",
+      "best_params": {},
+      "cv_r2_mean": 0.043928769743652764,
+      "cv_r2_std": 0.03890657412122718,
+      "holdout_r2": 0.022006537729375664,
+      "holdout_rmse": 18.784962205487123,
+      "holdout_mae": 10.095782103472178,
+      "delta_r2_vs_arima": 0.022006537729375664,
+      "delta_r2_vs_kmeans": -0.14170026867006769,
+      "fit_time_sec": 0.0010254383087158203
+    },
+    {
+      "model_name": "elastic_net",
+      "best_params": {},
+      "cv_r2_mean": 0.04641580317408116,
+      "cv_r2_std": 0.03650157030458645,
+      "holdout_r2": 0.023026007005752636,
+      "holdout_rmse": 18.775168844957584,
+      "holdout_mae": 10.123525134356619,
+      "delta_r2_vs_arima": 0.023026007005752636,
+      "delta_r2_vs_kmeans": -0.14068079939369071,
+      "fit_time_sec": 0.0007121562957763672
+    },
+    {
+      "model_name": "random_forest",
+      "best_params": {},
+      "cv_r2_mean": 0.5468047056875489,
+      "cv_r2_std": 0.11272178009705869,
+      "holdout_r2": 0.277953025529322,
+      "holdout_rmse": 16.14080073828203,
+      "holdout_mae": 5.053824663837963,
+      "delta_r2_vs_arima": 0.277953025529322,
+      "delta_r2_vs_kmeans": 0.11424621912987865,
+      "fit_time_sec": 0.0559694766998291
+    },
+    {
+      "model_name": "gradient_boosting",
+      "best_params": {},
+      "cv_r2_mean": 0.5440980881809464,
+      "cv_r2_std": 0.12122645009769693,
+      "holdout_r2": 0.27947483795371664,
+      "holdout_rmse": 16.123782297488127,
+      "holdout_mae": 5.0427539862836355,
+      "delta_r2_vs_arima": 0.27947483795371664,
+      "delta_r2_vs_kmeans": 0.11576803155427329,
+      "fit_time_sec": 0.08242678642272949
+    },
+    {
+      "model_name": "svr",
+      "best_params": {},
+      "cv_r2_mean": 0.37646500442308223,
+      "cv_r2_std": 0.2160377530640592,
+      "holdout_r2": 0.25604564880416314,
+      "holdout_rmse": 16.38383229623115,
+      "holdout_mae": 5.821344896975367,
+      "delta_r2_vs_arima": 0.25604564880416314,
+      "delta_r2_vs_kmeans": 0.09233884240471979,
+      "fit_time_sec": 0.8631091117858887
+    }
+  ],
+  "best_model_name": "gradient_boosting",
+  "benchmark_warning": false,
+  "skipped_models": [
+    {
+      "name": "xgboost",
+      "reason": "xgboost not installed"
+    },
+    {
+      "name": "lightgbm",
+      "reason": "lightgbm not installed"
+    }
+  ],
+  "artifacts": {
+    "model_joblib": "/app/output/20260514T192738Z/model.joblib",
+    "holdout_npz": "/app/output/20260514T192738Z/holdout.npz"
+  },
+  "context": {
+    "dataset_id": "20260514T192738Z",
+    "target_column": "avgtemperature",
+    "time_column": null,
+    "features": [
+      "month",
+      "year"
+    ],
+    "split_strategy": {
+      "resolved_mode": "random",
+      "time_column": null
+    },
+    "model_candidates": [
+      {
+        "model_name": "ridge",
+        "best_params": {},
+        "cv_r2_mean": 0.043928769743652764,
+        "cv_r2_std": 0.03890657412122718,
+        "holdout_r2": 0.022006537729375664,
+        "holdout_rmse": 18.784962205487123,
+        "holdout_mae": 10.095782103472178,
+        "delta_r2_vs_arima": 0.022006537729375664,
+        "delta_r2_vs_kmeans": -0.14170026867006769,
+        "fit_time_sec": 0.0010254383087158203
+      },
+      {
+        "model_name": "elastic_net",
+        "best_params": {},
+        "cv_r2_mean": 0.04641580317408116,
+        "cv_r2_std": 0.03650157030458645,
+        "holdout_r2": 0.023026007005752636,
+        "holdout_rmse": 18.775168844957584,
+        "holdout_mae": 10.123525134356619,
+        "delta_r2_vs_arima": 0.023026007005752636,
+        "delta_r2_vs_kmeans": -0.14068079939369071,
+        "fit_time_sec": 0.0007121562957763672
+      },
+      {
+        "model_name": "random_forest",
+        "best_params": {},
+        "cv_r2_mean": 0.5468047056875489,
+        "cv_r2_std": 0.11272178009705869,
+        "holdout_r2": 0.277953025529322,
+        "holdout_rmse": 16.14080073828203,
+        "holdout_mae": 5.053824663837963,
+        "delta_r2_vs_arima": 0.277953025529322,
+        "delta_r2_vs_kmeans": 0.11424621912987865,
+        "fit_time_sec": 0.0559694766998291
+      },
+      {
+        "model_name": "gradient_boosting",
+        "best_params": {},
+        "cv_r2_mean": 0.5440980881809464,
+        "cv_r2_std": 0.12122645009769693,
+        "holdout_r2": 0.27947483795371664,
+        "holdout_rmse": 16.123782297488127,
+        "holdout_mae": 5.0427539862836355,
+        "delta_r2_vs_arima": 0.27947483795371664,
+        "delta_r2_vs_kmeans": 0.11576803155427329,
+        "fit_time_sec": 0.08242678642272949
+      },
+      {
+        "model_name": "svr",
+        "best_params": {},
+        "cv_r2_mean": 0.37646500442308223,
+        "cv_r2_std": 0.2160377530640592,
+        "holdout_r2": 0.25604564880416314,
+        "holdout_rmse": 16.38383229623115,
+        "holdout_mae": 5.821344896975367,
+        "delta_r2_vs_arima": 0.25604564880416314,
+        "delta_r2_vs_kmeans": 0.09233884240471979,
+        "fit_time_sec": 0.8631091117858887
+      }
+    ],
+    "metrics": {
+      "best_r2": 0.27947483795371664
+    },
+    "artifacts": {
+      "model": "/app/output/20260514T192738Z/model.joblib",
+      "holdout": "/app/output/20260514T192738Z/holdout.npz"
+    },
+    "notes": [
+      "Trained 5 candidate models",
+      "Best: gradient_boosting (R2=0.279)",
+      "Benchmark warning: False"
+    ]
+  }
+}

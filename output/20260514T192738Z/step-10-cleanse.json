@@ -1,0 +1,114 @@
+{
+  "step": "10-csv-read-cleansing",
+  "run_id": "20260514T192738Z",
+  "csv_path": "/app/artifacts/ui_uploads/algiers_temperature.csv",
+  "timestamp": "2026-05-14T19:28:51.553064+00:00",
+  "row_count_initial": 9266,
+  "row_count_after": 9266,
+  "column_count_initial": 8,
+  "column_count_after": 8,
+  "rows_dropped": 0,
+  "target_column": "region",
+  "target_column_normalized": "region",
+  "target_column_dtype": "String",
+  "column_mapping": {
+    "Region": "region",
+    "Country": "country",
+    "State": "state",
+    "City": "city",
+    "Month": "month",
+    "Day": "day",
+    "Year": "year",
+    "AvgTemperature": "avgtemperature"
+  },
+  "column_name_fixes": [
+    {
+      "reason": "normalized_column_names",
+      "changes": {
+        "Region": "region",
+        "Country": "country",
+        "State": "state",
+        "City": "city",
+        "Month": "month",
+        "Day": "day",
+        "Year": "year",
+        "AvgTemperature": "avgtemperature"
+      }
+    }
+  ],
+  "null_rate": {
+    "region": 0.0,
+    "country": 0.0,
+    "state": 1.0,
+    "city": 0.0,
+    "month": 0.0,
+    "day": 0.0,
+    "year": 0.0,
+    "avgtemperature": 0.0
+  },
+  "null_rate_summary": {
+    "max_null_rate": 1.0,
+    "columns_with_50_percent_plus_nulls": [
+      "state"
+    ]
+  },
+  "schema": {
+    "Region": "String",
+    "Country": "String",
+    "State": "String",
+    "City": "String",
+    "Month": "Int64",
+    "Day": "Int64",
+    "Year": "Int64",
+    "AvgTemperature": "Float64"
+  },
+  "schema_after": {
+    "region": "String",
+    "country": "String",
+    "state": "String",
+    "city": "String",
+    "month": "Int64",
+    "day": "Int64",
+    "year": "Int64",
+    "avgtemperature": "Float64"
+  },
+  "artifacts": {
+    "cleaned_parquet": "/app/output/20260514T192738Z/cleaned.parquet"
+  },
+  "quality_report": {
+    "total_fixes_applied": 1,
+    "fixes": [
+      {
+        "reason": "normalized_column_names",
+        "changes": {
+          "Region": "region",
+          "Country": "country",
+          "State": "state",
+          "City": "city",
+          "Month": "month",
+          "Day": "day",
+          "Year": "year",
+          "AvgTemperature": "avgtemperature"
+        }
+      }
+    ],
+    "warnings": [
+      "High missingness detected in state: 100.0%"
+    ]
+  },
+  "context": {
+    "dataset_id": "20260514T192738Z",
+    "target_column": "region",
+    "time_column": null,
+    "features": [],
+    "split_strategy": {},
+    "model_candidates": [],
+    "metrics": {},
+    "artifacts": {},
+    "notes": [
+      "Loaded 9266 rows from /app/artifacts/ui_uploads/algiers_temperature.csv",
+      "Normalized 1 column names",
+      "Final shape: 9266 rows \u00d7 8 columns"
+    ]
+  }
+}
