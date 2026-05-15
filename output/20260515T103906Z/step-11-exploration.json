@@ -1,0 +1,351 @@
+{
+  "step": "11-data-exploration",
+  "run_id": "20260515T103906Z",
+  "shape": {
+    "rows": 9266,
+    "columns": 8
+  },
+  "numeric_columns": [
+    "month",
+    "day",
+    "year",
+    "avgtemperature"
+  ],
+  "categorical_columns": [
+    "region",
+    "country",
+    "city"
+  ],
+  "high_cardinality": [],
+  "low_variance_columns": [],
+  "time_series_detected": true,
+  "time_column": "date",
+  "multiple_series_detected": false,
+  "series_id_column": null,
+  "detected_frequency": "daily",
+  "ts_diagnostics": {
+    "adf_statistic": -7.26332935265841,
+    "adf_pvalue": 1.6595152151190465e-10,
+    "kpss_statistic": 0.014293664540493385,
+    "kpss_pvalue": 0.1,
+    "stationarity_conclusion": "stationary",
+    "acf_values": [
+      1.0,
+      0.9564314264205964,
+      0.9148552975940722,
+      0.8922197575411543,
+      0.8812744627755766,
+      0.8738112594944789,
+      0.866681317787521,
+      0.8625055633828346,
+      0.8594965718812957,
+      0.8564835867987107,
+      0.8512993019656431,
+      0.8478306273756205,
+      0.8442013963970668,
+      0.840758402371476,
+      0.836819316548809,
+      0.8333843418427261,
+      0.8286755450658485,
+      0.8233164449787495,
+      0.8164494488036329,
+      0.8103623983253103,
+      0.8045621913467136,
+      0.7991199572011354,
+      0.7951681613410944,
+      0.7889648008550273,
+      0.7811970419877126,
+      0.7739894721849451,
+      0.7668853107214274,
+      0.7602160121586564,
+      0.7523460068852116,
+      0.7427528826518724,
+      0.7340125725217086,
+      0.7261485864921857,
+      0.7188443349762753,
+      0.7126387532008546,
+      0.70545326128194,
+      0.697050507923076,
+      0.6856708813187002,
+      0.6762279892864321,
+      0.6681992243313125,
+      0.6594240821396242,
+      0.6492480813738829,
+      0.6392787815081533,
+      0.6308339409329342,
+      0.6215496108759613,
+      0.6110646251023629,
+      0.5996977001932876,
+      0.5883172729936186,
+      0.5764091920953509,
+      0.5642838175394124
+    ],
+    "pacf_values": [
+      1.0,
+      0.9565346570116833,
+      0.0011083436378819538,
+      0.20153656239561638,
+      0.1409480949496008,
+      0.09855552432331727,
+      0.07637868811428972,
+      0.09858698794679298,
+      0.06934412836604031,
+      0.06138330934336958,
+      0.027938686944698195,
+      0.06320861764518511,
+      0.027046254702081853,
+      0.03728780132913723,
+      0.022174292971089065,
+      0.031030176586627402,
+      0.001584603690846012,
+      0.008150829003259691,
+      -0.015875506842178692,
+      0.0063339206853024405,
+      -0.008681462984620721,
+      -0.00029241854491304504,
+      0.01262255385843723,
+      -0.029068119588226114,
+      -0.023219601628757885,
+      -0.00989497670266025,
+      -0.022585625711717783,
+      -0.011520526603511752,
+      -0.0323145388861497,
+      -0.04042557219724161,
+      -0.01967500737511722,
+      -0.022351267343923144,
+      -0.015757313681962166,
+      -0.002324191108197826,
+      -0.024250879284520813,
+      -0.023945529906413365,
+      -0.05578819280576904,
+      -0.004292658580520536,
+      -0.01715054854650977,
+      -0.027798377454803513,
+      -0.031163918402242516,
+      -0.0190412886925073,
+      -0.009439458337038898,
+      -0.026873287991074645,
+      -0.028189413315616012,
+      -0.029494663478939902,
+      -0.029457380446641118,
+      -0.03665372425729545,
+      -0.03242570443035801
+    ],
+    "acf_significant_lags": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30
+    ],
+    "pacf_significant_lags": [
+      1,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      23,
+      24,
+      26,
+      28,
+      29,
+      31,
+      34,
+      35,
+      36,
+      39,
+      40,
+      43,
+      44,
+      45,
+      46,
+      47
+    ],
+    "suggested_ar_order": 1,
+    "suggested_ma_order": 0,
+    "hurst_exponent": 0.8688710017907082,
+    "hurst_interpretation": "strongly_persistent_trending",
+    "hurst_r2_fit": 0.9654573556701388,
+    "ljung_box_pvalues": {
+      "6": 0.0,
+      "12": 0.0,
+      "24": 0.0
+    },
+    "white_noise": false,
+    "trend_strength": 0.034238669112736764,
+    "trend_detected": false,
+    "seasonality_detected": true,
+    "detected_periods": [
+      {
+        "period": 7,
+        "seasonal_strength": 0.06031560322651952,
+        "significant": false
+      },
+      {
+        "period": 30,
+        "seasonal_strength": 0.1497029705716485,
+        "significant": false
+      },
+      {
+        "period": 365,
+        "seasonal_strength": 0.8778975779593005,
+        "significant": true
+      }
+    ],
+    "primary_seasonal_period": 365,
+    "multiple_series_detected": false,
+    "series_id_column": null
+  },
+  "mi_ranking": [
+    {
+      "feature": "month",
+      "mi_score": 0.8316477747000692
+    },
+    {
+      "feature": "year",
+      "mi_score": 0.05174393198912508
+    },
+    {
+      "feature": "day",
+      "mi_score": 0.00040937792363582304
+    }
+  ],
+  "noise_mi_baseline": 0.004670447973138714,
+  "leakage_suspects": [],
+  "excluded_features": [
+    {
+      "column": "day",
+      "reason": "below_noise_baseline: mi=0.0004 <= noise=0.0047"
+    }
+  ],
+  "recommended_features": [
+    "month",
+    "year"
+  ],
+  "useful_lag_features": [
+    {
+      "feature": "month",
+      "lag": 1,
+      "xcorr": 0.3091591089414351
+    },
+    {
+      "feature": "month",
+      "lag": 2,
+      "xcorr": 0.29832852338721105
+    },
+    {
+      "feature": "month",
+      "lag": 3,
+      "xcorr": 0.2880965676652914
+    },
+    {
+      "feature": "month",
+      "lag": 6,
+      "xcorr": 0.2546875295224522
+    },
+    {
+      "feature": "month",
+      "lag": 12,
+      "xcorr": 0.18488115043998668
+    }
+  ],
+  "model_class_recommendations": [
+    {
+      "model_class": "AR",
+      "justification": "Stationary + autocorrelation structure: AR model directly applicable"
+    },
+    {
+      "model_class": "ElasticNet",
+      "justification": "Stationary + sufficient features: linear regularized regression"
+    },
+    {
+      "model_class": "Ridge",
+      "justification": "Stationary + features: Ridge regression baseline"
+    },
+    {
+      "model_class": "XGBoost",
+      "justification": "Non-linear patterns in stationary series"
+    },
+    {
+      "model_class": "FAAR-ARIMA",
+      "justification": "Hurst=0.869 > 0.65: long-memory series benefits from Factor-Augmented AR"
+    },
+    {
+      "model_class": "HoltWinters-ETS",
+      "justification": "Significant seasonality detected (period=365)"
+    }
+  ],
+  "acf_pacf_orders": {
+    "suggested_ar_order": 1,
+    "suggested_ma_order": 0
+  },
+  "target_candidates": [
+    {
+      "column": "month",
+      "mean": 6.46891862723937,
+      "std": 3.4571401940395456,
+      "min": 1.0,
+      "max": 12.0,
+      "null_rate": 0.0
+    },
+    {
+      "column": "day",
+      "mean": 15.717353766458018,
+      "std": 8.801040580182331,
+      "min": 1.0,
+      "max": 31.0,
+      "null_rate": 0.0
+    },
+    {
+      "column": "year",
+      "mean": 2007.188214979495,
+      "std": 7.324961191097588,
+      "min": 1995.0,
+      "max": 2020.0,
+      "null_rate": 0.0
+    },
+    {
+      "column": "avgtemperature",
+      "mean": 64.3646557306281,
+      "std": 10.80812595439718,
+      "min": 33.3,
+      "max": 96.6,
+      "null_rate": 0.0
+    }
+  ],
+  "client_facing_summary": "Dataset: 9266 daily observations of temperature in Algiers (1995\u20132020). Target: avgtemperature. Stationarity: stationary. Seasonality: detected (primary period: 365 days). White noise: False. Hurst exponent: 0.869 (strongly_persistent_trending). Recommended models: ['AR', 'ElasticNet', 'Ridge', 'XGBoost', 'FAAR-ARIMA', 'HoltWinters-ETS']."
+}
