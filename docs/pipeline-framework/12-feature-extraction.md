@@ -4,12 +4,16 @@
 
 Generate `step_12_features.py` — Complete, immediately executable Python CLI script.
 
+This step performs 13 sequential operations (Z–L) to transform raw features into a clean, scaled feature matrix ready for model training. **Two operations are critical**:
+- **Step K — Zero-Variance Removal**: Remove constant/near-constant features (std ≤ sqrt(1e-10)) that contain no signal
+- **Step L — Scaling Metadata**: Document and apply feature scaling (StandardScaler for linear models, MinMaxScaler for neural nets, none for trees)
+
 | Feld | Wert |
 |---|---|
 | **Dateiname** | `step_12_features.py` |
 | **CLI** | `python step_12_features.py --output-dir <dir> --run-id <id> [--split-mode auto\|random\|time_series] [--exclude-features feat1,feat2]` |
 | **Input** | `OUTPUT_DIR/cleaned.parquet`, `step-11-exploration.json`, `step-10-cleanse.json` |
-| **Output** | `features.parquet`, `step-12-features.json` |
+| **Output** | `features.parquet`, `features_scaled.parquet` (if scaled), `scaler.joblib` (if scaled), `step-12-features.json` |
 | **Exit Codes** | 0=Success, 1=Error, 2=Leakage Detected |
 
 ---
@@ -24,8 +28,8 @@ Generate `step_12_features.py` — Complete, immediately executable Python CLI s
 - [ ] **Multi-Series Lags**: Use `.shift(n).over(group_col)` (no global `.shift()` for multi-series)
 - [ ] **Rolling Causality**: `.shift(1)` BEFORE every `.rolling_*()` — prevents look-ahead
 - [ ] **Leakage Exit 2**: Pearson |r| > 0.98 OR RandomForest R² > 0.999 → `sys.exit(2)`, no artifacts
-- [ ] **Zero-Variance Removal (Step L)**: After engineering, before leakage check
-- [ ] **Feature Scaling (Step K)**: StandardScaler (linear/SARIMA), MinMaxScaler (LSTM), none (trees)
+- [ ] **Zero-Variance Removal (Step K)**: ⚠️ MANDATORY ⚠️ After engineering, before output; remove `std() ≤ sqrt(1e-10)`; at least 2 features remain
+- [ ] **Feature Scaling (Step L)**: ⚠️ MANDATORY ⚠️ StandardScaler (linear/SARIMA), MinMaxScaler (LSTM), none (trees); document in `scaling_metadata` (NEVER null)
 - [ ] **All 13 Functions**: Z, A–L implemented as separate functions, called in order from `main()`
 - [ ] **Minimum Features**: `len(final_features) >= 2` after cleanup, else `sys.exit(1)`
 
@@ -55,12 +59,18 @@ Generate `step_12_features.py` — Complete, immediately executable Python CLI s
 
 ## Output Contract
 
-**`step-12-features.json` MUST contain:**
+**`step-12-features.json` MUST contain (ALL FIELDS MANDATORY):**
 ```json
 {
   "step": "12-feature-extraction",
-  "features": ["lag1", "lag3", "rolling_mean_7", ...],
-  "features_excluded": {"feature_name": "reason", ...},
+  "run_id": "20260101T120000Z",
+  "features": ["lag1", "lag3", "rolling_mean_7"],
+  "features_count": 25,
+  "features_excluded": {
+    "rv1": "zero_variance",
+    "appliances_lag0": "data_leakage_target_column"
+  },
+  "excluded_count": 2,
   "target_column": "appliances",
   "split_strategy": {"resolved_mode": "time_series"},
   "leakage": {
@@ -69,8 +79,16 @@ Generate `step_12_features.py` — Complete, immediately executable Python CLI s
     "threshold": 0.98,
     "reconstruction_probe_r2": null
   },
-  "scaling_metadata": {"scaler_used": "StandardScaler|MinMaxScaler|None", ...},
-  "artifacts": {"features_parquet": "path/features.parquet"}
+  "scaling_metadata": {
+    "scaler_used": "StandardScaler|MinMaxScaler|None",
+    "features_scaled": ["lag1", "rolling_mean_7"],
+    "features_not_scaled": ["appliances"],
+    "scaler_path": "scaler.joblib|null"
+  },
+  "artifacts": {
+    "features_parquet": "output/20260101T120000Z/features.parquet",
+    "scaler_joblib": "scaler.joblib|null"
+  }
 }
 ```
 
@@ -144,20 +162,38 @@ Generate `step_12_features.py` — Complete, immediately executable Python CLI s
 - **Return**: `{"status": "pass"|"fail", "leakage_candidates": [...], "probe_r2": float|null}`
 - **On Fail**: `sys.exit(2)`, NO artifacts written
 
-### K — `remove_zero_variance_features(feature_matrix, variance_threshold=1e-10)`
-- Remove columns where `std() ≤ sqrt(threshold)`
-- Return: `(cleaned_matrix, {"removed_feature": "zero_variance", ...})`
-- Fail if < 2 features remain: `sys.exit(1)`
+### K — `remove_zero_variance_features(feature_matrix, variance_threshold=1e-10)` ⚠️ MANDATORY
+- **Purpose**: Eliminate constant or near-constant features that have no predictive value
+- Remove columns where `std() ≤ sqrt(threshold)` OR `variance < 1e-10`
+- Log all removals: "feature X removed: zero variance (std=0.0000)"
+- **Fail condition**: If fewer than 2 features remain after removal → `sys.exit(1)` with error message
+- Return: `(cleaned_matrix, {"feature_name": "zero_variance", ...})` — dict mapping, NOT list
+- **Update features_excluded**: Add all removed features with reason `"zero_variance"` or `"near_zero_variance"`
+- **Critical**: This MUST run BEFORE output generation — bad data ruins everything downstream
 
-### L — `compute_scaling_metadata(feature_matrix, target_col, recommended_models, output_dir)` (FAST)
-- **Linear/SARIMA/Prophet**: StandardScaler
-- **LSTM/Temporal CNN**: MinMaxScaler (0..1)
-- **Trees/GB**: No scaling
-- **Binary features** (0/1 only): NEVER scale
-- **Target**: NEVER scale
-- **Optimization**: Only scale if top_recommendation is Linear/SARIMA/LSTM; skip for trees (most common)
-- **Output**: Write `features_scaled.parquet` + save scaler to `scaler.joblib` (only if scaling applied)
-- Return: `(scaled_matrix, {"scaler_used": str, "features_scaled": [...]})`
+### L — `compute_scaling_metadata(feature_matrix, target_col, recommended_models, output_dir)` ⚠️ MANDATORY
+- **Purpose**: Normalize features for model compatibility (required for linear/distance-based, optional for trees)
+- **Decision Logic**:
+  - If `recommended_models[0]` in ["linear_regression", "ridge", "lasso", "sarima", "prophet"]: → **StandardScaler** (mean=0, std=1)
+  - If `recommended_models[0]` in ["lstm", "temporal_cnn", "neural_net"]: → **MinMaxScaler** (0..1, better for neural nets)
+  - If `recommended_models[0]` in ["random_forest", "gradient_boosting", "xgboost", "lightgbm"]: → **No scaling** (trees are scale-invariant)
+  - Default: **No scaling** (trees most common in general forecasting)
+- **Exclusions**: NEVER scale these:
+  - Target column (y) — leave raw for model training
+  - Binary features (only values 0/1) — no variance to scale
+  - Categorical one-hot encoded features — preserve 0/1 encoding
+- **Output**: Always write to `step-12-features.json["scaling_metadata"]`:
+  ```json
+  {
+    "scaler_used": "StandardScaler|MinMaxScaler|None",
+    "features_scaled": ["lag1", "rolling_mean_7"],
+    "features_not_scaled": ["appliances", "binary_feature"],
+    "scaler_path": "scaler.joblib|null"
+  }
+  ```
+- **Critical**: `scaling_metadata` MUST NEVER be null — always document what was done
+- If scaler applied: Write `features_scaled.parquet` + persist scaler to `scaler.joblib`
+- Return: `(scaled_or_original_matrix, scaling_metadata_dict)`
 
 ### `main()` — CLI Entry Point
 ```python
@@ -211,11 +247,25 @@ def main():
 
 ## Execution Checklist (FAST VERSION)
 
-- [ ] All 13 functions (Z–L) implemented and called from `main()` in order
+- [ ] All 13 functions (Z–L) implemented and called from `main()` in EXACT order: Z → A → B → C → D → E → F → G → H → I → J → K → L
 - [ ] `argparse`: `--output-dir`, `--run-id`, `--split-mode`, `--exclude-features`
 - [ ] Inputs: `cleaned.parquet`, `step-10-cleanse.json`, `step-11-exploration.json`
-- [ ] Outputs: `features.parquet`, `step-12-features.json`, `scaler.joblib` (if scaled)
-- [ ] **FAST OPTIMIZATIONS ACTIVE:**
+- [ ] **MANDATORY OUTPUTS**:
+  - [ ] `features.parquet` (all engineered features + target)
+  - [ ] `step-12-features.json` with ALL fields (never skip `scaling_metadata`)
+  - [ ] `scaler.joblib` (if scaling applied)
+- [ ] **ZERO-VARIANCE REMOVAL (Step K)**: ⚠️ CRITICAL ⚠️
+  - [ ] Detect: All columns where `std() ≤ sqrt(1e-10)` or `variance < 1e-10`
+  - [ ] Remove: Delete identified zero-variance columns from feature matrix
+  - [ ] Log: Add to `features_excluded` dict with reason `"zero_variance"`
+  - [ ] Validate: At least 2 features remain (else `sys.exit(1)`)
+- [ ] **SCALING METADATA (Step L)**: ⚠️ CRITICAL ⚠️
+  - [ ] Choose scaler: StandardScaler (linear/SARIMA) OR MinMaxScaler (LSTM) OR None (trees)
+  - [ ] Apply: StandardScaler/MinMaxScaler to non-excluded features (NOT target, NOT binary)
+  - [ ] Document: `scaling_metadata` object with `scaler_used`, `features_scaled`, `features_not_scaled`
+  - [ ] Persist: Save `scaler.joblib` if scaling applied
+  - [ ] **NEVER NULL**: `scaling_metadata` MUST always be present in JSON
+- [ ] **FAST OPTIMIZATIONS ACTIVE**:
   - [ ] Lags A/B: max_lag=12, top_n=3 (not 48/6)
   - [ ] Rolling G: only 2 windows [7, 30], mean+std only (no min/max/range)
   - [ ] Lags/Rolling G: only for TOP-10 features; others get calendar+trend only
@@ -223,7 +273,7 @@ def main():
   - [ ] Scaling L: only if needed (skip for trees, most common)
 - [ ] `features_excluded` as dict (not list): `{feature_name: reason}`
 - [ ] Leakage detected → `sys.exit(2)`, NO artifacts
-- [ ] Fewer than 2 features → `sys.exit(1)`
+- [ ] Fewer than 2 features after K → `sys.exit(1)` with clear error message
 - [ ] `progress.json` updated with `completed_steps` on success
 - [ ] Exit code 0 on success
 - [ ] `tqdm` on all loops
