@@ -1,0 +1,124 @@
+{
+  "step": "15-model-selection",
+  "run_id": "20260515T103906Z",
+  "selected_model": "ridge",
+  "weighted_score": 0.9,
+  "quality_flag": "acceptable",
+  "rationale": "ridge achieved the highest weighted score (0.9000) with holdout R\u00b2=0.9277, RMSE=2.858\u00b0F, MAE=2.083\u00b0F. It beats the na\u00efve lag-1 baseline (R\u00b2=0.9117) by \u0394=+0.0160. Cross-validation R\u00b2=0.9196\u00b10.0150 indicates consistent performance across temporal folds. Note: The improvement over the na\u00efve persistence baseline is modest. Daily temperature autocorrelation is strong \u2014 any lag-1 model performs well. The value of this model lies in better handling of seasonal transitions and feature integration.",
+  "baselines": {
+    "mean_baseline": {
+      "r2": 0.0,
+      "description": "Predicting mean target value"
+    },
+    "naive_lag_baseline": {
+      "r2": 0.9117124368458747,
+      "rmse": 3.157383612287486,
+      "mae": 2.299589923842999,
+      "residual_mean": -0.011364967779730525,
+      "residual_max_abs": 15.899999999999999
+    }
+  },
+  "candidate_analysis": {
+    "elasticnet": "R\u00b2=0.9212 > 0 (beats mean baseline). Performance nearly identical to na\u00efve lag-1 baseline (\u0394=+0.0095). CV R\u00b2=0.9236 \u2248 holdout R\u00b2=0.9212: good generalization. RMSE=2.98\u00b0F (27.3% of target std).",
+    "hist_gbm": "R\u00b2=0.9243 > 0 (beats mean baseline). Beats na\u00efve lag-1 by \u0394=+0.0126 R\u00b2. CV R\u00b2=0.9215 \u2248 holdout R\u00b2=0.9243: good generalization. RMSE=2.92\u00b0F (26.8% of target std).",
+    "random_forest": "R\u00b2=0.9246 > 0 (beats mean baseline). Beats na\u00efve lag-1 by \u0394=+0.0129 R\u00b2. CV R\u00b2=0.9262 \u2248 holdout R\u00b2=0.9246: good generalization. RMSE=2.92\u00b0F (26.7% of target std).",
+    "ridge": "R\u00b2=0.9277 > 0 (beats mean baseline). Beats na\u00efve lag-1 by \u0394=+0.0160 R\u00b2. CV R\u00b2=0.9196 \u2248 holdout R\u00b2=0.9277: good generalization. RMSE=2.86\u00b0F (26.2% of target std).",
+    "holt_winters": "R\u00b2=-11.6327 < 0 \u2014 model is worse than predicting the mean. Ineligible for selection."
+  },
+  "full_ranking": [
+    {
+      "rank": 1,
+      "model_name": "ridge",
+      "r2": 0.927665113875047,
+      "rmse": 2.857929337433308,
+      "mae": 2.083399939225865,
+      "cv_mean_r2": 0.9196447124328467,
+      "weighted_score": 0.9,
+      "status": "eligible"
+    },
+    {
+      "rank": 2,
+      "model_name": "random_forest",
+      "r2": 0.9245805571803051,
+      "rmse": 2.9182281695827155,
+      "mae": 2.1344546276411416,
+      "cv_mean_r2": 0.9261768641602947,
+      "weighted_score": 0.5669743517882949,
+      "status": "eligible"
+    },
+    {
+      "rank": 3,
+      "model_name": "hist_gbm",
+      "r2": 0.924302117957164,
+      "rmse": 2.9236100749484812,
+      "mae": 2.1441366202520857,
+      "cv_mean_r2": 0.9214680869814948,
+      "weighted_score": 0.5153158065023423,
+      "status": "eligible"
+    },
+    {
+      "rank": 4,
+      "model_name": "elasticnet",
+      "r2": 0.9212260013005146,
+      "rmse": 2.982421567731831,
+      "mae": 2.189148653228302,
+      "cv_mean_r2": 0.9236001756295549,
+      "weighted_score": 0.08402682671672797,
+      "status": "eligible"
+    },
+    {
+      "rank": null,
+      "model_name": "holt_winters",
+      "r2": -11.632675564649713,
+      "rmse": 37.76811039736796,
+      "mae": 32.421027499079756,
+      "cv_mean_r2": -3.9708529254171703,
+      "weighted_score": null,
+      "status": "ineligible"
+    },
+    {
+      "rank": null,
+      "model_name": "naive_persistence",
+      "r2": 0.9116524619998261,
+      "rmse": 3.158455855313304,
+      "mae": 2.301581722319859,
+      "cv_mean_r2": null,
+      "weighted_score": null,
+      "status": "benchmark"
+    },
+    {
+      "rank": null,
+      "model_name": "seasonal_naive",
+      "r2": 0.7042256442374608,
+      "rmse": 5.779068524804426,
+      "mae": 4.432396016403046,
+      "cv_mean_r2": null,
+      "weighted_score": null,
+      "status": "benchmark"
+    },
+    {
+      "rank": null,
+      "model_name": "auto_arima_benchmark",
+      "r2": -1.5189057354631612,
+      "rmse": 16.864891177657213,
+      "mae": 14.171156829080685,
+      "cv_mean_r2": null,
+      "weighted_score": null,
+      "status": "benchmark"
+    },
+    {
+      "rank": null,
+      "model_name": "ar1_benchmark",
+      "r2": 0.009856669454798017,
+      "rmse": 10.573691100889533,
+      "mae": 9.118461598783602,
+      "cv_mean_r2": null,
+      "weighted_score": null,
+      "status": "benchmark"
+    }
+  ],
+  "artifacts": {
+    "selection_report_md": "output\\20260515T103906Z\\step-15-model-selection-report.md",
+    "selection_metrics_png": null
+  }
+}
