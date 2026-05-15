@@ -19,6 +19,9 @@ services:
   # via GitHub Copilot CLI (copilot command).
   agent-app:
     image: docker.io/felixtcp/data-forecast-generator:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8501:8501"
     environment:
@@ -38,6 +41,9 @@ services:
   # Reads artifacts from the shared output volume — no copilot CLI needed.
   inference-app:
     image: docker.io/felixtcp/data-forecast-generator:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     # Reuse the image built by the agent-app service (no duplicate build)
     depends_on:
       - agent-app

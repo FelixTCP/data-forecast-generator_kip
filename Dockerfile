@@ -24,7 +24,7 @@ RUN apt-get update \
 # Pin global npm prefix to /usr/local so the binary lands in /usr/local/bin
 # (predictable, guaranteed to be in PATH). Authentication via GITHUB_TOKEN.
 RUN npm config set prefix /usr/local \
- && npm install -g @github-copilot/cli \
+ && npm install -g @github/copilot \
  && ls /usr/local/bin/copilot \
  && echo "copilot installed: $(copilot --version 2>&1 || true)"
 
