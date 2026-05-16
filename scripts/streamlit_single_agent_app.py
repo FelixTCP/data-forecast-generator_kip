@@ -218,20 +218,31 @@ def _parse_audit_results(output_dir: Path) -> dict | None:
         if not audit:
             return None
         
+        # Normalise checks: agent may emit a list or a dict
+        raw_checks = audit.get("checks", {})
+        if isinstance(raw_checks, list):
+            checks_dict = {c.get("check", f"check_{i}"): c for i, c in enumerate(raw_checks)}
+        else:
+            checks_dict = raw_checks if isinstance(raw_checks, dict) else {}
+
         result = {
             "overall_audit_result": audit.get("overall_audit_result", "unknown"),
             "remediation_actions": audit.get("remediation_actions", []),
             "critical_findings": audit.get("critical_findings", []),
-            "checks": audit.get("checks", {}),
+            "checks": checks_dict,
             "restart_step": None,
             "affected_steps": set(),
         }
         
-        # Determine which steps need to restart based on remediation actions
+        # Determine which steps need to restart based on remediation actions.
+        # Prefer affected_steps embedded in the audit action; fall back to local map.
         if result["remediation_actions"]:
             for action in result["remediation_actions"]:
                 action_id = action.get("action_id")
-                if action_id in _REMEDIATION_STEPS_MAP:
+                embedded = action.get("affected_steps")
+                if isinstance(embedded, list) and embedded:
+                    result["affected_steps"].update(embedded)
+                elif action_id in _REMEDIATION_STEPS_MAP:
                     result["affected_steps"].update(_REMEDIATION_STEPS_MAP[action_id])
         
         # Find the minimum affected step
@@ -261,7 +272,10 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
 
     if progress:
         completed = progress.get("completed_steps", [])
-        completed_count = len(completed) if isinstance(completed, list) else 0
+        if isinstance(completed, list):
+            # Deduplicate and count only steps that belong to our pipeline definition
+            completed_set = set(completed)
+            completed_count = sum(1 for s in PIPELINE_STEPS if s in completed_set)
         current_step = progress.get("current_step")
         status = str(progress.get("status", "running"))
         raw_errors = progress.get("errors", [])
