@@ -152,7 +152,15 @@ Before executing a step, check whether it can be skipped:
 ### After Step 16
 - `step-16-report.md` exists and is at least 500 bytes
 - Report file contains all 6 required section headings
-- `progress.json` has `"status": "completed"`
+- `progress.json` has `"status": "running"` (NOT completed — Step 17 must run next)
+
+### After Step 17
+- `step-17-audit.json` exists and is valid JSON
+- `step-17-audit.json` contains all five checks: `temporal_consistency`, `multi_series_detection`, `feature_target_alignment`, `model_performance_baseline`, `data_distribution_drift`
+- `step-17-audit.json` has `"overall_audit_result"` ("pass" or "fail")
+- `step-17-audit.json` contains `"critical_findings"` array (empty if audit passes, non-empty if audit fails)
+- `step-17-audit.json` contains `"remediation_actions"` array (may be empty)
+- `progress.json` has `"status": "completed"` (ONLY Step 17 marks final completion)
 
 ---
 
@@ -220,7 +228,7 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
   4. Selected model rationale
   5. Risks and caveats
   6. Next iteration recommendations
-- Set `progress.json` status to `"completed"`.
+- **Do NOT** set `progress.json` status to `"completed"` — Step 17 runs next.
 - Output: `step-16-report.md`
 
 ### Step 17 — Critical Self-Audit (`step_17_audit.py`)
@@ -236,7 +244,7 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 - Status values: **ONLY** `"pass"`, `"marginal"`, `"fail"` — `"warning"` is forbidden.
 - `overall_audit_result = "fail"` if any check has `status=="fail"` OR `severity=="high"`.
 - `critical_findings` must be non-empty when `overall_audit_result == "fail"`.
-- Write `final_audit_result` to `progress.json`.
+- **Set `progress.json` status to `"completed"` at the end (only Step 17 marks the final completion).**
 - Output: `step-17-audit.json`
 
 ---
@@ -277,6 +285,7 @@ OUTPUT_DIR/
 ├── step-14-evaluation.json
 ├── step-15-selection.json
 ├── step-16-report.md
+├── step-17-audit.json
 └── code/
     ├── step_10_cleanse.py
     ├── step_11_exploration.py
@@ -285,6 +294,7 @@ OUTPUT_DIR/
     ├── step_14_evaluation.py
     ├── step_15_selection.py
     ├── step_16_report.py
+    ├── step_17_audit.py
     └── orchestrator.py
 ```
 
