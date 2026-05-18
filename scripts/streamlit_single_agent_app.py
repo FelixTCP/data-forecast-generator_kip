@@ -1560,17 +1560,6 @@ def _render_audit_tab(output_dir: Path) -> None:
             
             st.error(f"**{check}** ({severity.upper()}): {desc}")
     
-    # Export audit results
-    st.markdown("---")
-    st.subheader("💾 Export Audit Results")
-    
-    audit_json = json.dumps(audit_results, indent=2)
-    st.download_button(
-        label="⬇️ Download Audit JSON",
-        data=audit_json,
-        file_name="step-17-audit.json",
-        mime="application/json"
-    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
