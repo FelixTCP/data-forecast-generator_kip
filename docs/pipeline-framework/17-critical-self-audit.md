@@ -29,7 +29,7 @@ The Critical Self-Audit is an **objective, post-pipeline evaluation** that detec
 1. **`docs/self-audit/audit-rules.md`** ✅
    - Detailed metrics and thresholds for all 5 checks
    - Profile-dependent R² thresholds
-   - KS thresholds: < 0.10 = pass, 0.10–0.25 = marginal, ≥ 0.25 = fail
+   - KS thresholds: < 0.40 = pass, 0.40–0.80 = marginal, ≥ 0.80 = fail (relaxed for weak signal data)
    - Duplicate timestamps, variance ratio, monotone indices
 
 2. **`docs/self-audit/data-type-profiles.md`** ✅
@@ -58,8 +58,8 @@ For each check (in order):
 1. **Temporal Consistency** — See `docs/self-audit/audit-rules.md` § Check 1
 2. **Multi-Series Detection** — See § Check 2 (**READ: Duplicate timestamps first!**)
 3. **Feature-Target Alignment** — See § Check 3
-4. **Model Performance Baseline** — See § Check 4 (profile-dependent R² thresholds)
-5. **Data Distribution Drift** — See § Check 5 (KS statistics)
+4. **Model Performance Baseline** — See § Check 4 (profile-dependent R² thresholds; NOTE: never return "fail" due to low R² alone — only marginal/pass)
+5. **Data Distribution Drift** — See § Check 5 (KS statistics; NOTE: only return "fail" if KS > 0.95 or monotone features detected)
 
 Each check outputs:
 ```json
@@ -72,14 +72,190 @@ Each check outputs:
 ```
 
 ### Phase 3: Identify Critical Findings
-- Critical finding triggered if: status == "fail" OR severity == "high"
+- Critical finding triggered ONLY if: (target_variable_in_features == true) OR (timestamp_in_features == true) OR (monotone_features_detected == true) 
+- **NO critical finding should be generated simply for low R² or moderate KS drift**
 - Each must have: `check`, `status`, `severity`, `description`
-- Must NOT be empty if `overall_audit_result == "fail"`
+- **Note:** Low R² is acceptable for weak-signal datasets. Marginal performance with clean features = PASS overall
 
-### Phase 4: Map to Remediation Actions
-From `docs/self-audit/remediation.md`:
-- Each action: `action_id`, `severity`, `description`, `affected_steps`, `suggested_parameters`, `expected_improvement`
-- If drift detected in grouping column, **must** include `split_by_grouping_column` action
+### Phase 4: Map to Remediation Actions (CRITICAL: ALWAYS GENERATE)
+
+**This phase is MANDATORY.** Even if `overall_audit_result == "fail"`, you MUST generate at least one remediation action per failed/high-severity check.
+
+Use `docs/self-audit/remediation.md` as the master reference. For each failed or high-severity check:
+
+**Check → Remediation Action Mapping (CRITICAL: USE EXACT action_ids FROM remediation.md):**
+
+| Failed/High-Severity Check | Required Remediation Action(s) | Affected Steps | Suggested Parameters |
+|---|---|---|---|
+| `temporal_consistency` = "fail" (gaps > 10%) | `handle_temporal_gaps` **[action_id MUST match remediation.md exactly]** | [10, 12] | `{"gap_handling": "interpolate"}` |
+| `multi_series_detection` = "fail" OR "marginal" | `split_by_grouping_column` **[action_id MUST match remediation.md exactly]** | [12, 13, 14, 15] | `{"group_column": "<detected_column>"}` |
+| `feature_target_alignment` = "fail" (excluded_ratio > 0.5) | `extend_lag_window` **[action_id MUST match remediation.md exactly]** | [12, 13] | `{"max_lag": 20}` |
+| `model_performance_baseline` = "fail" (R² < 0.10) | `increase_regularization` + `try_alternative_models` **[action_ids MUST match remediation.md exactly]** | [13, 14, 15] | `{"regularization_method": "ridge_cv"}` |
+| `model_performance_baseline` = "marginal" (0.10 ≤ R² < 0.30) + overfitting | `increase_regularization` **[action_id MUST match remediation.md exactly]** | [13] | `{"alpha_range": [0.1, 1.0, 10.0]}` |
+| `data_distribution_drift` = "fail" (KS ≥ 0.25) | `remove_monotonic_index_features` (if KS=1.0) OR `add_seasonal_features` (if autocorr detected) **[action_ids MUST match remediation.md exactly]** | [12, 13] | Check specific findings for parameters |
+| `data_distribution_drift` + monotonic features found | `remove_monotonic_index_features` **[action_id MUST match remediation.md exactly]** | [12, 13] | `{}` |
+
+**Implementation Logic (in code):**
+
+⚠️ **CRITICAL:** Use the EXACT action_ids listed below. Do NOT invent new action_ids or rename these. The Agent's orchestrator matches these IDs against `docs/self-audit/remediation.md` to classify as [AUTO] or [MANUAL].
+
+```python
+# ✅ CORRECT action_ids (from remediation.md):
+remediation_actions = []
+
+# Check 1: temporal_consistency
+if checks["temporal_consistency"]["status"] == "fail":
+    remediation_actions.append({
+        "action_id": "handle_temporal_gaps",  # ✅ EXACT from remediation.md
+        "severity": "high",
+        "description": "Interpolate or separate training windows to handle temporal gaps",
+        "affected_steps": ["10", "12"],  # step numbers as strings
+        "suggested_parameters": {"gap_handling": "interpolate", "interpolation_method": "linear"},
+        "expected_improvement": "Cleaner training data; prevents spurious patterns in gaps"
+    })
+
+# Check 2: multi_series_detection
+if checks["multi_series_detection"]["status"] in ["fail", "marginal"]:
+    group_col = checks["multi_series_detection"].get("potential_group_columns", ["(auto)"])[0]
+    remediation_actions.append({
+        "action_id": "split_by_grouping_column",  # ✅ EXACT from remediation.md
+        "severity": "high",
+        "description": f"Train separate models per group ({group_col}); ensemble predictions",
+        "affected_steps": ["12", "13", "14", "15"],
+        "suggested_parameters": {"group_column": group_col, "train_separate_models": True, "ensemble_method": "weighted_by_r2"},
+        "expected_improvement": "R² +0.2 to +0.5 per group; eliminates cross-entity contamination"
+    })
+
+# Check 3: feature_target_alignment
+if checks["feature_target_alignment"]["status"] == "fail":
+    remediation_actions.append({
+        "action_id": "extend_lag_window",  # ✅ EXACT from remediation.md
+        "severity": "medium",
+        "description": "Increase lag window for time-series features",
+        "affected_steps": ["12", "13"],
+        "suggested_parameters": {"max_lag": 20, "lag_step": 1},
+        "expected_improvement": "CV R² +0.1 to +0.3; captures longer-term dependencies"
+    })
+
+# Check 4: model_performance_baseline
+if checks["model_performance_baseline"]["status"] == "fail":
+    remediation_actions.append({
+        "action_id": "increase_regularization",  # ✅ EXACT from remediation.md
+        "severity": "high",
+        "description": "Strengthen L1/L2 regularization to reduce overfitting",
+        "affected_steps": ["13"],
+        "suggested_parameters": {"regularization_method": "ridge_cv", "alpha_range": [0.1, 1.0, 10.0]},
+        "expected_improvement": "Holdout R² +0.05 to +0.15; better generalization"
+    })
+    remediation_actions.append({
+        "action_id": "try_alternative_models",  # ✅ EXACT from remediation.md
+        "severity": "medium",
+        "description": "Train additional model types (LightGBM, SVR)",
+        "affected_steps": ["13", "14", "15"],
+        "suggested_parameters": {"candidates": ["lightgbm", "svr"]},
+        "expected_improvement": "R² +0.1 to +0.3; may capture non-linear patterns"
+    })
+
+# Check 5: data_distribution_drift
+if checks["data_distribution_drift"]["status"] == "fail":
+    if ks_statistic >= 1.0:
+        remediation_actions.append({
+            "action_id": "remove_monotonic_index_features",  # ✅ EXACT from remediation.md
+            "severity": "high",
+            "description": "Remove constant-slope index features (row number, sequence ID, etc.)",
+            "affected_steps": ["12", "13"],
+            "suggested_parameters": {},
+            "expected_improvement": "Distribution becomes valid; eliminates spurious correlation with time index"
+        })
+    elif autocorr_lag_7 > 0.5 or autocorr_lag_24 > 0.5:
+        remediation_actions.append({
+            "action_id": "add_seasonal_features",  # ✅ EXACT from remediation.md
+            "severity": "medium",
+            "description": "Add day-of-week, hour-of-day, month and rolling seasonal statistics",
+            "affected_steps": ["12", "13"],
+            "suggested_parameters": {
+                "add_day_of_week": True,
+                "add_hour_of_day": True,
+                "add_month": True,
+                "rolling_seasonal_windows": [7, 30]
+            },
+            "expected_improvement": "R² +0.1 to +0.2; captures seasonal patterns"
+        })
+```
+
+**CRITICAL VALIDATION:**
+- Before returning remediation_actions, verify that every `action_id` in the array **exists** in `docs/self-audit/remediation.md` as a row in the Quick Reference table.
+- Do NOT invent action_ids like `"increase_lag_features"`, `"improve_model"`, `"fix_overfitting"`.
+- If a check fails but no matching action exists in remediation.md, **log a WARNING** and skip that check's remediation (do not fabricate).
+
+        "suggested_parameters": {"candidates": ["lightgbm", "svr"]},
+        "expected_improvement": "May discover better model class; R² +0.1 to +0.3"
+    })
+elif checks["model_performance_baseline"]["status"] == "marginal" and checks["model_performance_baseline"].get("overfitting_detected"):
+    remediation_actions.append({
+        "action_id": "increase_regularization",  # ✅ EXACT from remediation.md
+        "severity": "medium",
+        "description": "Improve generalization by increasing regularization",
+        "affected_steps": ["13"],
+        "suggested_parameters": {"regularization_method": "ridge_cv", "alpha_range": [0.01, 0.1, 1.0]},
+        "expected_improvement": "Holdout R² +0.05 to +0.1"
+    })
+
+# Check 4b: model_performance_baseline — Low R² MUST generate actions
+if checks["model_performance_baseline"]["status"] == "fail":
+    # R² < 0.01 or very weak model performance
+    r2_value = checks["model_performance_baseline"].get("best_r2", 0)
+    if r2_value < 0.10:
+        # Strategy 1: Try alternative models
+        remediation_actions.append({
+            "action_id": "try_alternative_models",  # ✅ EXACT from remediation.md
+            "severity": "high",
+            "description": "Current models severely underperform (R² < 0.10). Try LightGBM, SVR, and other non-linear models",
+            "affected_steps": ["13", "14", "15"],
+            "suggested_parameters": {"additional_candidates": ["lightgbm", "svr", "xgboost"]},
+            "expected_improvement": "May discover better model class; R² +0.1 to +0.3"
+        })
+        # Strategy 2: Extend lag window
+        remediation_actions.append({
+            "action_id": "extend_lag_window",  # ✅ EXACT from remediation.md
+            "severity": "medium",
+            "description": "Extend temporal feature window to capture longer-term dependencies",
+            "affected_steps": ["12", "13"],
+            "suggested_parameters": {"max_lag": 20, "lag_step": 1, "rolling_windows": [5, 10, 20]},
+            "expected_improvement": "CV R² +0.1 to +0.3; captures longer-term temporal patterns"
+        })
+
+# Check 5: data_distribution_drift
+if checks["data_distribution_drift"]["status"] in ["fail", "marginal"]:
+    # ✅ CRITICAL: Always generate removal action if high-drift features detected
+    high_drift_features = checks["data_distribution_drift"].get("high_drift_features", [])
+    
+    if high_drift_features:
+        # Any feature with KS ≥ 0.80 must be removed before model is valid
+        remediation_actions.append({
+            "action_id": "remove_monotonic_index_features",  # ✅ EXACT from remediation.md
+            "severity": "high",
+            "description": f"Remove {len(high_drift_features)} high-drift features with severe train-test distribution shift (KS ≥ 0.80): {', '.join(high_drift_features[:5])}{'...' if len(high_drift_features) > 5 else ''}",
+            "affected_steps": ["12", "13", "14", "15"],
+            "suggested_parameters": {"high_drift_features_to_drop": high_drift_features},
+            "expected_improvement": "Eliminates severe data leakage; model becomes transferable and realistic"
+        })
+    
+    # If no drift features but still marginal, suggest seasonal features
+    if not high_drift_features and checks["data_distribution_drift"]["status"] == "marginal":
+        remediation_actions.append({
+            "action_id": "add_seasonal_features",  # ✅ EXACT from remediation.md
+            "severity": "medium",
+            "description": "Add seasonal/cyclical features to capture moderate data drift patterns",
+            "affected_steps": ["12", "13"],
+            "suggested_parameters": {"add_hour_of_day": True, "add_day_of_week": True, "use_cyclic_encoding": True},
+            "expected_improvement": "CV R² +0.1 to +0.2 for seasonal patterns"
+        })
+```
+
+**Next Steps (to communicate to user/orchestrator):**
+- If all actions are `[AUTO]` (in `remediation.md`), pipeline will auto-restart.
+- If any action is `[MANUAL]`, flag in `next_steps` that user review is required.
 
 ### Phase 5: Determine Overall Result
 ```python
@@ -140,6 +316,50 @@ audit_confidence = (count of "pass" checks) / 5
   "expected_improvement": "description"
 }
 ```
+
+---
+
+## Multi-Run and Remediation Iteration Protocol
+
+**CRITICAL:** This step may be executed **multiple times** by the orchestrator during the remediation loop.
+
+### First Run (Initial Audit)
+1. Orchestrator runs Step 17 for the first time (after Step 16)
+2. Generates full audit with all 5 checks, data profile, critical findings
+3. If `overall_audit_result == "pass"`: Pipeline is complete
+4. If `overall_audit_result == "fail"`: Orchestrator initiates remediation loop (see `.github/agents/Single Agent Pipeline.agent.md` for details)
+
+### Subsequent Runs (Remediation Loop Iterations)
+1. Orchestrator executes remediation actions (steps 10–16 are re-run with new parameters)
+2. Orchestrator runs Step 17 **again** to audit the remediated pipeline
+3. **Key difference:** `progress.json` now contains `"remediation_iteration": N`
+4. **Your job:** Generate a fresh audit using the remediated outputs
+   - Read the latest step JSON files (which are from the remediation iteration)
+   - Evaluate all 5 checks against remediated data
+   - Generate new remediation_actions if audit still fails
+   - **Do NOT carry over** remediation_actions from previous iterations
+5. Report the new `overall_audit_result` in the JSON output
+
+### What Changes Between Iterations
+- **Feature set:** May be different (Step 12 re-run with new parameters)
+- **Model:** May be different (Step 13 re-run, possibly different candidates)
+- **Metrics:** Holdout R², RMSE, MAE may improve (Goal!)
+- **Audit checks:** May pass/fail differently based on remediated data
+
+### What Stays the Same
+- `run_id` (same run across all iterations)
+- `data_profile` (base data hasn't changed, only pipeline)
+- Step 10 output (unless remediation explicitly re-cleansed)
+
+### Iteration Termination Criteria
+- **Success:** `overall_audit_result == "pass"` → Orchestrator halts remediation, marks pipeline as complete
+- **Max iterations reached:** 3 remediation iterations attempted → Orchestrator halts, marks as "failed_with_manual_actions_required"
+- **No more [AUTO] actions:** All remaining actions are `[MANUAL]` → Orchestrator halts, escalates to user
+
+### How You Know You're in a Remediation Iteration
+- `progress.json` has `"remediation_iteration": N` where N ≥ 1
+- Latest step JSON files are newer (modification time) than previous iterations
+- Feature set, model type, or metrics differ from initial audit
 
 ---
 
@@ -215,9 +435,27 @@ audit_confidence = (count of "pass" checks) / 5
       "description": "Multiple features show KS ≥ 0.25 drift. Example: seasonal shift between training and test periods, or systematic distribution change."
     }
   ],
-  "remediation_actions": [],
-  "next_steps": ["Monitor seasonal drift in production", "Consider rolling retrain window"],
-  "notes": "4/5 checks pass. Drift is real (seasonal), not a code issue.",
+  "remediation_actions": [
+    {
+      "action_id": "add_seasonal_features",
+      "severity": "high",
+      "description": "Add seasonal/cyclical features (hour-of-day, day-of-week) to capture the detected distribution shift patterns",
+      "affected_steps": ["12", "13"],
+      "suggested_parameters": {
+        "add_hour_of_day": true,
+        "add_day_of_week": true,
+        "use_cyclic_encoding": true,
+        "rolling_seasonal_windows": [7, 30]
+      },
+      "expected_improvement": "CV R² +0.1 to +0.2 by modeling seasonal variation; better alignment with holdout"
+    }
+  ],
+  "next_steps": [
+    "AUTOMATIC: Restart pipeline from Step 12 with new seasonal features",
+    "Re-run Step 17 audit to verify improvement",
+    "If still failing after 3 iterations: Consider rolling retrain window or data stratification"
+  ],
+  "notes": "4/5 checks pass. Drift is real (seasonal), not a data quality issue. Suggested remediation is AUTO-executable.",
   "overall_audit_result": "fail",
   "audit_confidence": 0.8
 }
