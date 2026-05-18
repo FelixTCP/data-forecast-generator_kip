@@ -1170,11 +1170,15 @@ def _render_best_model_tab(output_dir: Path) -> None:
     st.subheader("📊 Performance Metrics")
     best_eval = None
     if evaluation:
-        best_eval = next(
-            (c for c in evaluation.get("candidates", [])
-             if c.get("model_name") == best_name),
-            None,
-        )
+        candidates = evaluation.get("candidates", {})
+        if isinstance(candidates, dict):
+            best_eval = candidates.get(best_name)
+        else:
+            best_eval = next(
+                (c for c in candidates
+                 if c.get("model_name") == best_name),
+                None,
+            )
 
     if best_eval:
         c1, c2, c3, c4, c5 = st.columns(5)
