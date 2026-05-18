@@ -282,6 +282,11 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
         if isinstance(raw_errors, list):
             errors = [str(e) for e in raw_errors]
 
+        # If pipeline is fully done, show all steps complete regardless of what
+        # the agent wrote into completed_steps (step 17 often omits itself)
+        if status == "completed":
+            completed_count = len(PIPELINE_STEPS)
+
     # Handle remediation: if audit failed and has actions, reset progress
     if audit_results and audit_results["overall_audit_result"] == "fail":
         remediation_triggered = True
