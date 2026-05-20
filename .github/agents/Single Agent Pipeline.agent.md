@@ -214,13 +214,15 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 - Output: `step-15-selection.json`
 
 ### Step 16 — Result Presentation (`step_16_report.py`)
-- Write `step-16-report.md` with exactly these 6 sections:
-  1. Problem + selected target
-  2. Data quality summary
-  3. Candidate models + scores table
-  4. Selected model rationale
-  5. Risks and caveats
-  6. Next iteration recommendations
+- Write `step-16-report.md` with exactly these 7 sections:
+  1. Executive Summary (ELI5) — jargon-free explanation of what was built, how well it works, business value, and major red flags
+  2. Problem + selected target
+  3. Data quality summary
+  4. Candidate models + scores table
+  5. Selected model rationale
+  6. Risks and caveats
+  7. Next iteration recommendations
+- If `quality_flag` is `leakage_suspected`, `subpar`, or `no_viable_candidate`, include a mandatory warning in the Executive Summary explaining why results cannot be trusted.
 - Set `progress.json` status to `"completed"`.
 - Output: `step-16-report.md`
 
