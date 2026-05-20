@@ -104,5 +104,60 @@ For each candidate: compute R², RMSE, MAE, residual summary.
 Compute naive baseline metrics for context.
 If suspiciously-perfect scores appear, run leakage stress tests and fail with leakage_suspected when triggered.
 Compare best R² against quality thresholds. If subpar: diagnose, train expansion candidates, evaluate, update results.
+Compute and save SHAP values for the best candidate.
 Write step-14-evaluation.json with quality_assessment field.
 ```
+
+## SHAP Value Computation (Required for Streamlit Best Model View)
+
+After all candidates are evaluated and the best model is identified (but only if `quality_assessment != "leakage_suspected"`), compute SHAP values for the **best candidate** on the holdout test set and save them for the Streamlit UI.
+
+### Explainer Selection by Model Type
+
+| Model type | Explainer | Notes |
+|---|---|---|
+| Tree-based (XGBoost, LightGBM, RandomForest, GradientBoosting, ExtraTrees, HistGBM) | `shap.TreeExplainer(model)` | Fast, exact |
+| Linear (Ridge, Lasso, ElasticNet) | `shap.LinearExplainer(model, X_train_sample)` | Use min(500, N_train) background samples |
+| Other sklearn (SVR, MLP) | `shap.KernelExplainer(model.predict, shap.sample(X_train, 100))` | Slow — use min(200, N_test) test samples |
+| Statistical models (`StatsmodelsAdapter`) | Skip — not differentiable | Set `shap_skipped_reason: "statistical_model"` |
+
+For pipeline-wrapped models, extract the final estimator step before computing SHAP.
+
+### Computation Rules
+
+1. Use min(500, N_test) samples from `X_test` for SHAP computation (avoids OOM on large holdout sets). Sample **chronologically** from the start of the holdout (not randomly).
+2. Use `shap.Explanation` objects when available (shap ≥ 0.41) for portability.
+3. Convert feature matrix to numpy before calling explainer (polars DataFrames are not accepted by shap).
+4. Load `feature_names` from `step-12-features.json["feature_names"]`.
+
+### Artifacts to Write
+
+- **`OUTPUT_DIR/shap_values.npz`** — numpy archive:
+  ```
+  shap_values      : float32 array, shape (n_samples, n_features)
+  base_values      : float32 array, shape (n_samples,) — per-sample expected value
+  expected_value   : scalar float — global expected value (mean base_value)
+  X_test_sample    : float32 array, shape (n_samples, n_features) — the input rows used
+  feature_names    : object array of str, shape (n_features,)
+  ```
+- **`shap_artifacts`** key in `step-14-evaluation.json`:
+  ```json
+  "shap_artifacts": {
+    "status": "computed",
+    "model_name": "XGBoost",
+    "explainer_type": "TreeExplainer",
+    "n_samples_used": 500,
+    "shap_values_path": "OUTPUT_DIR/shap_values.npz",
+    "top_features_by_mean_abs_shap": [
+      {"feature": "y_lag_1", "mean_abs_shap": 12.4},
+      {"feature": "hour_of_day", "mean_abs_shap": 8.1}
+    ]
+  }
+  ```
+  If SHAP is skipped: `"status": "skipped"` and `"shap_skipped_reason": "<reason>"`.
+
+### Guardrails
+
+- Wrap the entire SHAP computation in a try/except. If SHAP raises (e.g., library not installed), set `"status": "failed"` with `"shap_error": "<message>"` — do not halt the pipeline.
+- `shap_values.npz` must only be written if SHAP computation succeeds completely.
+- Do not compute SHAP when `quality_assessment = "leakage_suspected"` — metrics are invalid.

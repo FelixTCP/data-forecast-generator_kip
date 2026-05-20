@@ -23,8 +23,10 @@ Load customer CSV robustly and produce a typed, clean `polars.DataFrame` exporte
 - Use defensive programming (`strict=False` when casting, handle nulls explicitly, define an explicit `schema_overrides` if necessary).
 - Fail fast on unreadable files.
 - Do not silently drop rows/columns without logging initial count, final count, and reason.
-- Preserve original column names in metadata even if normalized.
-
+- Preserve original column names in metadata even if renamed.
+- **Extreme anomaly smoothing is mandatory**: After sorting by time, scan the target column (and all other numeric columns) for values with an **absolute z-score above 6** (i.e. $|z| > 6$). These are statistically impossible readings — not real extremes but corrupted / sentinel / instrument-error values. Null them out and replace with **linear interpolation** (`interpolate()`), falling back to `forward_fill()` / `backward_fill()` for boundary nulls. Log each replacement in `fixes` including the threshold, count, and affected column.
+  - **Chronological sort is mandatory after dedup**: `df.unique()` does not preserve row order. After deduplication, always sort by the detected time column (or by year/month/day if present). If no sort order can be established, raise a `RuntimeError` — a non-chronological dataset will corrupt the train/holdout split in step 12.
+  - **CRITICAL**: when synthesizing a date from year/month/day integer columns, use `pl.date(pl.col("year"), pl.col("month"), pl.col("day"))` — **never** `str.pad_left()` which does not exist in polars; use `pl.date()` directly.
 ## Copilot Prompt Snippet
 
 ```markdown
@@ -32,6 +34,13 @@ Implement `load_and_clean_csv(csv_path: str, config: dict, output_path: str) -> 
 Apply robust schema inference and defensive cleansing defaults so the step is self-contained.
 Use only the `polars` Lazy API (`pl.scan_csv()`), executing `.collect()` only before returning/writing the Parquet file to `output_path`.
 Return a `quality_report` with null-rate per column, inferred dtypes, duplicate rows, and applied fixes.
+
+After sorting by time, scan the target column (and all other numeric columns) for **extreme anomalies** defined
+as values whose absolute z-score exceeds 6 (`|z| > 6`). These are not real extremes — they are corrupted,
+sentinel, or instrument-error readings. Null them out and replace with linear interpolation
+(`pl.col(col).interpolate().forward_fill().backward_fill()`). Log every replacement in the `fixes` list as
+`"extreme_anomaly_smoothed: col='<col>', zscore_threshold=6, count=<N>"`.
+
 Write a `pytest`-compatible test file to `$CODE_DIR/tests/test_10_ingest.py`.
 ```
 
@@ -78,12 +87,85 @@ def load_and_clean_csv(csv_path: str, config: dict, output_path: str) -> tuple[p
     return df, quality_report
 ```
 
+## Outlier Detection (required for Streamlit EDA view)
+
+After collecting the cleaned DataFrame, compute per-column outlier statistics for every **numeric** column. Write results to the `"outliers"` key of the quality report.
+
+Use IQR-based detection:
+- `Q1 = column.quantile(0.25)`, `Q3 = column.quantile(0.75)`, `IQR = Q3 - Q1`
+- `lower_bound = Q1 - 1.5 * IQR`, `upper_bound = Q3 + 1.5 * IQR`
+- Outlier rows: values below `lower_bound` OR above `upper_bound`
+- Store the **first 200 row indices** of outlier rows (for UI scatter plots)
+
+Also compute z-score outlier count (|z| > 3) for each column.
+
+```json
+"outliers": {
+  "appliances": {
+    "iqr_outlier_count": 312,
+    "zscore_outlier_count": 289,
+    "iqr_lower_bound": -75.0,
+    "iqr_upper_bound": 325.0,
+    "outlier_fraction": 0.016,
+    "outlier_indices_sample": [4, 17, 88, 204, 371]
+  },
+  "lights": {
+    "iqr_outlier_count": 0,
+    "zscore_outlier_count": 5,
+    "iqr_lower_bound": 0.0,
+    "iqr_upper_bound": 0.0,
+    "outlier_fraction": 0.0,
+    "outlier_indices_sample": []
+  }
+}
+```
+
+## Complete Output JSON Schema
+
+```json
+{
+  "step": "10-csv-read-cleansing",
+  "row_count_initial": 19737,
+  "row_count_after": 19735,
+  "column_count": 29,
+  "target_column_normalized": "appliances",
+  "time_column_detected": "date",
+  "null_rate": {
+    "appliances": 0.0,
+    "lights": 0.0,
+    "t1": 0.001
+  },
+  "duplicate_rows_removed": 2,
+  "inferred_dtypes": {
+    "date": "Datetime",
+    "appliances": "Float64",
+    "lights": "Float64"
+  },
+  "outliers": {
+    "appliances": {
+      "iqr_outlier_count": 312,
+      "zscore_outlier_count": 289,
+      "iqr_lower_bound": -75.0,
+      "iqr_upper_bound": 325.0,
+      "outlier_fraction": 0.016,
+      "outlier_indices_sample": [4, 17, 88]
+    }
+  },
+  "fixes": ["normalized_column_names", "removed_duplicates"],
+  "artifacts": {
+    "cleaned_parquet": "OUTPUT_DIR/cleaned.parquet"
+  }
+}
+```
+
 ## Tests
 
 - Validate the output Parquet file exists
 - Validate the schema matches expectations (e.g., Dates are actually datetime, not strings)
-- Explicit explicit null handling applies correctly
+- Explicit null handling applies correctly
 - malformed csv
 - mixed dtypes
 - high missingness column
 - duplicate rows present
+- outlier detection: column with known extreme values produces correct `iqr_outlier_count`
+- column with no outliers produces `iqr_outlier_count: 0`

@@ -75,6 +75,7 @@ If any of these checks fail, the step must be re-run.
 - `OUTPUT_DIR/step-13-training.json`
 - `OUTPUT_DIR/model.joblib` (best fitted model)
 - `OUTPUT_DIR/candidate-*.joblib` (all trained candidates)
+- `OUTPUT_DIR/pca_preprocessor.joblib` (StandardScaler + PCA for FAAR models; may be absent if no FAAR recommended)
 - `OUTPUT_DIR/step-14-evaluation.json`
 - `OUTPUT_DIR/step-15-selection.json`
 - `OUTPUT_DIR/step-16-report.md`
@@ -101,6 +102,8 @@ If any of these checks fail, the step must be re-run.
 ## Model Artifact Portability Rules
 
 - `model.joblib` must be loadable via `joblib.load(...)` in a fresh Python process.
-- The loaded object must expose `.predict(X)` directly (not wrapped in a plain dict).
+- The loaded object must expose `.predict(X)` or `.forecast(steps)` directly (not wrapped in a plain dict).
+- Classical statistical models (ARIMA, SARIMA, HoltWinters, FAAR-*) must be wrapped in `StatsmodelsAdapter` (defined in step 13 spec) before serialisation. `StatsmodelsAdapter` must be defined in an importable module under `CODE_DIR`, not under `__main__`.
 - Do not pickle classes defined under `__main__`; use importable sklearn/sklearn-compatible estimators only.
 - `holdout.npz` must contain `X_test` and `y_test` arrays reusable by step 14 without access to step 13's script.
+- `pca_preprocessor.joblib` must be loadable independently; it exposes `transform(X)` for applying the fitted PCA to new exogenous data.

@@ -1,0 +1,62 @@
+{
+  "step": "10-csv-read-cleansing",
+  "run_id": "20260515T103906Z",
+  "csv_path": "artifacts\\ui_uploads\\algiers_temperature.csv",
+  "target_column_original": "AvgTemperature",
+  "target_column_normalized": "avgtemperature",
+  "time_column": "date",
+  "detected_frequency": "daily",
+  "row_count_before": 9266,
+  "row_count_after": 9266,
+  "column_count": 8,
+  "null_rate": {
+    "region": 0.0,
+    "country": 0.0,
+    "city": 0.0,
+    "month": 0.0,
+    "day": 0.0,
+    "year": 0.0,
+    "avgtemperature": 0.0,
+    "date": 0.0
+  },
+  "fixes": [
+    "normalized_column_names: ['Region', 'Country', 'State', 'City', 'Month', 'Day', 'Year', 'AvgTemperature']",
+    "synthesized_date_column from (year, month, day)",
+    "sorted_by_time_column: date",
+    "extreme_anomaly_smoothed: col='avgtemperature', zscore_threshold=6, count=35",
+    "dropped_all_null_columns: ['state']"
+  ],
+  "outliers": {
+    "month": {
+      "iqr_lower": -6.0,
+      "iqr_upper": 18.0,
+      "iqr_outlier_count": 0,
+      "iqr_outlier_indices_sample": [],
+      "z3_outlier_count": 0
+    },
+    "day": {
+      "iqr_lower": -14.5,
+      "iqr_upper": 45.5,
+      "iqr_outlier_count": 0,
+      "iqr_outlier_indices_sample": [],
+      "z3_outlier_count": 0
+    },
+    "year": {
+      "iqr_lower": 1981.5,
+      "iqr_upper": 2033.5,
+      "iqr_outlier_count": 0,
+      "iqr_outlier_indices_sample": [],
+      "z3_outlier_count": 0
+    },
+    "avgtemperature": {
+      "iqr_lower": 27.15,
+      "iqr_upper": 101.95000000000002,
+      "iqr_outlier_count": 0,
+      "iqr_outlier_indices_sample": [],
+      "z3_outlier_count": 0
+    }
+  },
+  "artifacts": {
+    "cleaned_parquet": "output\\20260515T103906Z\\cleaned.parquet"
+  }
+}
