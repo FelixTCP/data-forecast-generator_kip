@@ -256,6 +256,31 @@ def _parse_audit_results(output_dir: Path) -> dict | None:
         return None
 
 
+# Step name → sentinel output file that confirms the step completed
+_STEP_SENTINEL_FILES: dict[str, str] = {
+    "10-csv-read-cleansing":   "step-10-cleanse.json",
+    "11-data-exploration":     "step-11-exploration.json",
+    "12-feature-extraction":   "step-12-features.json",
+    "13-model-training":       "step-13-training.json",
+    "14-model-evaluation":     "step-14-evaluation.json",
+    "15-model-selection":      "step-15-selection.json",
+    "16-result-presentation":  "step-16-report.md",
+    "17-critical-self-audit":  "step-17-audit.json",
+}
+
+
+def _completed_steps_from_files(output_dir: Path) -> set[str]:
+    """Derive which pipeline steps completed by checking for their output files.
+
+    This is more reliable than reading completed_steps from progress.json because
+    the orchestrator sometimes only flushes that list at the very end of the run.
+    """
+    return {
+        step for step, sentinel in _STEP_SENTINEL_FILES.items()
+        if (output_dir / sentinel).exists()
+    }
+
+
 # Step number → output JSON/artifact file names that must be deleted to force re-run
 _STEP_OUTPUT_FILES: dict[int, list[str]] = {
     12: ["step-12-features.json", "features.parquet"],
@@ -397,20 +422,41 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
 
     if progress:
         completed = progress.get("completed_steps", [])
+        completed_set: set[str] = set()
         if isinstance(completed, list):
-            # Deduplicate and count only steps that belong to our pipeline definition
             completed_set = set(completed)
-            completed_count = sum(1 for s in PIPELINE_STEPS if s in completed_set)
         current_step = progress.get("current_step")
         status = str(progress.get("status", "running"))
         raw_errors = progress.get("errors", [])
         if isinstance(raw_errors, list):
             errors = [str(e) for e in raw_errors]
 
-        # If pipeline is fully done, show all steps complete regardless of what
-        # the agent wrote into completed_steps (step 17 often omits itself)
-        if status == "completed":
-            completed_count = len(PIPELINE_STEPS)
+    # Use output-file presence as the primary source of truth for completed steps.
+    # The orchestrator often only flushes completed_steps to progress.json at the
+    # very end of the run, so file-based detection gives real-time progress.
+    file_completed_set = _completed_steps_from_files(output_dir)
+    # Merge: take the union so remediation re-runs aren't lost
+    completed_set = completed_set | file_completed_set
+    completed_count = sum(1 for s in PIPELINE_STEPS if s in completed_set)
+
+    # If pipeline is fully done, show all steps complete
+    if status == "completed":
+        completed_count = len(PIPELINE_STEPS)
+
+    # Fix stale current_step: the orchestrator often leaves current_step
+    # pointing to the last step it *started* (e.g. "12-feature-extraction")
+    # even after later steps complete. Derive the real active step from
+    # file presence and status instead.
+    if status == "completed":
+        current_step = PIPELINE_STEPS[-1]
+    elif current_step and current_step in completed_set:
+        # Step already finished — advance to first pending step
+        remaining = [s for s in PIPELINE_STEPS if s not in completed_set]
+        current_step = remaining[0] if remaining else PIPELINE_STEPS[-1]
+    elif not current_step:
+        # No current_step written yet — infer from first pending step
+        remaining = [s for s in PIPELINE_STEPS if s not in completed_set]
+        current_step = remaining[0] if remaining else PIPELINE_STEPS[-1]
 
     # Handle remediation: if audit failed and has actions, reset progress
     if audit_results and audit_results["overall_audit_result"] == "fail":
