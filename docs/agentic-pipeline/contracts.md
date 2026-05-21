@@ -27,6 +27,16 @@ This pipeline is for real forecasting. Any target leakage invalidates the run.
 - `CODE_DIR`: generated step script directory (default: `OUTPUT_DIR/code/`)
 - `CONTINUE_MODE`: `true|false` (default: `false`)
 
+## Code Generation Contract
+
+**Every step script must be written from scratch for every run. Copying or recycling scripts from previous runs is strictly forbidden.**
+
+- The agent MUST write each `step_NN_name.py` using `create_file` or equivalent file-creation tooling — never by copying from a prior run directory.
+- Using shell commands such as `Copy-Item`, `cp`, `shutil.copy`, or equivalent to bring scripts from `output/<OLD_RUN_ID>/code/` into a new run is **prohibited**.
+- This rule applies to ALL step scripts including `step_17_audit.py` and `orchestrator.py`.
+- If the agent cannot generate a script (e.g., missing spec), the pipeline must halt and report the gap — it must not fall back to copying.
+- The code-audit SHA256 hashes in `code_audit.json` must reflect freshly written files; recycled files will produce duplicate hashes across runs and can be detected.
+
 ## Code Organisation Contract
 
 **One Python file per pipeline step. No monolithic scripts.**
@@ -40,6 +50,7 @@ This pipeline is for real forecasting. Any target leakage invalidates the run.
 | 14 — Model Evaluation     | `CODE_DIR/step_14_evaluation.py`  | `step-14-evaluation.json`  |
 | 15 — Model Selection      | `CODE_DIR/step_15_selection.py`   | `step-15-selection.json`   |
 | 16 — Result Presentation  | `CODE_DIR/step_16_report.py`      | `step-16-report.md`        |
+| 17 — Critical Self-Audit  | `CODE_DIR/step_17_audit.py`       | `step-17-audit.json`       |
 | Orchestrator              | `CODE_DIR/orchestrator.py`        | —                          |
 
 ## Step Script Contract
@@ -55,13 +66,50 @@ Each step script must:
 
 ## Resume / Skip Contract
 
-A step is considered complete (and may be skipped) when all are true:
+A step is considered complete (and may be skipped) when ALL are true:
 
-1. `CONTINUE_MODE=true` (or orchestrator `--resume`).
+1. The orchestrator is invoked with `--resume` flag (or `CONTINUE_MODE=true`).
 2. The step output file exists.
 3. The output is valid JSON with the expected `"step"` value.
 
-If any of these checks fail, the step must be re-run.
+**Critical:** If `--resume` is NOT set, ALL steps must be re-executed from scratch, even if prior step outputs exist in `OUTPUT_DIR`. Old code and artifacts from previous runs must never be reused.
+
+If any of the three checks above fail, the step must be re-run (re-execution is always safe and produces identical outputs).
+
+## Remediation Loop Contract
+
+**The pipeline is not considered complete until the Self-Audit (Step 17) passes or `MAX_REMEDIATION_ITERATIONS = 3` remediation rounds have been completed.**
+
+### Procedure
+
+1. After all 9 steps complete, the orchestrator reads `step-17-audit.json`.
+2. `overall_audit_result == "pass"` → Pipeline is immediately finalized.
+3. `overall_audit_result == "fail"`:
+   - **This MUST ALWAYS trigger action. A fail result can never be silently accepted.**
+   - All `remediation_actions` with `[AUTO]` type are collected (see `docs/self-audit/remediation.md`).
+   - `OUTPUT_DIR/remediation_config.json` is updated with injected parameters.
+   - Output files of all steps from the earliest affected step through Step 17 are deleted.
+   - Those steps are re-executed in order with the new parameters.
+   - `step-17-audit.json` is re-read. Loop runs for at most `MAX_REMEDIATION_ITERATIONS = 3` iterations.
+   - If after all iterations the audit is still `fail`, the orchestrator writes `remediation_required.json` and exits with **code `1`** — the run is NOT finalized as complete.
+4. At the end, `progress.json` receives the `final_audit_result` field (`"pass"` or `"fail"`).
+   - `status = "completed"` is only written when `final_audit_result == "pass"`.
+   - `status = "remediation_required"` is written when `final_audit_result == "fail"` after all iterations.
+
+### All actions are now AUTO-executable
+
+`split_by_grouping_column` is now `[AUTO]`: the orchestrator automatically re-runs steps 12–17 with `--group-column` injection, training one sub-model per group and ensembling predictions. See `docs/self-audit/remediation.md` for the full implementation spec.
+
+### State File: `remediation_config.json`
+
+```json
+{
+  "iteration": 1,
+  "applied_actions": ["remove_monotonic_index_features"],
+  "exclude_features": ["trend_elapsed_days"],
+  "force_expansion_models": false
+}
+```
 
 ## Required Files per Run
 
@@ -79,6 +127,7 @@ If any of these checks fail, the step must be re-run.
 - `OUTPUT_DIR/step-14-evaluation.json`
 - `OUTPUT_DIR/step-15-selection.json`
 - `OUTPUT_DIR/step-16-report.md`
+- `OUTPUT_DIR/step-17-audit.json` (objective audit results and optional remediation actions)
 - `OUTPUT_DIR/code_audit.json` (Python file inventory + hashes per step)
 - `OUTPUT_DIR/leakage_audit.json` (explicit leakage diagnostics and pass/fail decision)
 
@@ -99,6 +148,19 @@ If any of these checks fail, the step must be re-run.
 }
 ```
 
+## Abort / Cleanup Contract
+
+If a run is aborted (manually interrupted, Ctrl+C, keyboard interrupt, or any unhandled exception):
+
+1. The orchestrator or calling script **must delete the entire `OUTPUT_DIR` directory** associated with that `RUN_ID`.
+2. Do not leave partial artifacts or partial progress state on disk.
+3. Rationale: partial outputs are invalid and will cause confusion on retry; cleanup ensures a clean slate.
+
+Implementation:
+- The orchestrator should use a try/finally block to catch interrupts.
+- On KeyboardInterrupt or SystemExit, delete `OUTPUT_DIR` before re-raising.
+- Document this behavior clearly in orchestrator.py comments.
+
 ## Model Artifact Portability Rules
 
 - `model.joblib` must be loadable via `joblib.load(...)` in a fresh Python process.
@@ -106,4 +168,87 @@ If any of these checks fail, the step must be re-run.
 - Classical statistical models (ARIMA, SARIMA, HoltWinters, FAAR-*) must be wrapped in `StatsmodelsAdapter` (defined in step 13 spec) before serialisation. `StatsmodelsAdapter` must be defined in an importable module under `CODE_DIR`, not under `__main__`.
 - Do not pickle classes defined under `__main__`; use importable sklearn/sklearn-compatible estimators only.
 - `holdout.npz` must contain `X_test` and `y_test` arrays reusable by step 14 without access to step 13's script.
+
+## Critical Self-Audit Contract (Step 17)
+
+### When Audit Runs
+
+- **Automatically after** step 16 (Result Presentation) completes successfully.
+- **Before** model is considered finalized or ready for deployment.
+- Audit does **not** block pipeline status; it is informational and provides optional remediation guidance.
+
+### Audit Inputs
+
+Step 17 reads all prior step outputs:
+- `step-01-cleanse.json` (data quality, time column)
+- `step-11-exploration.json` (MI ranking, excluded features)
+- `step-12-features.json` (final features, feature exclusions)
+- `step-13-training.json` (CV scores)
+- `step-14-evaluation.json` (holdout metrics, quality assessment)
+- `step-15-selection.json` (selected model, rationale)
+- `cleaned.parquet` (access to raw data for profile detection and distribution checks)
+- `model.joblib` (fitted model)
+- `holdout.npz` (test set)
+
+### Audit Outputs
+
+- **File:** `step-17-audit.json`
+- **Fields:**
+  - `detected_profile`: Data type classification (e.g., `stocks_multi_series`, `energy_multi_temporal`, `generic_regression`)
+  - `checks`: Results of five objective checks (temporal consistency, multi-series detection, feature-target alignment, model performance baseline, distribution drift)
+  - `critical_findings`: List of high-severity issues (if any)
+  - `overall_audit_result`: `"pass"` or `"fail"`
+  - `remediation_actions`: List of suggested re-trigger actions (if audit fails)
+
+See `docs/self-audit/overview.md` for full schema.
+
+### Audit Decision Logic
+
+**Audit Passes** if:
+- All five checks return `"pass"` or `"marginal"`.
+- No high-severity critical findings.
+
+**Audit Fails** if:
+- ≥1 critical (high-severity) findings, OR
+- ≥2 checks return `"fail"`.
+
+**On Failure:** Remediation actions are logged. User may optionally re-trigger pipeline with suggested parameters (see `docs/self-audit/remediation.md`).
+
+### Re-Trigger Protocol
+
+If audit detects issues, remediation actions are logged in `step-17-audit.json`:
+
+```json
+{
+  "remediation_actions": [
+    {
+      "action_id": "split_by_grouping_column",
+      "description": "Split by symbol and train separate models",
+      "affected_steps": ["12-feature-extraction", "13-model-training", "14-model-evaluation", "15-model-selection"],
+      "suggested_parameters": {"group_column": "symbol"},
+      "expected_improvement": "R² likely +0.3 to +0.5"
+    }
+  ]
+}
+```
+
+To apply remediation:
+1. Generate new `RUN_ID` (e.g., `20260424T130000Z`).
+2. Extract `suggested_parameters` from remediation action.
+3. Re-invoke orchestrator with new RUN_ID **and without `--resume`**:
+   ```bash
+   python orchestrator.py \
+     --csv-path data/stocks.csv \
+     --target-column close \
+     --output-dir output/${NEW_RUN_ID} \
+     --run-id ${NEW_RUN_ID} \
+     --code-dir output/${NEW_RUN_ID}/code \
+     --group-column symbol \
+     --max-lag 20
+   ```
+4. Audit runs again after new pipeline completes.
+
+**Important:** Always use a new `RUN_ID` for remediation runs; do NOT re-use the old one.
+
+See `docs/self-audit/remediation.md` for full remediation protocol and action definitions.
 - `pca_preprocessor.joblib` must be loadable independently; it exposes `transform(X)` for applying the fitted PCA to new exogenous data.

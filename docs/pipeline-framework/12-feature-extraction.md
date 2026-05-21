@@ -1,322 +1,306 @@
-# Step 12 — Feature Extraction (Time-Series Focused)
+# Schritt 12 — Feature Extraction & Model Preselection
 
-**Script**: `CODE_DIR/step_12_features.py`  
-**Input**: `OUTPUT_DIR/cleaned.parquet` + `OUTPUT_DIR/step-11-exploration.json`  
-**Artifacts**: `OUTPUT_DIR/features.parquet`, `OUTPUT_DIR/step-12-features.json`, `OUTPUT_DIR/leakage_audit.json`
+## Überblick
 
-```
-[10] csv_read_cleansing → [11] data_exploration → [12] feature_extraction → [13] model_training → ...
-```
+Generate `step_12_features.py` — Complete, immediately executable Python CLI script.
+
+This step performs 13 sequential operations (Z–L) to transform raw features into a clean, scaled feature matrix ready for model training. **Two operations are critical**:
+- **Step K — Zero-Variance Removal**: Remove constant/near-constant features (std ≤ sqrt(1e-10)) that contain no signal
+- **Step L — Scaling Metadata**: Document and apply feature scaling (StandardScaler for linear models, MinMaxScaler for neural nets, none for trees)
+
+| Feld | Wert |
+|---|---|
+| **Dateiname** | `step_12_features.py` |
+| **CLI** | `python step_12_features.py --output-dir <dir> --run-id <id> [--split-mode auto\|random\|time_series] [--exclude-features feat1,feat2]` |
+| **Input** | `OUTPUT_DIR/cleaned.parquet`, `step-11-exploration.json`, `step-10-cleanse.json` |
+| **Output** | `features.parquet`, `features_scaled.parquet` (if scaled), `scaler.joblib` (if scaled), `step-12-features.json` |
+| **Exit Codes** | 0=Success, 1=Error, 2=Leakage Detected |
 
 ---
 
-## Feature Philosophy
+## MANDATORY CHECKLIST
 
-| Principle | Rule |
-|---|---|
-| Causal Rolling | `.shift(1)` applied **before** every `rolling_*` operation — prevents any look-ahead |
-| Leakage → Hard Fail | `RuntimeError` if leakage probe fires — no artifact is written, pipeline stops |
-| Leakage Probe | Pairwise Pearson correlation (|r| >= 0.98) **and** RF reconstruction probe (R² > 0.95) |
-| Minimum Features | Fewer than 2 features after cleanup → `ValueError` |
-| Step-11 Driven | All feature decisions (lags, diffs, Fourier periods) are read from step-11 diagnostics — no hardcoding |
-| No Pandas Leakage | Convert polars → numpy only at the point of scikit-learn calls; keep pipeline logic in polars |
+✅ **BEFORE ANY CODE:**
+- [ ] **Target Variable**: Filtered AFTER feature selection; if found in final features → `sys.exit(2)`
+- [ ] **Timestamp Field**: NOT used as raw numeric feature; only for lag/trend calculation
+- [ ] **CLI `--exclude-features`**: Comma-separated list for orchestrator remediation
+- [ ] **`tqdm` import**: All feature engineering loops use `from tqdm import tqdm`
+- [ ] **Multi-Series Lags**: Use `.shift(n).over(group_col)` (no global `.shift()` for multi-series)
+- [ ] **Rolling Causality**: `.shift(1)` BEFORE every `.rolling_*()` — prevents look-ahead
+- [ ] **Leakage Exit 2**: Pearson |r| > 0.98 OR RandomForest R² > 0.999 → `sys.exit(2)`, no artifacts
+- [ ] **Zero-Variance Removal (Step K)**: ⚠️ MANDATORY ⚠️ After engineering, before output; remove `std() ≤ sqrt(1e-10)`; at least 2 features remain
+- [ ] **Feature Scaling (Step L)**: ⚠️ MANDATORY ⚠️ StandardScaler (linear/SARIMA), MinMaxScaler (LSTM), none (trees); document in `scaling_metadata` (NEVER null)
+- [ ] **All 13 Functions**: Z, A–L implemented as separate functions, called in order from `main()`
+- [ ] **Minimum Features**: `len(final_features) >= 2` after cleanup, else `sys.exit(1)`
 
 ---
 
 ## Input Contract (from Step 11)
 
-Step 12 reads the following fields from `step-11-exploration.json`:
-
-| Field | Used for |
-|---|---|
-| `time_column` | Extracting calendar features |
-| `detected_frequency` | Deriving default lag / Fourier periods |
-| `ts_diagnostics.stationarity_conclusion` | Deciding whether differencing features are needed |
-| `ts_diagnostics.acf_significant_lags` | ACF-driven lag feature set |
-| `ts_diagnostics.pacf_significant_lags` | PACF-driven lag feature set |
-| `ts_diagnostics.suggested_ar_order` | Upper bound for AR lag window |
-| `ts_diagnostics.primary_seasonal_period` | Seasonal lag and Fourier period |
-| `ts_diagnostics.detected_periods` | All significant seasonal periods for multi-period Fourier |
-| `ts_diagnostics.hurst_exponent` | Extended lag window when H > 0.65 |
-| `ts_diagnostics.trend_detected` | Whether to add differencing features |
-| `ts_diagnostics.white_noise` | Short-circuit: skip complex features if true |
-| `ts_diagnostics.multiple_series_detected` | Whether to add series-ID encoding |
-| `ts_diagnostics.series_id_column` | Column for panel encoding |
-| `recommended_features` | Exogenous feature columns to include |
-| `useful_lag_features` | Feature-lag pairs with significant cross-correlation |
-| `model_class_recommendations` | Which model families to prepare feature subsets for |
-
----
-
-## Feature Engineering Groups
-
-All groups below are applied unless the `white_noise=true` short-circuit fires.  
-If `white_noise=true`, only Group A (calendar) and Group B lag-1 are built — complex engineered features are useless for a white-noise target.
-
-### Group A — Calendar Features (always built when time column exists)
-
-Extract from the parsed datetime column. These are known in advance — never shifted:
-
-| Feature | Description |
-|---|---|
-| `hour_of_day` | 0–23 (hourly or sub-hourly data) |
-| `day_of_week` | 0 (Mon) – 6 (Sun) |
-| `day_of_month` | 1–31 |
-| `month` | 1–12 |
-| `quarter` | 1–4 |
-| `week_of_year` | ISO week 1–53 |
-| `is_weekend` | 1 if day_of_week >= 5, else 0 |
-| `is_month_start` | 1 if day_of_month = 1 |
-| `is_month_end` | 1 if last day of month |
-
-Only include granularities matching the data frequency. For 10-min data include `hour_of_day`; for daily data skip it.
-
-### Group B — Lag Features (ACF/PACF-driven)
-
-Build target lags from `acf_significant_lags` and `pacf_significant_lags` in step 11.
-
-- Always include the **union** of ACF and PACF significant lags.
-- Always include lag 1 (minimum first-order AR term).
-- If `hurst_exponent > 0.65`: extend lag window to `min(primary_seasonal_period * 2, 96)`.
-- If `primary_seasonal_period` not null: always include lags `[m, 2*m]` where m = primary_seasonal_period.
-- Cap total target lag features at **30** (keep highest-ACF lags) to prevent dimensionality explosion.
-
+**Required fields in `step-11-exploration.json`:**
 ```python
-# CORRECT: shift k steps to get lag k
-df = df.with_columns(pl.col(target).shift(k).alias(f"y_lag_{k}"))
+{
+    "recommended_features": ["T6", "T1", "RH_6", ...],
+    "excluded_features": {"rv1": "reason", ...},
+    "time_column": "date",
+    "multiple_series_detected": bool,
+    "group_column": str | null,
+    "significant_lags": [1, 3, 6],
+    "useful_lag_features": [{"feature": "T1", "lag": 1, "xcorr": 0.23}, ...],
+    "time_series_characteristics": {
+        "trend_detected": bool,
+        "seasonality_detected": bool,
+        "white_noise": bool
+    }
+}
 ```
 
-### Group C — Exogenous Feature Lags (cross-correlation driven)
-
-For each entry in `useful_lag_features` from step 11 (|xcorr| > 0.15):
-- Create `{feature}_lag_{k}` using `.shift(k)`.
-- Never use a raw exogenous feature at lag 0 unless it is a forward-known variable (e.g., calendar, external schedule).
-
-### Group D — Differencing Features (stationarity-driven)
-
-Apply only when `stationarity_conclusion` is `non-stationary` or `trend-stationary`:
-
-| Feature | Formula | When to add |
-|---|---|---|
-| `y_diff_1` | `y(t-1) - y(t-2)` = `.shift(1).diff(1)` | Always when non-stationary |
-| `y_diff_seasonal` | `y(t-1) - y(t-1-m)` = `.shift(1).diff(m)` | When `seasonality_detected=true` and m not null |
-
-**Rule**: diff is always applied to the already-shifted series to preserve causality.
-
-### Group E — Rolling Statistics (always with prior shift)
-
-Rolling statistics over the **lagged target** `.shift(1)` to prevent look-ahead.
-
-Default windows: `[primary_seasonal_period // 2, primary_seasonal_period, primary_seasonal_period * 2]`  
-Fallback if no seasonal period: `[6, 12, 24]`.
-
-| Feature | Implementation |
-|---|---|
-| `rolling_mean_{w}` | `pl.col(target).shift(1).rolling_mean(w)` |
-| `rolling_std_{w}` | `pl.col(target).shift(1).rolling_std(w)` |
-| `rolling_min_{w}` | `pl.col(target).shift(1).rolling_min(w)` |
-| `rolling_max_{w}` | `pl.col(target).shift(1).rolling_max(w)` |
-| `ewm_span_{m}` | Exponentially weighted mean, span = primary_seasonal_period |
-
-### Group F — Fourier Features (seasonality-driven)
-
-For every **significant** period in `detected_periods` (seasonal_strength > 0.30):
-- Build K harmonic pairs where K = `min(3, period // 4)`.
-- `fourier_sin_{m}_{k} = sin(2π·k·t / m)` where `t` is the integer position within the cycle (0..m-1).
-- `fourier_cos_{m}_{k} = cos(2π·k·t / m)`.
-- Fourier features represent calendar structure at time t — no shift needed.
-
-```python
-t_index = np.arange(len(df)) % period
-fourier_sin = np.sin(2 * np.pi * k * t_index / period)
-fourier_cos = np.cos(2 * np.pi * k * t_index / period)
-```
-
-### Group G — PCA Factor Components (for FAAR models)
-
-Built only when `model_class_recommendations` contains `FAAR-ARIMA`, `FAAR-SARIMAX`, or `Factor-VAR`.
-
-1. Collect all exogenous feature columns (from `recommended_features` after their lags are built).
-2. Standardise with `StandardScaler` — fit on training portion only.
-3. Apply `PCA(n_components=k)` where k captures ≥ 95% of variance (cap at `n_recommended_features`).
-4. Store as `pca_factor_1`, `pca_factor_2`, ..., `pca_factor_k`.
-5. Serialise fitted scaler + PCA to `OUTPUT_DIR/pca_preprocessor.joblib`.
-6. Write `pca_n_components`, `pca_explained_variance_ratio`, `pca_loadings_dict` to output JSON.
-
-**Critical**: PCA is fitted on **training rows only** (index < `holdout_start_index`) and applied to the full series.
-
 ---
 
-## Leakage Detection (Hard Fail)
+## Output Contract
 
-Executed after all feature groups are built, **before any artifact is written**.
-
-### Probe 1 — Pearson Correlation Gate
-For every feature column `f`: compute `|pearsonr(f, y)|`.  
-If any `|r| >= 0.98` → flag that column as `leakage_suspect`.
-
-### Probe 2 — RF Reconstruction Probe
-If Probe 1 finds suspects: fit `RandomForestRegressor(n_estimators=50, random_state=42, oob_score=True)` on suspect columns vs. target (training rows only). If OOB R² > 0.95 → leakage confirmed.
-
-**On confirmed leakage**:
-- Write `leakage_audit.json` with `"status": "fail"` + full diagnostics.
-- Raise `RuntimeError("Leakage detected — see leakage_audit.json")`.
-- **Do not write** `features.parquet` or `step-12-features.json`.
-
-**Probe 1 fires, Probe 2 R² ≤ 0.95**: write `leakage_audit.json` with `"status": "warn"`, proceed.
-
-**No suspects**: write `leakage_audit.json` with `"status": "pass"`.
-
----
-
-## NaN Handling Before Artifact Write (mandatory)
-
-After all feature groups are built and before leakage probes run, apply the following NaN cleanup **in this exact order**:
-
-```python
-# 1. Drop rows where the TARGET column is NaN — these are un-trainable
-df = df.drop_nulls(subset=[target_column])
-
-# 2. Drop leading NaN rows introduced by lag/rolling features
-#    (rows at the START of the series where all lag features are null)
-#    Identify the first row where the maximum-lag column is non-null:
-max_lag_col = max(lag_feature_cols, key=lambda c: int(c.split("_")[-1]))  # e.g. y_lag_144
-first_valid = df[max_lag_col].is_not_null().arg_true()[0]
-df = df.slice(first_valid)
-
-# 3. For any remaining NaN in feature columns (e.g. from missing exogenous data),
-#    forward-fill then backward-fill with polars:
-df = df.with_columns([
-    pl.col(c).forward_fill().backward_fill()
-    for c in feature_cols if df[c].null_count() > 0
-])
-
-# 4. Assert: after cleanup, NO NaN must remain in feature columns
-assert df.select(pl.all().is_null().any()).to_numpy().any() == False, \
-    "features.parquet still contains NaN after cleanup"
-```
-
-> **⛔ CRITICAL**: `features.parquet` must contain ZERO NaN values in feature columns before it is written. NaN in features causes ALL sklearn models to crash with `ValueError: Input X contains NaN`. The SimpleImputer in the step-13 pipeline is a last-resort safety net — step 12 is the authoritative NaN-free guarantee.
-
-Record `"rows_dropped_by_lags"` and `"rows_with_forward_fill"` in the output JSON.
-
----
-
-## Split Boundary
-
-Step 12 computes the holdout boundary once and records it so step 13 uses the **identical split**:
-
-- Holdout = last chronological 20% of rows (integer index, rounded down).
-- Record `holdout_start_index`, `holdout_start_timestamp`, `train_row_count`, `holdout_row_count`.
-- Write to `step-12-features.json` under `split_info`.
-
----
-
-## Output JSON Schema
-
+**`step-12-features.json` MUST contain (ALL FIELDS MANDATORY):**
 ```json
 {
   "step": "12-feature-extraction",
-  "target_column": "appliances",
-  "feature_names": ["y_lag_1", "y_lag_2", "y_lag_144", "hour_of_day", "day_of_week",
-                    "fourier_sin_144_1", "fourier_cos_144_1", "rolling_mean_72",
-                    "pca_factor_1", "pca_factor_2"],
-  "feature_count": 42,
-  "rows_dropped_by_lags": 144,
-  "final_row_count": 19591,
-
-  "split_info": {
-    "holdout_start_index": 15673,
-    "holdout_start_timestamp": "2016-04-15T00:00:00",
-    "train_row_count": 15673,
-    "holdout_row_count": 3918,
-    "split_strategy": "last_20pct_chronological"
-  },
-
-  "feature_groups": {
-    "calendar": ["hour_of_day", "day_of_week", "is_weekend"],
-    "target_lags": ["y_lag_1", "y_lag_2", "y_lag_144"],
-    "exogenous_lags": ["t1_lag_1", "t6_lag_3"],
-    "differencing": ["y_diff_1", "y_diff_144"],
-    "rolling": ["rolling_mean_72", "rolling_std_72", "rolling_mean_144"],
-    "fourier": ["fourier_sin_144_1", "fourier_cos_144_1"],
-    "pca_factors": ["pca_factor_1", "pca_factor_2"]
-  },
-
-  "pca_info": {
-    "n_components": 2,
-    "explained_variance_ratio": [0.61, 0.18],
-    "cumulative_variance": 0.79,
-    "pca_preprocessor_path": "OUTPUT_DIR/pca_preprocessor.joblib"
-  },
-
-  "leakage_audit": {
-    "status": "pass",
-    "probe1_suspects": [],
-    "probe2_r2": null,
-    "threshold": 0.98
-  },
-
+  "run_id": "20260101T120000Z",
+  "features": ["lag1", "lag3", "rolling_mean_7"],
+  "features_count": 25,
   "features_excluded": {
-    "rv1": "excluded_by_step_11_noise_baseline",
-    "rv2": "excluded_by_step_11_redundant"
+    "rv1": "zero_variance",
+    "appliances_lag0": "data_leakage_target_column"
   },
-
+  "excluded_count": 2,
+  "target_column": "appliances",
+  "split_strategy": {"resolved_mode": "time_series"},
+  "leakage": {
+    "status": "pass|fail",
+    "leakage_candidates": [],
+    "threshold": 0.98,
+    "reconstruction_probe_r2": null
+  },
+  "scaling_metadata": {
+    "scaler_used": "StandardScaler|MinMaxScaler|None",
+    "features_scaled": ["lag1", "rolling_mean_7"],
+    "features_not_scaled": ["appliances"],
+    "scaler_path": "scaler.joblib|null"
+  },
   "artifacts": {
-    "features_parquet": "OUTPUT_DIR/features.parquet",
-    "leakage_audit_json": "OUTPUT_DIR/leakage_audit.json"
+    "features_parquet": "output/20260101T120000Z/features.parquet",
+    "scaler_joblib": "scaler.joblib|null"
   }
 }
 ```
 
-`features.parquet` contains all feature columns plus the target column, chronologically ordered, with NaN rows from lag-creation dropped from the **start** of the series only.
+**`features.parquet` contains:**
+- All engineered features + target column
+- No timestamp, no target column duplicates
 
 ---
 
-## CLI Contract
+## Implementation: 13 Mandatory Functions
 
-```bash
-python step_12_features.py \
-  --output-dir OUTPUT_DIR \
-  --run-id RUN_ID \
-  [--target-column TARGET_COLUMN]
+### Z — `auto_detect_target_column(df, numeric_cols, explicit_target=None)`
+- If `explicit_target`: validate in `numeric_cols`, return it
+- Else: return highest-variance column
+- Return: `(target_col_name, {"method": "explicit"|"highest_variance", "score": float})`
+
+### A — `compute_lag_mutual_information(df, target_col, max_lag=12)` (FAST)
+- Use `sklearn.feature_selection.mutual_info_regression`
+- **Optimization**: max_lag=12 (not 48); MI is stable after lag 12 for most series
+- Return: `pl.DataFrame[lag, mutual_information]` sorted descending
+
+### B — `find_best_lags(df, target_col, max_lag=12, top_n=3)` (FAST)
+- Combine ACF + PACF + MI; use statsmodels
+- **Optimization**: max_lag=12 (fast ACF); return only TOP-3 lags by magnitude
+- Return: `{"best_lags_acf": [...], "best_lags_mi": [...], "recommended_lags": [...]}`
+- Lag cap: max 3 target lags (not 6) for speed
+
+### C — `detect_seasonality(df, target_col, time_col)`
+- STL decomposition + FFT + ACF peaks
+- Return: `{"has_seasonality": bool, "dominant_period": int, "strength": float}`
+- If detected: generate Fourier features `sin(2πkt/period)`, `cos(...)`
+
+### D — `analyze_target_distribution(df, target_col)`
+- Metrics: mean, std, skewness, kurtosis, CV
+- Assess tree-model suitability (outliers < 5%, CV < 1.0)
+- Return: `{"tree_model_suitable": "yes"|"no", "cv": float, "skewness": float}`
+
+### E — `compute_state_space_embedding(series, embedding_dim=3)`
+- Auto-delay selection (first MI local minimum)
+- Embedding matrix: `[x(t), x(t-τ), x(t-2τ), ...]`
+- Return: `{"embedding_matrix": np.ndarray, "chosen_delay": int}`
+
+### F — `create_strata_features(df, time_col, target_col)`
+- Hour-of-day, day-of-week, month, season (as applicable)
+- ANOVA F-test usefulness check (p < 0.05)
+- Return: `{"strata_features": {...}, "active_strata": [...]}`
+
+### G — `engineer_timeseries_features(df, target_col, time_col, lags, rolling_windows)` (SELECTIVE)
+- **Lag features**: Only for TOP-10 features (by MI from step 11) → `shift(lag)` for recommended_lags only
+- **Rolling**: Only for TOP-10 features → `.shift(1).rolling(w).mean()`, `.std()` only (skip min/max/range for speed)
+- **Windows**: Only [7, 30] (skip 14 for speed)
+- **Differences**: `shift(1).diff(1)` only (skip diff(2))
+- **Trend**: `t_elapsed_days` only (skip t_index, t_index_sq — monotone-index risks)
+- **Calendar**: hour, day_of_week, month (skip quarter, is_weekend)
+- **For other features**: Calendar + Trend only (no lags/rolling)
+- **Return**: `(feature_df, metadata_dict)`
+
+### H — `preselect_models(feature_matrix, analysis_data, best_lags)`
+- Evaluate model types (XGBoost, SARIMA, LSTM, Ridge, Prophet, RF)
+- Return: `{"top_recommendation": str, "top_3": [str, ...], "reasoning": {...}}`
+
+### I — `add_features_for_models(feature_matrix, target_col, recommended_models, analysis_data)`
+- Add model-specific features (ARIMA: diffs, LSTM: embedding, trees: interactions)
+- Return: `(extended_feature_matrix, newly_added_features_list)`
+
+### J — `detect_feature_leakage(feature_matrix, target_col, threshold=0.98)` (FAST)
+- **Step 1**: Pearson |r| ≥ 0.98 with target → candidates
+- **Step 2**: RandomForestRegressor(n_estimators=3, max_depth=3, random_state=42) on candidates; R² > 0.999 → leakage confirmed
+  - **Optimization**: n_estimators=3 (not 10), max_depth=3 (shallow, fast)
+- **Exempt**: Correct lag features (e.g., `target_lag_1` is allowed)
+- **Return**: `{"status": "pass"|"fail", "leakage_candidates": [...], "probe_r2": float|null}`
+- **On Fail**: `sys.exit(2)`, NO artifacts written
+
+### K — `remove_zero_variance_features(feature_matrix, variance_threshold=1e-10)` ⚠️ MANDATORY
+- **Purpose**: Eliminate constant or near-constant features that have no predictive value
+- Remove columns where `std() ≤ sqrt(threshold)` OR `variance < 1e-10`
+- Log all removals: "feature X removed: zero variance (std=0.0000)"
+- **Fail condition**: If fewer than 2 features remain after removal → `sys.exit(1)` with error message
+- Return: `(cleaned_matrix, {"feature_name": "zero_variance", ...})` — dict mapping, NOT list
+- **Update features_excluded**: Add all removed features with reason `"zero_variance"` or `"near_zero_variance"`
+- **Critical**: This MUST run BEFORE output generation — bad data ruins everything downstream
+
+### L — `compute_scaling_metadata(feature_matrix, target_col, recommended_models, output_dir)` ⚠️ MANDATORY
+- **Purpose**: Normalize features for model compatibility (required for linear/distance-based, optional for trees)
+- **Decision Logic**:
+  - If `recommended_models[0]` in ["linear_regression", "ridge", "lasso", "sarima", "prophet"]: → **StandardScaler** (mean=0, std=1)
+  - If `recommended_models[0]` in ["lstm", "temporal_cnn", "neural_net"]: → **MinMaxScaler** (0..1, better for neural nets)
+  - If `recommended_models[0]` in ["random_forest", "gradient_boosting", "xgboost", "lightgbm"]: → **No scaling** (trees are scale-invariant)
+  - Default: **No scaling** (trees most common in general forecasting)
+- **Exclusions**: NEVER scale these:
+  - Target column (y) — leave raw for model training
+  - Binary features (only values 0/1) — no variance to scale
+  - Categorical one-hot encoded features — preserve 0/1 encoding
+- **Output**: Always write to `step-12-features.json["scaling_metadata"]`:
+  ```json
+  {
+    "scaler_used": "StandardScaler|MinMaxScaler|None",
+    "features_scaled": ["lag1", "rolling_mean_7"],
+    "features_not_scaled": ["appliances", "binary_feature"],
+    "scaler_path": "scaler.joblib|null"
+  }
+  ```
+- **Critical**: `scaling_metadata` MUST NEVER be null — always document what was done
+- If scaler applied: Write `features_scaled.parquet` + persist scaler to `scaler.joblib`
+- Return: `(scaled_or_original_matrix, scaling_metadata_dict)`
+
+### `main()` — CLI Entry Point
+```python
+def main():
+    # 1. Parse args: --output-dir, --run-id, --split-mode, --exclude-features
+    # 2. Load inputs: cleaned.parquet, step-11-exploration.json
+    # 3. Call functions Z → L in order
+    # 4. Build output JSON
+    # 5. Write features.parquet + step-12-features.json
+    # 6. Update progress.json
+    # 7. Return 0 on success, 1 on error, 2 on leakage
 ```
 
-Reads `TARGET_COLUMN` from `progress.json` if not supplied via CLI.  
-Reads `step-11-exploration.json` for all TS diagnostics.  
-Reads `cleaned.parquet` as input data.
+---
+
+## Critical Implementation Rules
+
+### Leakage Prevention (Highest Priority)
+1. **Target variable removal**: Filter target column AFTER feature selection. If found in final features → `sys.exit(2)`
+2. **Timestamp field**: Use ONLY for lag/trend calculation; never as raw numeric feature
+3. **Lag cap**: Max 3 target lags (ACF-sorted; optimized for speed)
+4. **Multi-series causality**: For multi-series data, use `.shift(n).over(group_col)` (never global `.shift()`)
+5. **Rolling causality**: ALWAYS `.shift(1)` before `.rolling_*()`
+6. **Pearson threshold**: 0.98 (NOT 0.99)
+7. **Reconstruction probe**: RandomForest (n_estimators=3, max_depth=3) R² > 0.999 confirms leakage
+8. **Monotone index**: FORBIDDEN — use `trend_elapsed_days` instead
+
+### Performance Rules (OPTIMIZED)
+- **Selective Feature Engineering**: Top-10 features get lags/rolling; others get calendar+trend only
+- **Rolling Windows**: [7, 30] only (fast; skip 14, 60, 90)
+- **Rolling Stats**: mean + std only (skip min, max, range for speed)
+- **ACF Lag**: Max 12 (not 24 or N/4) for faster computation
+- **RF Leakage Probe**: Shallow (max_depth=3, n_estimators=3) for speed
+- **Scaling**: Only apply if recommended model is Linear/SARIMA/LSTM (skip for trees)
+- **Fourier Features**: Only when seasonality_strength > 0.3 (skip weak seasonality)
+
+### Feature Engineering Standards
+- **All loops use `tqdm`** for progress tracking
+- **Causal design**: No future data in any feature
+- **Stationarity**: Apply diff(1) only if detected non-stationary
+- **Zero-variance check**: BEFORE leakage detection, remove variance ≤ 1e-10
+
+### Artifact Validation (Orchestrator Gate)
+- `features` list is non-empty
+- `features_excluded` documents all dropped columns
+- `split_strategy.resolved_mode` is `"random"` or `"time_series"`
+- `features.parquet` exists on disk
+- No feature in `features` appears in `step-11["excluded_features"]`
 
 ---
 
-## Implementation Checklist
+## Execution Checklist (FAST VERSION)
 
-- [ ] All feature groups A–G implemented
-- [ ] `.shift(1)` applied before every rolling call — verified by code review
-- [ ] Differencing logic reads `stationarity_conclusion` from step-11 JSON — not hardcoded
-- [ ] Lag selection reads `acf_significant_lags` + `pacf_significant_lags` from step-11 JSON
-- [ ] Fourier periods read from `detected_periods` list — supports multi-period
-- [ ] PCA fitted on training portion only; scaler+PCA saved to `pca_preprocessor.joblib`
-- [ ] Leakage probes run before any artifact is written
-- [ ] `leakage_audit.json` always written (pass, warn, or fail)
-- [ ] `split_info` written to JSON for step 13 consumption
-- [ ] `features.parquet` written via `feature_df.write_parquet(parquet_path)`
-- [ ] `output_dir` created with `mkdir(parents=True, exist_ok=True)`
-- [ ] Logging via `logging`, no bare `print()` statements
-- [ ] `execution_id` via `str(uuid.uuid4())[:8]`; `runtime_seconds` via `time.time()`
-- [ ] All JSON values serialisable (`default=str` as fallback)
-- [ ] `progress.json` updated at start and on successful completion
+- [ ] All 13 functions (Z–L) implemented and called from `main()` in EXACT order: Z → A → B → C → D → E → F → G → H → I → J → K → L
+- [ ] `argparse`: `--output-dir`, `--run-id`, `--split-mode`, `--exclude-features`
+- [ ] Inputs: `cleaned.parquet`, `step-10-cleanse.json`, `step-11-exploration.json`
+- [ ] **MANDATORY OUTPUTS**:
+  - [ ] `features.parquet` (all engineered features + target)
+  - [ ] `step-12-features.json` with ALL fields (never skip `scaling_metadata`)
+  - [ ] `scaler.joblib` (if scaling applied)
+- [ ] **ZERO-VARIANCE REMOVAL (Step K)**: ⚠️ CRITICAL ⚠️
+  - [ ] Detect: All columns where `std() ≤ sqrt(1e-10)` or `variance < 1e-10`
+  - [ ] Remove: Delete identified zero-variance columns from feature matrix
+  - [ ] Log: Add to `features_excluded` dict with reason `"zero_variance"`
+  - [ ] Validate: At least 2 features remain (else `sys.exit(1)`)
+- [ ] **SCALING METADATA (Step L)**: ⚠️ CRITICAL ⚠️
+  - [ ] Choose scaler: StandardScaler (linear/SARIMA) OR MinMaxScaler (LSTM) OR None (trees)
+  - [ ] Apply: StandardScaler/MinMaxScaler to non-excluded features (NOT target, NOT binary)
+  - [ ] Document: `scaling_metadata` object with `scaler_used`, `features_scaled`, `features_not_scaled`
+  - [ ] Persist: Save `scaler.joblib` if scaling applied
+  - [ ] **NEVER NULL**: `scaling_metadata` MUST always be present in JSON
+- [ ] **FAST OPTIMIZATIONS ACTIVE**:
+  - [ ] Lags A/B: max_lag=12, top_n=3 (not 48/6)
+  - [ ] Rolling G: only 2 windows [7, 30], mean+std only (no min/max/range)
+  - [ ] Lags/Rolling G: only for TOP-10 features; others get calendar+trend only
+  - [ ] Leakage J: RF with n_estimators=3, max_depth=3 (not 10, no limit)
+  - [ ] Scaling L: only if needed (skip for trees, most common)
+- [ ] `features_excluded` as dict (not list): `{feature_name: reason}`
+- [ ] Leakage detected → `sys.exit(2)`, NO artifacts
+- [ ] Fewer than 2 features after K → `sys.exit(1)` with clear error message
+- [ ] `progress.json` updated with `completed_steps` on success
+- [ ] Exit code 0 on success
+- [ ] `tqdm` on all loops
+- [ ] No print() — only logging/JSON output
 
 ---
 
-## Tests
+## Final Output Structure
 
-- `white_noise=true`: only calendar + lag-1 present; no differencing, rolling, or Fourier features
-- Non-stationary input: `y_diff_1` and `y_diff_seasonal` present in feature names
-- Stationary input: no differencing features created
-- Fourier: sin/cos values correct at t=0, t=m/4, t=m/2 for a known period m
-- Rolling: `rolling_mean_w` values match manually computed `.shift(1).rolling_mean(w)`
-- Leakage Probe 1: feature with |r| >= 0.98 → `leakage_audit.json` `"status": "fail"`, RuntimeError raised
-- Leakage Probe 1 fires but RF OOB R² <= 0.95 → `"status": "warn"`, no RuntimeError
-- PCA: components present when FAAR in `model_class_recommendations`; absent when not
-- Split info: `holdout_start_index` = floor(0.8 * total_rows)
-- Lag cap: ACF returns > 30 significant lags → feature list capped at 30 highest-ACF lags
+```
+output/<RUN_ID>/
+├── step-12-features.json       # Complete audit trail
+├── features.parquet            # Feature matrix + target
+├── features_scaled.parquet     # Scaled features (if scaling applied; usually NOT)
+├── scaler.joblib               # Persisted scaler object (if scaling applied)
+└── progress.json               # Updated with 12-feature-extraction
+```
+
+## Performance Notes
+
+**Expected Runtime** (with optimizations):
+- Small datasets (< 5K rows): ~1-2 min
+- Medium datasets (5-20K rows): ~3-5 min
+- Large datasets (> 20K rows): ~5-8 min
+
+**Why Fast?**
+- Lags/Rolling only for TOP-10 features (80% fewer operations)
+- RF leakage probe is shallow (max_depth=3, n_estimators=3)
+- Scaling skipped for tree-based models (most common)
+- ACF limited to lag 12 (fast, sufficient)

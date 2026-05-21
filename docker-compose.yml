@@ -18,7 +18,7 @@ services:
   # Upload a CSV, pick a target column, and run the full forecasting pipeline
   # via GitHub Copilot CLI (copilot command).
   agent-app:
-    image: docker.io/felixtcp/data-forecast-generator:latest
+    image: data-forecast-generator:local
     build:
       context: .
       dockerfile: Dockerfile
@@ -40,7 +40,7 @@ services:
   # Browse completed pipeline runs, make predictions, and inspect SHAP values.
   # Reads artifacts from the shared output volume — no copilot CLI needed.
   inference-app:
-    image: docker.io/felixtcp/data-forecast-generator:latest
+    image: data-forecast-generator:local
     build:
       context: .
       dockerfile: Dockerfile
