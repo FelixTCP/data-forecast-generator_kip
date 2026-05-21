@@ -256,6 +256,131 @@ def _parse_audit_results(output_dir: Path) -> dict | None:
         return None
 
 
+# Step number → output JSON/artifact file names that must be deleted to force re-run
+_STEP_OUTPUT_FILES: dict[int, list[str]] = {
+    12: ["step-12-features.json", "features.parquet"],
+    13: ["step-13-training.json", "model.joblib", "holdout.npz"],
+    14: ["step-14-evaluation.json"],
+    15: ["step-15-selection.json"],
+    16: ["step-16-report.md"],
+    17: ["step-17-audit.json"],
+}
+
+# AUTO action → env var to inject so the step scripts apply the remediation
+_AUTO_ACTION_ENV: dict[str, dict[str, str]] = {
+    "remove_monotonic_index_features": {},   # features passed separately via affected_features
+    "improve_model_performance":  {"PIPELINE_FORCE_EXPANSION_MODELS": "true"},
+    "extend_lag_window":          {"PIPELINE_MAX_LAG": "20"},
+    "add_seasonal_features":      {"PIPELINE_SEASONAL_FEATURES": "true"},
+    "increase_regularization":    {"PIPELINE_REGULARIZATION": "ridge_cv"},
+    "try_alternative_models":     {"PIPELINE_EXTRA_MODELS": "lightgbm,svr,histgradient"},
+    "use_time_series_split":      {"PIPELINE_SPLIT_MODE": "time_series"},
+}
+
+
+def _delete_step_outputs(output_dir: Path, steps: list[int]) -> list[str]:
+    """Delete output files for the given step numbers. Returns list of deleted paths."""
+    deleted = []
+    for step in steps:
+        for fname in _STEP_OUTPUT_FILES.get(step, []):
+            p = output_dir / fname
+            if p.exists():
+                p.unlink()
+                deleted.append(str(p))
+    return deleted
+
+
+def _trigger_auto_remediation(output_dir: Path) -> bool:
+    """
+    Trigger an automatic remediation pass directly from the Streamlit UI.
+
+    Reads `step-17-audit.json`, deletes output files for all affected steps, and
+    re-runs the orchestrator.py with `--resume` so only the deleted steps execute.
+    Environment variables encoding the AUTO remediation parameters are injected.
+
+    Returns True if the orchestrator was launched, False otherwise.
+    """
+    orchestrator = output_dir / "code" / "orchestrator.py"
+    if not orchestrator.exists():
+        st.error("orchestrator.py not found — cannot trigger remediation automatically.")
+        return False
+
+    audit_results = _parse_audit_results(output_dir)
+    if not audit_results or audit_results["overall_audit_result"] != "fail":
+        st.info("No audit failure detected — nothing to remediate.")
+        return False
+
+    # Collect AUTO actions only
+    auto_actions = [
+        a for a in audit_results.get("remediation_actions", [])
+        if a.get("type") == "[AUTO]"
+    ]
+    if not auto_actions:
+        st.warning(
+            "Only MANUAL remediation actions detected. "
+            "Automatic re-run is not possible — please review the actions below "
+            "and supply the required parameters manually."
+        )
+        return False
+
+    # Determine affected steps and env vars
+    affected_steps: set[int] = set()
+    extra_env: dict[str, str] = {}
+    for action in auto_actions:
+        action_id = action.get("action_id", "")
+        steps_for_action = _REMEDIATION_STEPS_MAP.get(action_id, [])
+        affected_steps.update(steps_for_action)
+        extra_env.update(_AUTO_ACTION_ENV.get(action_id, {}))
+        # Handle remove_monotonic_index_features: build exclude list from findings
+        if action_id == "remove_monotonic_index_features":
+            feats = [
+                f.get("feature", "") for f in action.get("affected_features", []) if f.get("feature")
+            ]
+            if not feats:
+                # Fall back to parsing critical_findings
+                feats = [
+                    cf.get("check", "") for cf in audit_results.get("critical_findings", [])
+                    if "monotonic" in cf.get("description", "").lower()
+                ]
+            if feats:
+                extra_env["PIPELINE_EXCLUDE_FEATURES"] = ",".join(feats)
+
+    # Always include steps 16 and 17 so the report and audit are refreshed
+    affected_steps.update([16, 17])
+
+    deleted = _delete_step_outputs(output_dir, sorted(affected_steps))
+    st.caption(f"Deleted {len(deleted)} artifact(s) for steps {sorted(affected_steps)}: {deleted}")
+
+    progress_data = _read_json(output_dir / "progress.json") or {}
+    csv_path = progress_data.get("csv_path", "")
+    target_column = progress_data.get("target_column", "")
+    run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+    if not csv_path or not target_column:
+        st.error("Cannot determine CSV path or target column from progress.json.")
+        return False
+
+    import os
+    env = {**os.environ, **extra_env}
+    try:
+        subprocess.Popen(
+            [
+                "python", str(orchestrator),
+                "--csv-path", csv_path,
+                "--target-column", target_column,
+                "--output-dir", str(output_dir),
+                "--run-id", run_id,
+                "--resume",
+            ],
+            env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        return True
+    except Exception as exc:
+        st.error(f"Failed to launch orchestrator for remediation: {exc}")
+        return False
+
+
 def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
     progress = _read_json(output_dir / "progress.json")
     elapsed = _format_elapsed(time.monotonic() - started_at)
@@ -292,9 +417,15 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
         remediation_triggered = True
         restart_step = audit_results.get("restart_step")
         
-        # Reset completed_count to show restart point
-        if restart_step is not None:
-            # Completed steps before restart point (0-indexed to step number)
+        # If orchestrator is actively remediating, keep progress as-is
+        remediation_block = progress.get("remediation") if progress else None
+        if remediation_block and status == "remediating":
+            rem_iter = remediation_block.get("iteration", 1)
+            max_iter = remediation_block.get("max_iterations", 3)
+            steps_rerun = remediation_block.get("steps_rerun", [])
+            progress_text += f" (Remediation {rem_iter}/{max_iter} — re-running steps {steps_rerun})"
+        elif restart_step is not None and status not in ("remediating", "completed"):
+            # Not yet remediating: show where it will restart
             completed_count = restart_step - 10  # Step 10 is first step
             status = "remediation"
 
@@ -1524,7 +1655,39 @@ def _render_audit_tab(output_dir: Path) -> None:
             col1.metric("Total Actions", len(remediation_actions))
             col2.metric("🟢 Auto", auto_count)
             col3.metric("🔴 Manual", manual_count)
-            
+
+            # ── Remediation trigger button ────────────────────────────────────
+            st.markdown("---")
+            if auto_count > 0:
+                orchestrator_exists = (output_dir / "code" / "orchestrator.py").exists()
+                if orchestrator_exists:
+                    st.info(
+                        f"**{auto_count} AUTO action(s) detected.** "
+                        "The orchestrator will re-run the affected steps automatically with corrected parameters."
+                    )
+                    if st.button("🔄 Trigger Auto-Remediation & Restart Pipeline",
+                                 type="primary", use_container_width=True,
+                                 key="btn_auto_remediate"):
+                        with st.spinner("Deleting affected artifacts and restarting pipeline…"):
+                            launched = _trigger_auto_remediation(output_dir)
+                        if launched:
+                            st.success(
+                                "✅ Remediation pipeline started! "
+                                "Switch to the Live Progress tab or refresh to monitor."
+                            )
+                        # Page will reload on next interaction and show new progress
+                else:
+                    st.warning(
+                        "orchestrator.py not found in this run's code/ directory. "
+                        "Cannot trigger auto-remediation from the UI. "
+                        "Re-run the pipeline via the agent to generate the orchestrator."
+                    )
+            if manual_count > 0:
+                st.warning(
+                    f"**{manual_count} MANUAL action(s) require human review.** "
+                    "See details below. After addressing them, re-run the pipeline with the corrected parameters."
+                )
+
             st.markdown("---")
             
             for i, action in enumerate(remediation_actions, 1):
@@ -1536,10 +1699,8 @@ def _render_audit_tab(output_dir: Path) -> None:
                 # Action badge
                 if action_type == "[AUTO]":
                     emoji = "🟢"
-                    color = "green"
                 else:
                     emoji = "🔴"
-                    color = "red"
                 
                 with st.expander(f"{emoji} **{i}. {action_id}** ({action_type})"):
                     st.write(description)
@@ -1555,6 +1716,28 @@ def _render_audit_tab(output_dir: Path) -> None:
                         st.json(action)
         else:
             st.info("No remediation actions required.")
+
+        # Show remediation_required.json if orchestrator wrote it
+        req_file = output_dir / "remediation_required.json"
+        if req_file.exists():
+            st.markdown("---")
+            st.subheader("📋 Remediation Required (written by orchestrator)")
+            req_data = _read_json(req_file)
+            if req_data:
+                iterations = req_data.get("remediation_iterations_attempted", 0)
+                final_result = req_data.get("final_audit_result", "unknown")
+                st.error(
+                    f"Orchestrator exhausted {iterations} remediation attempt(s). "
+                    f"Final audit result: **{final_result.upper()}**. "
+                    "Manual intervention is required."
+                )
+                pending = req_data.get("pending_manual_actions", [])
+                for action in pending:
+                    with st.expander(f"🔴 {action.get('action_id', 'unknown')}"):
+                        st.write(action.get("description", ""))
+                        st.json(action)
+                with st.expander("📄 Full remediation_required.json"):
+                    st.json(req_data)
     
     st.markdown("---")
     

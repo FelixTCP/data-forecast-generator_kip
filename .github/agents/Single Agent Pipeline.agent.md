@@ -45,7 +45,7 @@ CODE_DIR/
 ├── step_14_evaluation.py
 ├── step_15_selection.py
 ├── step_16_report.py
-└── orchestrator.py        # thin wrapper: calls steps in order, handles resume, surfaces errors
+└── orchestrator.py        # calls steps in order, handles resume, implements remediation loop after step 17
 ```
 
 **Why this matters:** If step 13 fails, you only fix and re-run `step_13_training.py`. Steps 10–12 are not re-executed. Fixing one step should never require touching another.
@@ -244,8 +244,98 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 - Status values: **ONLY** `"pass"`, `"marginal"`, `"fail"` — `"warning"` is forbidden.
 - `overall_audit_result = "fail"` if any check has `status=="fail"` OR `severity=="high"`.
 - `critical_findings` must be non-empty when `overall_audit_result == "fail"`.
-- **Set `progress.json` status to `"completed"` at the end (only Step 17 marks the final completion).**
+- **Do NOT set `progress.json` to `"completed"` yet — the Remediation Loop runs next.**
 - Output: `step-17-audit.json`
+
+---
+
+## Remediation Loop (After Step 17)
+
+After Step 17 completes, read `step-17-audit.json` and apply the following protocol. This loop is **mandatory** — a `fail` result must never be accepted without at least one remediation attempt.
+
+### Constants
+- `MAX_REMEDIATION_ITERATIONS = 3`
+
+### Decision Tree
+
+```
+overall_audit_result == "pass"
+  → Set progress.json status="completed", final_audit_result="pass". Done.
+
+overall_audit_result == "fail" AND remediation_iteration < MAX_REMEDIATION_ITERATIONS
+  → Collect AUTO actions from remediation_actions (see mapping below).
+  → If AUTO actions exist:
+      → Apply parameters and re-run affected steps (see step map below).
+      → Re-run Step 17.
+      → Increment remediation_iteration.
+      → Repeat decision tree.
+  → If NO AUTO actions remain (only MANUAL):
+      → Write remediation_required.json (see schema below).
+      → Set progress.json status="completed", final_audit_result="fail".
+      → Done (human intervention required).
+
+overall_audit_result == "fail" AND remediation_iteration >= MAX_REMEDIATION_ITERATIONS
+  → Write remediation_required.json.
+  → Set progress.json status="completed", final_audit_result="fail".
+  → Done (max iterations exhausted).
+```
+
+### AUTO Action → CLI Parameter Map
+
+Read from `docs/self-audit/remediation.md`. Summary:
+
+| Action ID | Steps to Re-Run | CLI Flag to Inject |
+|---|---|---|
+| `remove_monotonic_index_features` | 12, 13, 14, 15, 17 | `--exclude-features <comma-separated list from critical_findings>` |
+| `improve_model_performance` | 13, 14, 15, 17 | `--force-expansion-models=true` |
+| `extend_lag_window` | 12, 13, 14, 15, 17 | `--max-lag=20` |
+| `add_seasonal_features` | 12, 13, 14, 15, 17 | `--seasonal-features=true` |
+| `increase_regularization` | 13, 14, 15, 17 | `--regularization=ridge_cv` |
+| `try_alternative_models` | 13, 14, 15, 17 | `--extra-models=lightgbm,svr,histgradient` |
+| `use_time_series_split` | 12, 13, 14, 15, 17 | `--split-mode=time_series` |
+
+**Re-running steps:** Delete the output JSON for each affected step before re-running so the resume-check does not skip them. Do **not** delete `cleaned.parquet` or `step-10-cleanse.json` (Step 10 is never re-run during remediation). Write fresh step scripts (do not recycle prior versions).
+
+### `remediation_required.json` Schema
+
+```json
+{
+  "run_id": "<RUN_ID>",
+  "original_audit_result": "fail",
+  "remediation_iterations_attempted": 2,
+  "final_audit_result": "fail",
+  "pending_manual_actions": [
+    {
+      "action_id": "split_by_grouping_column",
+      "severity": "high",
+      "description": "...",
+      "affected_steps": ["12", "13", "14", "15"],
+      "suggested_parameters": {}
+    }
+  ],
+  "instructions": "Manual intervention required. Review pending_manual_actions and re-run the pipeline with the corrected parameters."
+}
+```
+
+### Tracking in `progress.json`
+
+Add a `remediation` block to `progress.json` during the loop:
+
+```json
+{
+  "remediation": {
+    "iteration": 1,
+    "max_iterations": 3,
+    "actions_applied": ["remove_monotonic_index_features"],
+    "steps_rerun": ["12", "13", "14", "15", "17"],
+    "audit_result_before": "fail",
+    "audit_result_after": "pass"
+  },
+  "final_audit_result": "pass"
+}
+```
+
+**Set `progress.json` status to `"completed"` only after the remediation loop exits** (whether the final audit is `pass` or `fail`).
 
 ---
 
@@ -322,7 +412,7 @@ OUTPUT_DIR/
 - **Never write a monolithic pipeline script** — one `.py` file per step, period.
 - Error handling must surface root causes — no bare `except` clauses that swallow exceptions silently.
 - All generated Python code lives under `CODE_DIR`.
-- The `orchestrator.py` invokes each step script as a subprocess and supports `--resume` (skips steps whose output JSON already exists).
+- The `orchestrator.py` invokes each step script as a subprocess, supports `--resume` (skips steps whose output JSON already exists), and **implements the Remediation Loop** after step 17 (see Orchestrator Blueprint below).
 
 ---
 
@@ -349,6 +439,163 @@ Context is passed between scripts by serializing it under the `"context"` key of
 
 ---
 
+## Orchestrator Blueprint
+
+`orchestrator.py` is **not** a thin wrapper — it must implement the full Remediation Loop so the pipeline
+can self-heal without requiring the agent to be re-invoked.
+
+### Required CLI flags
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--csv-path` | str | *(required)* | Path to the input CSV |
+| `--target-column` | str | *(required)* | Regression target column |
+| `--output-dir` | str | *(required)* | Directory for all run artifacts |
+| `--run-id` | str | *(required)* | Unique run identifier |
+| `--resume` | flag | off | Skip steps whose output JSON already exists |
+| `--exclude-features` | str | `""` | Comma-separated feature names to exclude (injected by remediation) |
+| `--max-lag` | int | 5 | Maximum lag window for lag features |
+| `--seasonal-features` | str | `"false"` | `"true"` to force seasonal feature generation |
+| `--regularization` | str | `""` | `"ridge_cv"` to use RidgeCV in step 13 |
+| `--extra-models` | str | `""` | Comma-separated extra model IDs (e.g. `lightgbm,svr`) |
+| `--split-mode` | str | `"auto"` | `"time_series"` forces TimeSeriesSplit |
+| `--force-expansion-models` | str | `"false"` | `"true"` forces expansion model pool in step 14 |
+| `--log-transform-target` | flag | off | Log-transform skewed target before training |
+
+All flags except `--resume` and `--log-transform-target` are passed through as environment variables to the
+step subprocesses (e.g. `PIPELINE_MAX_LAG=20`). Each step script that cares about them reads these env vars
+at startup.
+
+### Remediation Loop (must be implemented in orchestrator.py)
+
+```python
+MAX_REMEDIATION_ITERATIONS = 3
+
+# AUTO action → (steps to delete + re-run, extra CLI args for those steps)
+REMEDIATION_MAP = {
+    "remove_monotonic_index_features": {
+        "steps": [12, 13, 14, 15],
+        "env": lambda action: {"PIPELINE_EXCLUDE_FEATURES": ",".join(
+            f.get("feature", "") for f in action.get("affected_features", [])
+        )},
+    },
+    "improve_model_performance": {
+        "steps": [13, 14, 15],
+        "env": lambda _: {"PIPELINE_FORCE_EXPANSION_MODELS": "true"},
+    },
+    "extend_lag_window": {
+        "steps": [12, 13, 14, 15],
+        "env": lambda _: {"PIPELINE_MAX_LAG": "20"},
+    },
+    "add_seasonal_features": {
+        "steps": [12, 13, 14, 15],
+        "env": lambda _: {"PIPELINE_SEASONAL_FEATURES": "true"},
+    },
+    "increase_regularization": {
+        "steps": [13, 14, 15],
+        "env": lambda _: {"PIPELINE_REGULARIZATION": "ridge_cv"},
+    },
+    "try_alternative_models": {
+        "steps": [13, 14, 15],
+        "env": lambda _: {"PIPELINE_EXTRA_MODELS": "lightgbm,svr,histgradient"},
+    },
+    "use_time_series_split": {
+        "steps": [12, 13, 14, 15],
+        "env": lambda _: {"PIPELINE_SPLIT_MODE": "time_series"},
+    },
+}
+
+# Step number → output JSON file name
+STEP_OUTPUT_FILES = {
+    12: "step-12-features.json",
+    13: "step-13-training.json",
+    14: "step-14-evaluation.json",
+    15: "step-15-selection.json",
+    16: "step-16-report.md",
+    17: "step-17-audit.json",
+}
+
+def run_remediation_loop(output_dir, run_all_steps_fn, run_step_fn):
+    """
+    Called by orchestrator.py after step 17 completes.
+    - run_step_fn(step_number, extra_env) runs a single step and raises on non-zero exit.
+    - run_all_steps_fn() is not used here — we re-run individual steps.
+    """
+    for iteration in range(1, MAX_REMEDIATION_ITERATIONS + 1):
+        audit_path = output_dir / "step-17-audit.json"
+        if not audit_path.exists():
+            break
+        audit = json.loads(audit_path.read_text())
+        overall = audit.get("overall_audit_result", "unknown")
+
+        if overall == "pass":
+            # Update progress.json
+            _update_progress(output_dir, status="completed", final_audit_result="pass",
+                             remediation_iteration=iteration - 1)
+            return  # Done
+
+        # Collect AUTO actions
+        actions = audit.get("remediation_actions", [])
+        auto_actions = [a for a in actions if a.get("type") == "[AUTO]"]
+
+        if not auto_actions:
+            # Only MANUAL actions — write remediation_required.json and exit
+            _write_remediation_required(output_dir, audit, iteration - 1)
+            _update_progress(output_dir, status="completed", final_audit_result="fail",
+                             remediation_iteration=iteration - 1)
+            sys.exit(1)
+
+        # Determine affected steps and merged env
+        affected_steps = set()
+        merged_env = {}
+        for action in auto_actions:
+            action_id = action.get("action_id", "")
+            if action_id in REMEDIATION_MAP:
+                mapping = REMEDIATION_MAP[action_id]
+                affected_steps.update(mapping["steps"])
+                merged_env.update(mapping["env"](action))
+
+        # Always include steps 17 in the re-run
+        affected_steps.add(17)
+
+        # Log remediation attempt to progress.json
+        _update_progress(output_dir, status="remediating",
+                         remediation={"iteration": iteration,
+                                      "max_iterations": MAX_REMEDIATION_ITERATIONS,
+                                      "actions_applied": [a["action_id"] for a in auto_actions],
+                                      "steps_rerun": sorted(affected_steps),
+                                      "audit_result_before": overall})
+
+        # Delete output files for affected steps so resume-check re-runs them
+        for step in sorted(affected_steps):
+            out_file = STEP_OUTPUT_FILES.get(step)
+            if out_file:
+                p = output_dir / out_file
+                if p.exists():
+                    p.unlink()
+
+        # Re-run steps in order
+        for step in sorted(affected_steps):
+            run_step_fn(step, extra_env=merged_env)
+
+    # Exhausted iterations
+    audit_path = output_dir / "step-17-audit.json"
+    audit = json.loads(audit_path.read_text()) if audit_path.exists() else {}
+    _write_remediation_required(output_dir, audit, MAX_REMEDIATION_ITERATIONS)
+    _update_progress(output_dir, status="completed", final_audit_result="fail",
+                     remediation_iteration=MAX_REMEDIATION_ITERATIONS)
+    sys.exit(1)
+```
+
+**Implementation rules for orchestrator.py:**
+- Implement `run_step_fn(step_number, extra_env)` as a subprocess call that merges `os.environ` with `extra_env` and raises `RuntimeError` on non-zero exit.
+- Implement `_update_progress(output_dir, **kwargs)` to read/merge/write `progress.json`.
+- Implement `_write_remediation_required(output_dir, audit, iterations)` using the schema in the Remediation Loop section above.
+- Call `run_remediation_loop(...)` after step 17 has been run (not inside the step loop).
+- Each step script MUST read the env vars (`PIPELINE_MAX_LAG`, `PIPELINE_EXCLUDE_FEATURES`, etc.) at startup and apply them. Add these reads to every relevant step script.
+
+---
+
 ## Acceptance Criteria
 
 - All 8 step scripts exist under `CODE_DIR` and are individually executable from the CLI.
@@ -358,4 +605,6 @@ Context is passed between scripts by serializing it under the `"context"` key of
 - `step-17-audit.json` is valid JSON with all five checks present and no `"warning"` status values.
 - `progress.json` has `"status": "completed"` and `"final_audit_result"` set to `"pass"` or `"fail"` at the end.
 - All step scripts are inventoried in `code_audit.json`.
+- `orchestrator.py` implements the Remediation Loop: after step 17, if `overall_audit_result == "fail"`, it automatically re-runs affected steps with injected env vars, up to `MAX_REMEDIATION_ITERATIONS = 3`. It never accepts a `fail` without at least one remediation attempt.
+- Every step script reads `PIPELINE_*` env vars at startup and applies them (max-lag, exclude-features, seasonal-features, etc.).
 - Every validation gate passes for every step.
