@@ -1,11 +1,12 @@
 """
 Streamlit UI for Single Agent Pipeline — Professional data scientist dashboard.
 
-Four views:
+Five views:
   Tab 1 — EDA       : stationarity, Hurst, ACF/PACF, MI, outliers, seasonality
   Tab 2 — Models    : filterable comparison of all trained candidates
   Tab 3 — Best Model: SHAP, residuals, detailed metrics
   Tab 4 — Report    : full step-16-report.md
+  Tab 5 — Audit     : critical self-audit results, remediation actions
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ PIPELINE_STEPS = [
     "14-model-evaluation",
     "15-model-selection",
     "16-result-presentation",
+    "17-critical-self-audit",
 ]
 
 _BENCHMARK_NAMES = {"arima_benchmark", "kmeans_benchmark", "naive_persistence", "seasonal_naive",
@@ -179,8 +181,245 @@ def _save_metadata(output_dir: Path, llm_model: str, elapsed_seconds: float) -> 
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Pipeline Progress
+# Pipeline Progress and Self-Audit Remediation
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Mapping of remediation action IDs to affected steps
+_REMEDIATION_STEPS_MAP = {
+    "remove_monotonic_index_features": [12, 13, 14, 15],
+    "improve_model_performance": [12, 13, 14, 15],
+    "extend_lag_window": [12, 13],
+    "add_seasonal_features": [12, 13],
+    "increase_regularization": [13],
+    "try_alternative_models": [13, 14, 15],
+    "use_time_series_split": [12, 13],
+    "split_by_grouping_column": [12, 13, 14, 15],
+    "handle_temporal_gaps": [10, 12],
+    "remove_outliers_by_isolation": [10, 13],
+}
+
+# Human-readable descriptions for remediation actions
+_REMEDIATION_DESCRIPTIONS = {
+    "remove_monotonic_index_features": "Remove monotonic index features causing perfect data leakage (KS=1.0)",
+    "improve_model_performance": "Improve low model performance with log transform and expanded model pool",
+    "extend_lag_window": "Extend lag window for better temporal dependency capture",
+    "add_seasonal_features": "Add seasonal features for detected cyclical patterns",
+    "increase_regularization": "Increase regularization to prevent overfitting",
+    "try_alternative_models": "Try alternative model types for better performance",
+    "use_time_series_split": "Switch to temporal cross-validation for proper time-series evaluation",
+    "split_by_grouping_column": "Train separate models per group (multi-series detected)",
+    "handle_temporal_gaps": "Handle temporal gaps in time-series data",
+    "remove_outliers_by_isolation": "Remove anomalous outliers affecting model",
+}
+
+
+def _parse_audit_results(output_dir: Path) -> dict | None:
+    """
+    Parse step-17-audit.json to extract remediation information.
+    
+    Returns dict with:
+    - overall_audit_result: "pass" or "fail"
+    - remediation_actions: list of action dicts
+    - restart_step: minimum step to restart from (or None if pass)
+    - critical_findings: human-readable findings
+    - affected_checks: which checks failed
+    """
+    audit_file = output_dir / "step-17-audit.json"
+    if not audit_file.exists():
+        return None
+    
+    try:
+        audit = _read_json(audit_file)
+        if not audit:
+            return None
+        
+        # Normalise checks: agent may emit a list or a dict
+        raw_checks = audit.get("checks", {})
+        if isinstance(raw_checks, list):
+            checks_dict = {c.get("check", f"check_{i}"): c for i, c in enumerate(raw_checks)}
+        else:
+            checks_dict = raw_checks if isinstance(raw_checks, dict) else {}
+
+        result = {
+            "overall_audit_result": audit.get("overall_audit_result", "unknown"),
+            "remediation_actions": audit.get("remediation_actions", []),
+            "critical_findings": audit.get("critical_findings", []),
+            "checks": checks_dict,
+            "restart_step": None,
+            "affected_steps": set(),
+        }
+        
+        # Determine which steps need to restart based on remediation actions.
+        # Prefer affected_steps embedded in the audit action; fall back to local map.
+        if result["remediation_actions"]:
+            for action in result["remediation_actions"]:
+                action_id = action.get("action_id")
+                embedded = action.get("affected_steps")
+                if isinstance(embedded, list) and embedded:
+                    result["affected_steps"].update(embedded)
+                elif action_id in _REMEDIATION_STEPS_MAP:
+                    result["affected_steps"].update(_REMEDIATION_STEPS_MAP[action_id])
+        
+        # Find the minimum affected step
+        if result["affected_steps"]:
+            result["restart_step"] = min(result["affected_steps"])
+            result["affected_steps"] = sorted(list(result["affected_steps"]))
+        
+        return result
+    except Exception as e:
+        st.warning(f"Could not parse audit results: {e}")
+        return None
+
+
+# Step name → sentinel output file that confirms the step completed
+_STEP_SENTINEL_FILES: dict[str, str] = {
+    "10-csv-read-cleansing":   "step-10-cleanse.json",
+    "11-data-exploration":     "step-11-exploration.json",
+    "12-feature-extraction":   "step-12-features.json",
+    "13-model-training":       "step-13-training.json",
+    "14-model-evaluation":     "step-14-evaluation.json",
+    "15-model-selection":      "step-15-selection.json",
+    "16-result-presentation":  "step-16-report.md",
+    "17-critical-self-audit":  "step-17-audit.json",
+}
+
+
+def _completed_steps_from_files(output_dir: Path) -> set[str]:
+    """Derive which pipeline steps completed by checking for their output files.
+
+    This is more reliable than reading completed_steps from progress.json because
+    the orchestrator sometimes only flushes that list at the very end of the run.
+    """
+    return {
+        step for step, sentinel in _STEP_SENTINEL_FILES.items()
+        if (output_dir / sentinel).exists()
+    }
+
+
+# Step number → output JSON/artifact file names that must be deleted to force re-run
+_STEP_OUTPUT_FILES: dict[int, list[str]] = {
+    12: ["step-12-features.json", "features.parquet"],
+    13: ["step-13-training.json", "model.joblib", "holdout.npz"],
+    14: ["step-14-evaluation.json"],
+    15: ["step-15-selection.json"],
+    16: ["step-16-report.md"],
+    17: ["step-17-audit.json"],
+}
+
+# AUTO action → env var to inject so the step scripts apply the remediation
+_AUTO_ACTION_ENV: dict[str, dict[str, str]] = {
+    "remove_monotonic_index_features": {},   # features passed separately via affected_features
+    "improve_model_performance":  {"PIPELINE_FORCE_EXPANSION_MODELS": "true"},
+    "extend_lag_window":          {"PIPELINE_MAX_LAG": "20"},
+    "add_seasonal_features":      {"PIPELINE_SEASONAL_FEATURES": "true"},
+    "increase_regularization":    {"PIPELINE_REGULARIZATION": "ridge_cv"},
+    "try_alternative_models":     {"PIPELINE_EXTRA_MODELS": "lightgbm,svr,histgradient"},
+    "use_time_series_split":      {"PIPELINE_SPLIT_MODE": "time_series"},
+}
+
+
+def _delete_step_outputs(output_dir: Path, steps: list[int]) -> list[str]:
+    """Delete output files for the given step numbers. Returns list of deleted paths."""
+    deleted = []
+    for step in steps:
+        for fname in _STEP_OUTPUT_FILES.get(step, []):
+            p = output_dir / fname
+            if p.exists():
+                p.unlink()
+                deleted.append(str(p))
+    return deleted
+
+
+def _trigger_auto_remediation(output_dir: Path) -> bool:
+    """
+    Trigger an automatic remediation pass directly from the Streamlit UI.
+
+    Reads `step-17-audit.json`, deletes output files for all affected steps, and
+    re-runs the orchestrator.py with `--resume` so only the deleted steps execute.
+    Environment variables encoding the AUTO remediation parameters are injected.
+
+    Returns True if the orchestrator was launched, False otherwise.
+    """
+    orchestrator = output_dir / "code" / "orchestrator.py"
+    if not orchestrator.exists():
+        st.error("orchestrator.py not found — cannot trigger remediation automatically.")
+        return False
+
+    audit_results = _parse_audit_results(output_dir)
+    if not audit_results or audit_results["overall_audit_result"] != "fail":
+        st.info("No audit failure detected — nothing to remediate.")
+        return False
+
+    # Collect AUTO actions only
+    auto_actions = [
+        a for a in audit_results.get("remediation_actions", [])
+        if a.get("type") == "[AUTO]"
+    ]
+    if not auto_actions:
+        st.warning(
+            "Only MANUAL remediation actions detected. "
+            "Automatic re-run is not possible — please review the actions below "
+            "and supply the required parameters manually."
+        )
+        return False
+
+    # Determine affected steps and env vars
+    affected_steps: set[int] = set()
+    extra_env: dict[str, str] = {}
+    for action in auto_actions:
+        action_id = action.get("action_id", "")
+        steps_for_action = _REMEDIATION_STEPS_MAP.get(action_id, [])
+        affected_steps.update(steps_for_action)
+        extra_env.update(_AUTO_ACTION_ENV.get(action_id, {}))
+        # Handle remove_monotonic_index_features: build exclude list from findings
+        if action_id == "remove_monotonic_index_features":
+            feats = [
+                f.get("feature", "") for f in action.get("affected_features", []) if f.get("feature")
+            ]
+            if not feats:
+                # Fall back to parsing critical_findings
+                feats = [
+                    cf.get("check", "") for cf in audit_results.get("critical_findings", [])
+                    if "monotonic" in cf.get("description", "").lower()
+                ]
+            if feats:
+                extra_env["PIPELINE_EXCLUDE_FEATURES"] = ",".join(feats)
+
+    # Always include steps 16 and 17 so the report and audit are refreshed
+    affected_steps.update([16, 17])
+
+    deleted = _delete_step_outputs(output_dir, sorted(affected_steps))
+    st.caption(f"Deleted {len(deleted)} artifact(s) for steps {sorted(affected_steps)}: {deleted}")
+
+    progress_data = _read_json(output_dir / "progress.json") or {}
+    csv_path = progress_data.get("csv_path", "")
+    target_column = progress_data.get("target_column", "")
+    run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+    if not csv_path or not target_column:
+        st.error("Cannot determine CSV path or target column from progress.json.")
+        return False
+
+    import os
+    env = {**os.environ, **extra_env}
+    try:
+        subprocess.Popen(
+            [
+                "python", str(orchestrator),
+                "--csv-path", csv_path,
+                "--target-column", target_column,
+                "--output-dir", str(output_dir),
+                "--run-id", run_id,
+                "--resume",
+            ],
+            env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        return True
+    except Exception as exc:
+        st.error(f"Failed to launch orchestrator for remediation: {exc}")
+        return False
+
 
 def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
     progress = _read_json(output_dir / "progress.json")
@@ -190,25 +429,144 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
     current_step = None
     status = "running"
     errors: list[str] = []
+    
+    # Parse audit results if available (step 17)
+    audit_results = _parse_audit_results(output_dir)
+    remediation_triggered = False
+    restart_step = None
 
     if progress:
         completed = progress.get("completed_steps", [])
-        completed_count = len(completed) if isinstance(completed, list) else 0
+        completed_set: set[str] = set()
+        if isinstance(completed, list):
+            completed_set = set(completed)
         current_step = progress.get("current_step")
         status = str(progress.get("status", "running"))
         raw_errors = progress.get("errors", [])
         if isinstance(raw_errors, list):
             errors = [str(e) for e in raw_errors]
 
-    st.progress(min(1.0, completed_count / len(PIPELINE_STEPS)),
-                text=f"Completed {completed_count}/{len(PIPELINE_STEPS)} steps")
+    # Use output-file presence as the primary source of truth for completed steps.
+    # The orchestrator often only flushes completed_steps to progress.json at the
+    # very end of the run, so file-based detection gives real-time progress.
+    file_completed_set = _completed_steps_from_files(output_dir)
+    # Merge: take the union so remediation re-runs aren't lost
+    completed_set = completed_set | file_completed_set
+    completed_count = sum(1 for s in PIPELINE_STEPS if s in completed_set)
+
+    # If pipeline is fully done, show all steps complete
+    if status == "completed":
+        completed_count = len(PIPELINE_STEPS)
+
+    # Fix stale current_step: the orchestrator often leaves current_step
+    # pointing to the last step it *started* (e.g. "12-feature-extraction")
+    # even after later steps complete. Derive the real active step from
+    # file presence and status instead.
+    if status == "completed":
+        current_step = PIPELINE_STEPS[-1]
+    elif current_step and current_step in completed_set:
+        # Step already finished — advance to first pending step
+        remaining = [s for s in PIPELINE_STEPS if s not in completed_set]
+        current_step = remaining[0] if remaining else PIPELINE_STEPS[-1]
+    elif not current_step:
+        # No current_step written yet — infer from first pending step
+        remaining = [s for s in PIPELINE_STEPS if s not in completed_set]
+        current_step = remaining[0] if remaining else PIPELINE_STEPS[-1]
+
+    # Handle remediation: if audit failed and has actions, reset progress
+    if audit_results and audit_results["overall_audit_result"] == "fail":
+        remediation_triggered = True
+        restart_step = audit_results.get("restart_step")
+        
+        # If orchestrator is actively remediating, keep progress as-is
+        remediation_block = progress.get("remediation") if progress else None
+        if remediation_block and status == "remediating":
+            rem_iter = remediation_block.get("iteration", 1)
+            max_iter = remediation_block.get("max_iterations", 3)
+            steps_rerun = remediation_block.get("steps_rerun", [])
+            progress_text += f" (Remediation {rem_iter}/{max_iter} — re-running steps {steps_rerun})"
+        elif restart_step is not None and status not in ("remediating", "completed"):
+            # Not yet remediating: show where it will restart
+            completed_count = restart_step - 10  # Step 10 is first step
+            status = "remediation"
+
+    # Update progress bar with correct count
+    progress_text = f"Completed {completed_count}/{len(PIPELINE_STEPS)} steps"
+    if remediation_triggered and restart_step is not None:
+        progress_text += f" (Restart at Step {restart_step})"
+    
+    st.progress(min(1.0, completed_count / len(PIPELINE_STEPS)), text=progress_text)
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Status", status.upper())
+    
+    # Update status display
+    status_display = status.upper()
+    if remediation_triggered:
+        status_display = "🔄 REMEDIATION REQUIRED"
+    c1.metric("Status", status_display)
     c2.metric("Step", _format_step_label(current_step))
     c3.metric("Elapsed", elapsed)
     cm = progress.get("current_model") if progress else None
     c4.metric("Model", cm or "—")
+
+    # Display remediation information if triggered
+    if remediation_triggered and audit_results:
+        st.markdown("---")
+        st.warning("🔄 **REMEDIATION TRIGGERED**")
+        
+        if restart_step is not None:
+            affected_steps = audit_results.get("affected_steps", [])
+            st.markdown(
+                f"**Restart at Step {restart_step}** | "
+                f"Affected steps: {', '.join(map(str, affected_steps))}"
+            )
+        
+        # Display remediation actions
+        if audit_results["remediation_actions"]:
+            st.subheader("📋 Remediation Actions")
+            for i, action in enumerate(audit_results["remediation_actions"], 1):
+                action_id = action.get("action_id", "unknown")
+                severity = action.get("severity", "medium")
+                description = action.get("description", _REMEDIATION_DESCRIPTIONS.get(action_id, ""))
+                action_type = action.get("type", "UNKNOWN")
+                
+                # Format action display
+                emoji = "🟢" if action_type == "[AUTO]" else "🔴"
+                col1, col2 = st.columns([1, 5])
+                col1.write(emoji)
+                col2.write(f"**{i}. {action_id}** ({action_type})")
+                st.caption(description)
+        
+        # Display critical findings
+        if audit_results["critical_findings"]:
+            st.subheader("⚠️ Critical Findings")
+            for finding in audit_results["critical_findings"]:
+                check = finding.get("check", "unknown")
+                desc = finding.get("description", "")
+                sev = finding.get("severity", "medium")
+                st.error(f"**{check}** ({sev.upper()}): {desc}")
+        
+        # Display failed checks
+        if audit_results["checks"]:
+            st.subheader("❌ Audit Check Results")
+            for check_name, check_result in audit_results["checks"].items():
+                check_status = check_result.get("status", "unknown")
+                
+                if check_status == "fail":
+                    status_color = "🔴"
+                elif check_status == "marginal":
+                    status_color = "🟡"
+                else:
+                    status_color = "🟢"
+                
+                findings = check_result.get("findings", [])
+                with st.expander(f"{status_color} {check_name}: {check_status.upper()}"):
+                    if findings:
+                        for finding in findings:
+                            st.caption(f"• {finding}")
+                    st.json(check_result)
+        
+        st.markdown("---")
 
     if progress:
         mp = progress.get("model_progress")
@@ -1004,11 +1362,15 @@ def _render_best_model_tab(output_dir: Path) -> None:
     st.subheader("📊 Performance Metrics")
     best_eval = None
     if evaluation:
-        best_eval = next(
-            (c for c in evaluation.get("candidates", [])
-             if c.get("model_name") == best_name),
-            None,
-        )
+        candidates = evaluation.get("candidates", {})
+        if isinstance(candidates, dict):
+            best_eval = candidates.get(best_name)
+        else:
+            best_eval = next(
+                (c for c in candidates
+                 if c.get("model_name") == best_name),
+                None,
+            )
 
     if best_eval:
         c1, c2, c3, c4, c5 = st.columns(5)
@@ -1255,6 +1617,202 @@ def _render_report_tab(output_dir: Path) -> None:
         if p.is_file():
             size_kb = p.stat().st_size / 1024
             st.caption(f"`{p.name}` — {size_kb:.1f} KB")
+
+
+def _render_audit_tab(output_dir: Path) -> None:
+    """Render Step 17 Critical Self-Audit results."""
+    st.subheader("🔐 Critical Self-Audit Results")
+    
+    audit_results = _parse_audit_results(output_dir)
+    if not audit_results:
+        st.info("Audit results not yet available (step 17 pending).")
+        return
+    
+    # Overall result banner
+    overall = audit_results.get("overall_audit_result", "unknown")
+    if overall == "pass":
+        st.success(f"✅ **Audit Passed** | Confidence: {audit_results.get('audit_confidence', 'N/A')}")
+    elif overall == "fail":
+        st.error(f"❌ **Audit Failed** | Remediation Required")
+    else:
+        st.info(f"⚠️ **Audit Status:** {overall}")
+    
+    # Audit confidence if available
+    if "audit_confidence" in audit_results:
+        st.metric("Audit Confidence", f"{audit_results['audit_confidence']:.1%}")
+    
+    st.markdown("---")
+    
+    # Check results
+    st.subheader("📊 Check Results")
+    checks = audit_results.get("checks", {})
+    
+    if checks:
+        # Create columns for check summary
+        check_stats = {"pass": 0, "marginal": 0, "fail": 0}
+        for check_result in checks.values():
+            status = check_result.get("status", "unknown")
+            if status in check_stats:
+                check_stats[status] += 1
+        
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Checks", len(checks))
+        col2.metric("✅ Pass", check_stats["pass"])
+        col3.metric("🟡 Marginal", check_stats["marginal"])
+        col4.metric("🔴 Fail", check_stats["fail"])
+        
+        st.markdown("---")
+        
+        # Detailed check results
+        for check_name, check_result in checks.items():
+            status = check_result.get("status", "unknown")
+            
+            if status == "pass":
+                emoji = "✅"
+                color = "green"
+            elif status == "marginal":
+                emoji = "🟡"
+                color = "orange"
+            else:
+                emoji = "🔴"
+                color = "red"
+            
+            findings = check_result.get("findings", [])
+            severity = check_result.get("severity", "low")
+            
+            with st.expander(f"{emoji} **{check_name.replace('_', ' ').title()}** [{status.upper()}]"):
+                # Severity badge
+                if severity == "high":
+                    st.error(f"**Severity:** {severity.upper()}")
+                elif severity == "medium":
+                    st.warning(f"**Severity:** {severity.upper()}")
+                else:
+                    st.info(f"**Severity:** {severity.upper()}")
+                
+                # Findings
+                if findings:
+                    st.write("**Findings:**")
+                    for finding in findings:
+                        st.caption(f"• {finding}")
+                
+                # Full check details
+                with st.expander("📋 Full Details"):
+                    st.json(check_result)
+    else:
+        st.info("No check results available.")
+    
+    st.markdown("---")
+    
+    # Remediation actions
+    if overall == "fail":
+        st.subheader("🔧 Remediation Actions Required")
+        remediation_actions = audit_results.get("remediation_actions", [])
+        
+        if remediation_actions:
+            auto_count = sum(1 for a in remediation_actions if a.get("type") == "[AUTO]")
+            manual_count = len(remediation_actions) - auto_count
+            
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total Actions", len(remediation_actions))
+            col2.metric("🟢 Auto", auto_count)
+            col3.metric("🔴 Manual", manual_count)
+
+            # ── Remediation trigger button ────────────────────────────────────
+            st.markdown("---")
+            if auto_count > 0:
+                orchestrator_exists = (output_dir / "code" / "orchestrator.py").exists()
+                if orchestrator_exists:
+                    st.info(
+                        f"**{auto_count} AUTO action(s) detected.** "
+                        "The orchestrator will re-run the affected steps automatically with corrected parameters."
+                    )
+                    if st.button("🔄 Trigger Auto-Remediation & Restart Pipeline",
+                                 type="primary", use_container_width=True,
+                                 key="btn_auto_remediate"):
+                        with st.spinner("Deleting affected artifacts and restarting pipeline…"):
+                            launched = _trigger_auto_remediation(output_dir)
+                        if launched:
+                            st.success(
+                                "✅ Remediation pipeline started! "
+                                "Switch to the Live Progress tab or refresh to monitor."
+                            )
+                        # Page will reload on next interaction and show new progress
+                else:
+                    st.warning(
+                        "orchestrator.py not found in this run's code/ directory. "
+                        "Cannot trigger auto-remediation from the UI. "
+                        "Re-run the pipeline via the agent to generate the orchestrator."
+                    )
+            if manual_count > 0:
+                st.warning(
+                    f"**{manual_count} MANUAL action(s) require human review.** "
+                    "See details below. After addressing them, re-run the pipeline with the corrected parameters."
+                )
+
+            st.markdown("---")
+            
+            for i, action in enumerate(remediation_actions, 1):
+                action_id = action.get("action_id", "unknown")
+                action_type = action.get("type", "UNKNOWN")
+                severity = action.get("severity", "medium")
+                description = action.get("description", _REMEDIATION_DESCRIPTIONS.get(action_id, ""))
+                
+                # Action badge
+                if action_type == "[AUTO]":
+                    emoji = "🟢"
+                else:
+                    emoji = "🔴"
+                
+                with st.expander(f"{emoji} **{i}. {action_id}** ({action_type})"):
+                    st.write(description)
+                    st.caption(f"**Severity:** {severity.upper()}")
+                    
+                    # Affected steps
+                    affected = _REMEDIATION_STEPS_MAP.get(action_id, [])
+                    if affected:
+                        st.write(f"**Affected Steps:** {', '.join(map(str, affected))}")
+                    
+                    # Full action details
+                    with st.expander("📋 Full Details"):
+                        st.json(action)
+        else:
+            st.info("No remediation actions required.")
+
+        # Show remediation_required.json if orchestrator wrote it
+        req_file = output_dir / "remediation_required.json"
+        if req_file.exists():
+            st.markdown("---")
+            st.subheader("📋 Remediation Required (written by orchestrator)")
+            req_data = _read_json(req_file)
+            if req_data:
+                iterations = req_data.get("remediation_iterations_attempted", 0)
+                final_result = req_data.get("final_audit_result", "unknown")
+                st.error(
+                    f"Orchestrator exhausted {iterations} remediation attempt(s). "
+                    f"Final audit result: **{final_result.upper()}**. "
+                    "Manual intervention is required."
+                )
+                pending = req_data.get("pending_manual_actions", [])
+                for action in pending:
+                    with st.expander(f"🔴 {action.get('action_id', 'unknown')}"):
+                        st.write(action.get("description", ""))
+                        st.json(action)
+                with st.expander("📄 Full remediation_required.json"):
+                    st.json(req_data)
+    
+    st.markdown("---")
+    
+    # Critical findings
+    critical_findings = audit_results.get("critical_findings", [])
+    if critical_findings:
+        st.subheader("⚠️ Critical Findings")
+        for finding in critical_findings:
+            check = finding.get("check", "unknown")
+            desc = finding.get("description", "")
+            severity = finding.get("severity", "high")
+            
+            st.error(f"**{check}** ({severity.upper()}): {desc}")
+    
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1523,7 +2081,7 @@ def main() -> None:
 1. **Upload** a CSV with time-series data and select the target column, OR
 2. **Browse** an existing run from the sidebar dropdown.
 
-The pipeline runs 7 steps:
+The pipeline runs 8 steps:
 - **10** CSV cleansing & outlier detection
 - **11** Deep time-series EDA (ADF, KPSS, Hurst, ACF/PACF, MI, STL)
 - **12** Adaptive feature engineering (lags, Fourier, PCA factors)
@@ -1531,6 +2089,7 @@ The pipeline runs 7 steps:
 - **14** Evaluation + SHAP computation
 - **15** Model selection with weighted ranking
 - **16** Full report generation
+- **17** Critical self-audit & remediation (validates results, triggers re-runs if needed)
         """)
         return
 
@@ -1543,11 +2102,12 @@ The pipeline runs 7 steps:
         st.info(f"No pipeline output found in `{active_dir.name}` yet.")
         return
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "🔍 EDA",
         "🏋️ Model Comparison",
         "🏆 Best Model",
         "📄 Report",
+        "🔐 Audit",
     ])
 
     with tab1:
@@ -1561,6 +2121,9 @@ The pipeline runs 7 steps:
 
     with tab4:
         _render_report_tab(active_dir)
+    
+    with tab5:
+        _render_audit_tab(active_dir)
 
 
 if __name__ == "__main__":

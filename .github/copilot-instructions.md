@@ -1,5 +1,11 @@
 # Copilot Instructions for Data Forecast Generator
 
+## Files and Directories to Ignore
+
+**Never read, reference, or suggest code from `output/*/code/`.**
+These directories contain auto-generated pipeline scripts from previous runs and are not canonical source code.
+Always treat `output/` as opaque run artifacts — only JSON/parquet/joblib outputs are relevant as pipeline context, not the Python scripts inside `code/`.
+
 ## Project Overview
 
 This is a Python-based project that automates discovery of data analysis use cases through LLM analysis and implements regression forecasting pipelines. The system is designed in three phases:

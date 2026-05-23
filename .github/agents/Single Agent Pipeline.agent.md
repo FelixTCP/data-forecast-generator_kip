@@ -24,6 +24,7 @@ Resolve these from the user's message or from sensible defaults:
 | `TARGET_COLUMN` | Regression target column name | *(required)* |
 | `OUTPUT_DIR` | Directory for all run artifacts | `output/<RUN_ID>/` |
 | `RUN_ID` | Unique run identifier | `YYYYMMDDTHHMMSSZ` (current UTC timestamp) |
+| `SPLIT_MODE` | Train/test split strategy | `auto` |
 | `CODE_DIR` | Directory for generated step Python files | `output/<RUN_ID>/code/` |
 | `CONTINUE_MODE` | Resume from last completed step | `false` |
 
@@ -44,7 +45,7 @@ CODE_DIR/
 ├── step_14_evaluation.py
 ├── step_15_selection.py
 ├── step_16_report.py
-└── orchestrator.py        # thin wrapper: calls steps in order, handles resume, surfaces errors
+└── orchestrator.py        # calls steps in order, handles resume, implements remediation loop after step 17
 ```
 
 **Why this matters:** If step 13 fails, you only fix and re-run `step_13_training.py`. Steps 10–12 are not re-executed. Fixing one step should never require touching another.
@@ -111,10 +112,18 @@ Before executing a step, check whether it can be skipped:
 ### After Step 12
 - `step-12-features.json` exists
 - `features` list is non-empty (if empty, all features were filtered — diagnose step 11 output before continuing)
-- `features_excluded` key exists (audit trail of what was dropped and why)
-- `split_strategy.resolved_mode` is `time_series`
+- `features` contains **at least 2 entries** — run `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-12-features.json')); assert len(d['features'])>=2, f'only {len(d[\"features\"])} feature(s) — minimum is 2'"` — must not raise
+- `features_excluded` key exists **and its value is a dict** (not a list) — run `python -c "import json; d=json.load(open('<OUTPUT_DIR>/step-12-features.json')); assert isinstance(d.get('features_excluded'), dict), 'features_excluded must be a dict, not a list'"` — must not raise
+- `split_strategy.resolved_mode` is one of `random` or `time_series`
 - The parquet path in `artifacts.features_parquet` exists on disk
 - No feature in `features` appears in `step-11-exploration.json["excluded_features"]` (leakage guard against re-including dropped features)
+- **Script structure checks** (run after writing `step_12_features.py`, before executing it):
+  - `step_12_features.py` contains `--exclude-features` CLI argument — run `Select-String -Path CODE_DIR/step_12_features.py -Pattern 'exclude.features'` — must match
+  - `step_12_features.py` imports tqdm — run `Select-String -Path CODE_DIR/step_12_features.py -Pattern 'import tqdm|from tqdm'` — must match
+  - `step_12_features.py` contains `sys.exit(2)` for leakage abort — run `Select-String -Path CODE_DIR/step_12_features.py -Pattern 'sys\.exit\(2\)'` — must match
+- **Conditional checks:**
+  - If `step-11-exploration.json["multiple_series_detected"]` is `true`: `step_12_features.py` contains `.over(` — run `Select-String -Path CODE_DIR/step_12_features.py -Pattern '\.over\('` — must match
+  - If `step-11-exploration.json["significant_lags"]` is non-empty OR `step-11-exploration.json["useful_lag_features"]` is non-empty: at least one feature name in `features` contains `_lag_` or `_roll_`
 
 ### After Step 13
 - `step-13-training.json` exists
@@ -142,8 +151,16 @@ Before executing a step, check whether it can be skipped:
 
 ### After Step 16
 - `step-16-report.md` exists and is at least 500 bytes
-- `progress.json` has `"status": "completed"`
 - Report file contains all 6 required section headings
+- `progress.json` has `"status": "running"` (NOT completed — Step 17 must run next)
+
+### After Step 17
+- `step-17-audit.json` exists and is valid JSON
+- `step-17-audit.json` contains all five checks: `temporal_consistency`, `multi_series_detection`, `feature_target_alignment`, `model_performance_baseline`, `data_distribution_drift`
+- `step-17-audit.json` has `"overall_audit_result"` ("pass" or "fail")
+- `step-17-audit.json` contains `"critical_findings"` array (empty if audit passes, non-empty if audit fails)
+- `step-17-audit.json` contains `"remediation_actions"` array (may be empty)
+- `progress.json` has `"status": "completed"` (ONLY Step 17 marks final completion)
 
 ---
 
@@ -179,23 +196,13 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 
 ### Step 13 — Model Training (`step_13_training.py`) *(most critical)*
 - Read `features.parquet` and reconstruct feature list from `step-12-features.json`.
-- Determine split: chronological (`TimeSeriesSplit`) — always use a chronological/time-series split.
-- Model discovery and agent-driven selection: Examine `step-11-exploration.json` (autocorrelations, seasonality indicators, lag importance, and exogenous feature availability) and decide which model families to evaluate. Candidate families to consider include (but are not limited to):
-  - Scikit-learn regressors: Ridge, ElasticNet, RandomForestRegressor, HistGradientBoostingRegressor, GradientBoostingRegressor, SVR
-  - Boosted-tree libraries (only if installed): XGBoost, LightGBM
-  - Time-series-specialized approaches (prefer when indicated by the exploration phase): naive/lag baselines, AR, MA, ARIMA (pmdarima or statsmodels), SARIMAX (seasonal ARIMA with exogenous regressors), state-space models and ETS, and simple exponential smoothing / Holt-Winters (statsmodels)
-  - Prophet or other lightweight forecasting wrappers only if present in the environment
-- For each chosen candidate family: map inputs appropriately (scikit-learn pipelines expect X/y; ARIMA-like models may require a univariate endogenous series and optional exogenous X); train candidate models, record CV or backtest scores (chronological splits), and persist per-candidate artifacts such as `candidate-<name>.joblib` or family-appropriate files.
-- Progress reporting (mandatory): During model training, update `OUTPUT_DIR/progress.json` with `current_step: "13-model-training"` and add per-model substatus fields to allow live UI display:
-  - `current_model`: short name of the candidate currently being trained (e.g. "ridge", "arima")
-  - `completed_models`: list of model names already completed
-  - `model_progress` (optional): numeric 0.0-1.0 or an object `{ "current": 2, "total": 6 }` to indicate per-model progress
-  - `model_history`: append per-model summaries (model_name, status, cv_mean, fit_time_sec, notes)
-- For each candidate: fit, record CV/backtest scores (chronological splits), and persist results; on transient failures retry once and mark failures explicitly in `model_history`.
-- Persist best model as `model.joblib` — must be a fitted, loadable estimator or forecasting object exposing `predict(...)` (or equivalent forecasting API documented in `step-13-training.json`).
+- Determine split: chronological (`TimeSeriesSplit`) if time column detected and `SPLIT_MODE=auto`; otherwise `train_test_split(shuffle=True)`.
+- Train candidates: Ridge, RandomForest, GradientBoosting. Add XGBoost only if already installed.
+- For each candidate: fit, record CV scores (5 folds), and persist as `candidate-<name>.joblib`.
+- Persist best model as `model.joblib` — must be a fitted sklearn estimator or Pipeline exposing `.predict(X)`.
 - **Do NOT pickle classes defined under `__main__`.**
-- Save holdout data in `holdout.npz` (or an appropriate per-family holdout artifact) containing `X_test`/`y_test` or equivalent arrays for time-series models.
-- Output: `step-13-training.json`, `model.joblib`, `candidate-*.joblib` (or family-specific artifacts), `holdout.npz` and the `model_history` entries reflected in `progress.json`.
+- Save the holdout arrays as `holdout.npz` (`X_test`, `y_test`).
+- Output: `step-13-training.json`, `model.joblib`, `candidate-*.joblib`, `holdout.npz`
 
 ### Step 14 — Model Evaluation (`step_14_evaluation.py`)
 - Read the full spec at `docs/pipeline-framework/14-model-evaluation.md`.
@@ -214,17 +221,121 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 - Output: `step-15-selection.json`
 
 ### Step 16 — Result Presentation (`step_16_report.py`)
-- Write `step-16-report.md` with exactly these 7 sections:
-  1. Executive Summary (ELI5) — jargon-free explanation of what was built, how well it works, business value, and major red flags
-  2. Problem + selected target
-  3. Data quality summary
-  4. Candidate models + scores table
-  5. Selected model rationale
-  6. Risks and caveats
-  7. Next iteration recommendations
-- If `quality_flag` is `leakage_suspected`, `subpar`, or `no_viable_candidate`, include a mandatory warning in the Executive Summary explaining why results cannot be trusted.
-- Set `progress.json` status to `"completed"`.
+- Write `step-16-report.md` with exactly these 6 sections:
+  1. Problem + selected target
+  2. Data quality summary
+  3. Candidate models + scores table
+  4. Selected model rationale
+  5. Risks and caveats
+  6. Next iteration recommendations
+- **Do NOT** set `progress.json` status to `"completed"` — Step 17 runs next.
 - Output: `step-16-report.md`
+
+### Step 17 — Critical Self-Audit (`step_17_audit.py`)
+- Read the full spec at `docs/pipeline-framework/17-critical-self-audit.md`.
+- Inputs: `step-10-cleanse.json` (or `step-01-cleanse.json`), `step-11-exploration.json`, `step-12-features.json`, `step-13-training.json`, `step-14-evaluation.json`, `cleaned.parquet`, `features.parquet`, `holdout.npz`.
+- Detect data profile (stocks_multi_series, appliances_consumption, weather_driven, generic_regression) and store `data_profile` in the output.
+- Run all five checks in a `tqdm` loop:
+  1. **temporal_consistency** — gap detection + interval regularity on time column
+  2. **multi_series_detection** — variance_between_groups / variance_within_groups; ratio > 2.0 → fail/high
+  3. **feature_target_alignment** — MI retention rate and excluded feature ratio
+  4. **model_performance_baseline** — profile-dependent R² thresholds (financial: ≥0.30 pass; ≥0.10 marginal; <0.10 fail) plus overfitting check (holdout R² < 0.8 × CV R² → downgrade one level)
+  5. **data_distribution_drift** — KS statistic per feature between train/holdout; KS ≥ 0.25 → fail/high; KS = 1.000 → monotonic index rule (fail/high, dedicated finding)
+- Status values: **ONLY** `"pass"`, `"marginal"`, `"fail"` — `"warning"` is forbidden.
+- `overall_audit_result = "fail"` if any check has `status=="fail"` OR `severity=="high"`.
+- `critical_findings` must be non-empty when `overall_audit_result == "fail"`.
+- **Do NOT set `progress.json` to `"completed"` yet — the Remediation Loop runs next.**
+- Output: `step-17-audit.json`
+
+---
+
+## Remediation Loop (After Step 17)
+
+After Step 17 completes, read `step-17-audit.json` and apply the following protocol. This loop is **mandatory** — a `fail` result must never be accepted without at least one remediation attempt.
+
+### Constants
+- `MAX_REMEDIATION_ITERATIONS = 3`
+
+### Decision Tree
+
+```
+overall_audit_result == "pass"
+  → Set progress.json status="completed", final_audit_result="pass". Done.
+
+overall_audit_result == "fail" AND remediation_iteration < MAX_REMEDIATION_ITERATIONS
+  → Collect AUTO actions from remediation_actions (see mapping below).
+  → If AUTO actions exist:
+      → Apply parameters and re-run affected steps (see step map below).
+      → Re-run Step 17.
+      → Increment remediation_iteration.
+      → Repeat decision tree.
+  → If NO AUTO actions remain (only MANUAL):
+      → Write remediation_required.json (see schema below).
+      → Set progress.json status="completed", final_audit_result="fail".
+      → Done (human intervention required).
+
+overall_audit_result == "fail" AND remediation_iteration >= MAX_REMEDIATION_ITERATIONS
+  → Write remediation_required.json.
+  → Set progress.json status="completed", final_audit_result="fail".
+  → Done (max iterations exhausted).
+```
+
+### AUTO Action → CLI Parameter Map
+
+Read from `docs/self-audit/remediation.md`. Summary:
+
+| Action ID | Steps to Re-Run | CLI Flag to Inject |
+|---|---|---|
+| `remove_monotonic_index_features` | 12, 13, 14, 15, 17 | `--exclude-features <comma-separated list from critical_findings>` |
+| `improve_model_performance` | 13, 14, 15, 17 | `--force-expansion-models=true` |
+| `extend_lag_window` | 12, 13, 14, 15, 17 | `--max-lag=20` |
+| `add_seasonal_features` | 12, 13, 14, 15, 17 | `--seasonal-features=true` |
+| `increase_regularization` | 13, 14, 15, 17 | `--regularization=ridge_cv` |
+| `try_alternative_models` | 13, 14, 15, 17 | `--extra-models=lightgbm,svr,histgradient` |
+| `use_time_series_split` | 12, 13, 14, 15, 17 | `--split-mode=time_series` |
+
+**Re-running steps:** Delete the output JSON for each affected step before re-running so the resume-check does not skip them. Do **not** delete `cleaned.parquet` or `step-10-cleanse.json` (Step 10 is never re-run during remediation). Write fresh step scripts (do not recycle prior versions).
+
+### `remediation_required.json` Schema
+
+```json
+{
+  "run_id": "<RUN_ID>",
+  "original_audit_result": "fail",
+  "remediation_iterations_attempted": 2,
+  "final_audit_result": "fail",
+  "pending_manual_actions": [
+    {
+      "action_id": "split_by_grouping_column",
+      "severity": "high",
+      "description": "...",
+      "affected_steps": ["12", "13", "14", "15"],
+      "suggested_parameters": {}
+    }
+  ],
+  "instructions": "Manual intervention required. Review pending_manual_actions and re-run the pipeline with the corrected parameters."
+}
+```
+
+### Tracking in `progress.json`
+
+Add a `remediation` block to `progress.json` during the loop:
+
+```json
+{
+  "remediation": {
+    "iteration": 1,
+    "max_iterations": 3,
+    "actions_applied": ["remove_monotonic_index_features"],
+    "steps_rerun": ["12", "13", "14", "15", "17"],
+    "audit_result_before": "fail",
+    "audit_result_after": "pass"
+  },
+  "final_audit_result": "pass"
+}
+```
+
+**Set `progress.json` status to `"completed"` only after the remediation loop exits** (whether the final audit is `pass` or `fail`).
 
 ---
 
@@ -264,6 +375,7 @@ OUTPUT_DIR/
 ├── step-14-evaluation.json
 ├── step-15-selection.json
 ├── step-16-report.md
+├── step-17-audit.json
 └── code/
     ├── step_10_cleanse.py
     ├── step_11_exploration.py
@@ -272,6 +384,7 @@ OUTPUT_DIR/
     ├── step_14_evaluation.py
     ├── step_15_selection.py
     ├── step_16_report.py
+    ├── step_17_audit.py
     └── orchestrator.py
 ```
 
@@ -328,10 +441,11 @@ Context is passed between scripts by serializing it under the `"context"` key of
 
 ## Acceptance Criteria
 
-- All 7 step scripts exist under `CODE_DIR` and are individually executable from the CLI.
+- All 8 step scripts exist under `CODE_DIR` and are individually executable from the CLI.
 - Running any single step script in isolation (given prior step outputs) produces correct output without requiring a full pipeline re-run.
 - `model.joblib` loads cleanly in a fresh Python process and `model.predict(X)` runs without error.
 - `step-16-report.md` is human-readable and addresses all 6 sections.
-- `progress.json` has `"status": "completed"` at the end.
+- `step-17-audit.json` is valid JSON with all five checks present and no `"warning"` status values.
+- `progress.json` has `"status": "completed"` and `"final_audit_result"` set to `"pass"` or `"fail"` at the end.
 - All step scripts are inventoried in `code_audit.json`.
 - Every validation gate passes for every step.
