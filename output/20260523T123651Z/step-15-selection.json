@@ -1,0 +1,62 @@
+{
+  "step": "15-model-selection",
+  "quality_flag": "acceptable",
+  "selected_model": "HistGradientBoosting",
+  "rationale": "Selected HistGradientBoosting (tier 3) based on weighted scoring: 50% R2, 25% RMSE, 15% MAE, 10% stability. Score=0.9500",
+  "full_ranking": [
+    {
+      "rank": 1,
+      "model_name": "HistGradientBoosting",
+      "tier": 3,
+      "score": 0.9500000000000001,
+      "r2": 0.9316596521771249,
+      "rmse": 2.82286222072296,
+      "mae": 2.071863387086906
+    },
+    {
+      "rank": 2,
+      "model_name": "XGBoost",
+      "tier": 3,
+      "score": 0.9495149628030896,
+      "r2": 0.931278721729379,
+      "rmse": 2.8307186328571525,
+      "mae": 2.0739098940852387
+    },
+    {
+      "rank": 3,
+      "model_name": "ElasticNet",
+      "tier": 3,
+      "score": 0.9476385057928842,
+      "r2": 0.9300659470067419,
+      "rmse": 2.8555872762468764,
+      "mae": 2.0968231887895246
+    },
+    {
+      "rank": 4,
+      "model_name": "Ridge",
+      "tier": 3,
+      "score": 0.947584952079453,
+      "r2": 0.9300319871917233,
+      "rmse": 2.8562805253983474,
+      "mae": 2.097518667134468
+    },
+    {
+      "rank": 5,
+      "model_name": "RandomForest",
+      "tier": 3,
+      "score": 0.9455065578522185,
+      "r2": 0.9288167161846388,
+      "rmse": 2.8809790389425105,
+      "mae": 2.1304593525991016
+    },
+    {
+      "rank": 6,
+      "model_name": "ARIMA",
+      "tier": 1,
+      "score": 0.06,
+      "r2": -0.020326812978680664,
+      "rmse": 10.907387411973877,
+      "mae": 9.377365470773977
+    }
+  ]
+}

@@ -28,8 +28,8 @@
     "tokens_used": null
   },
   {
-    "timestamp": "20260520T073850Z",
-    "timestamp_parsed": "2026-05-20T07:38:50",
+    "timestamp": "20260523T123651Z",
+    "timestamp_parsed": "2026-05-23T12:36:51",
     "csv_path": "/app/artifacts/ui_uploads/algiers_temperature.csv",
     "target_column": "avgtemperature",
     "status": "completed",
@@ -44,18 +44,21 @@
       "15-model-selection",
       "16-result-presentation"
     ],
-    "best_model": "elasticnet",
-    "best_r2": 0.9300566349962621,
-    "best_rmse": 2.8579065616749095,
-    "best_mae": 2.098284212824073,
+    "best_model": "ARIMA",
+    "best_r2": -0.020326812978680664,
+    "best_rmse": 10.907387411973877,
+    "best_mae": 9.377365470773977,
     "model_candidates": [
-      "ridge",
-      "elasticnet",
-      "random_forest"
+      "ARIMA",
+      "Ridge",
+      "ElasticNet",
+      "RandomForest",
+      "HistGradientBoosting",
+      "XGBoost"
     ],
     "quality_flag": "acceptable",
-    "llm_model_name": null,
-    "running_time_sec": null,
+    "llm_model_name": "claude-haiku-4.5",
+    "running_time_sec": 601.1931032309999,
     "tokens_generated": null,
     "tokens_used": null
   }

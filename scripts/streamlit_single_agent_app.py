@@ -163,6 +163,21 @@ def _bar_color(name: str, best: str) -> str:
     return _CANDIDATE_COLOR
 
 
+def _save_metadata(output_dir: Path, llm_model: str, elapsed_seconds: float) -> None:
+    """Save minimal metadata: LLM model name and running time."""
+    metadata = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "llm_model_name": llm_model,
+        "running_time_sec": elapsed_seconds,
+    }
+    try:
+        meta_path = output_dir / "meta_data.json"
+        with open(meta_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+    except Exception as e:
+        st.warning(f"⚠️ Could not save metadata: {e}")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Pipeline Progress
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1246,7 +1261,7 @@ def _render_report_tab(output_dir: Path) -> None:
 # Launch mode handlers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _handle_vscode_mode(prompt: str, output_dir: Path) -> None:
+def _handle_vscode_mode(prompt: str, output_dir: Path, llm_model: str) -> None:
     """
     VS Code Chat mode: display the agent prompt so the user can paste it into
     VS Code Copilot Chat, then poll the output directory for live progress.
@@ -1279,6 +1294,10 @@ def _handle_vscode_mode(prompt: str, output_dir: Path) -> None:
             if progress and progress.get("status") in ("completed", "failed", "error"):
                 break
         time.sleep(3.0)
+    
+    # Save metadata when pipeline completes
+    elapsed = time.monotonic() - started_at
+    _save_metadata(output_dir, llm_model, elapsed)
 
 
 def _handle_cli_mode(prompt: str, output_dir: Path, model: str) -> None:
@@ -1305,6 +1324,9 @@ def _handle_cli_mode(prompt: str, output_dir: Path, model: str) -> None:
         st.error(f"❌ Pipeline failed (exit {process.returncode})")
     else:
         st.success("✅ Pipeline completed successfully!")
+        # Save metadata when pipeline completes successfully
+        elapsed = time.monotonic() - started_at
+        _save_metadata(output_dir, model, elapsed)
 
 
 def _handle_rerun(output_dir: Path, target_column: str, csv_path_override: str | None) -> None:
@@ -1366,6 +1388,10 @@ def _handle_rerun(output_dir: Path, target_column: str, csv_path_override: str |
         st.error(f"❌ Re-run failed (exit {process.returncode})")
     else:
         st.success("✅ Re-run completed successfully!")
+        # Save metadata when pipeline completes successfully
+        elapsed = time.monotonic() - started_at
+        # Use 'orchestrator-rerun' as model name for re-runs
+        _save_metadata(output_dir, "orchestrator-rerun", elapsed)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1485,7 +1511,7 @@ def main() -> None:
         )
 
         if launch_mode == "VS Code Chat":
-            _handle_vscode_mode(prompt, active_dir)
+            _handle_vscode_mode(prompt, active_dir, selected_model)
         else:
             _handle_cli_mode(prompt, active_dir, selected_model)
 

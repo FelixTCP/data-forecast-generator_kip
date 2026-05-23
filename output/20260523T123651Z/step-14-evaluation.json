@@ -1,0 +1,113 @@
+{
+  "step": "14-model-evaluation",
+  "quality_assessment": "acceptable",
+  "target_stats": {
+    "mean": 65.05016181229773,
+    "std": 10.798193087919302,
+    "min": 41.8,
+    "max": 93.1
+  },
+  "candidates": [
+    {
+      "model_name": "ARIMA",
+      "tier": 1,
+      "status": "success",
+      "cv_r2_mean": null,
+      "cv_r2_std": null,
+      "r2": -0.020326812978680664,
+      "rmse": 10.907387411973877,
+      "mae": 9.377365470773977,
+      "fit_time_sec": 29.090805292129517,
+      "artifact": "OUTPUT_DIR/candidate-ARIMA.joblib",
+      "model_worse_than_mean_baseline": true
+    },
+    {
+      "model_name": "Ridge",
+      "tier": 3,
+      "status": "success",
+      "best_params": {
+        "model__alpha": 0.1
+      },
+      "cv_r2_mean": 0.9268505681134978,
+      "cv_r2_std": 0.0,
+      "r2": 0.9300319871917233,
+      "rmse": 2.8562805253983474,
+      "mae": 2.097518667134468,
+      "fit_time_sec": 2.110231399536133,
+      "artifact": "OUTPUT_DIR/candidate-Ridge.joblib",
+      "model_worse_than_mean_baseline": false
+    },
+    {
+      "model_name": "ElasticNet",
+      "tier": 3,
+      "status": "success",
+      "best_params": {
+        "model__alpha": 0.001,
+        "model__l1_ratio": 0.8
+      },
+      "cv_r2_mean": 0.9268789984065753,
+      "cv_r2_std": 0.0,
+      "r2": 0.9300659470067419,
+      "rmse": 2.8555872762468764,
+      "mae": 2.0968231887895246,
+      "fit_time_sec": 1.5172550678253174,
+      "artifact": "OUTPUT_DIR/candidate-ElasticNet.joblib",
+      "model_worse_than_mean_baseline": false
+    },
+    {
+      "model_name": "RandomForest",
+      "tier": 3,
+      "status": "success",
+      "best_params": {
+        "model__n_estimators": 200,
+        "model__max_depth": 10
+      },
+      "cv_r2_mean": 0.9213512296400339,
+      "cv_r2_std": 0.0,
+      "r2": 0.9288167161846388,
+      "rmse": 2.8809790389425105,
+      "mae": 2.1304593525991016,
+      "fit_time_sec": 30.35938596725464,
+      "artifact": "OUTPUT_DIR/candidate-RandomForest.joblib",
+      "model_worse_than_mean_baseline": false
+    },
+    {
+      "model_name": "HistGradientBoosting",
+      "tier": 3,
+      "status": "success",
+      "best_params": {
+        "model__max_iter": 100,
+        "model__max_depth": 5,
+        "model__learning_rate": 0.1
+      },
+      "cv_r2_mean": 0.9204024811828878,
+      "cv_r2_std": 0.0,
+      "r2": 0.9316596521771249,
+      "rmse": 2.82286222072296,
+      "mae": 2.071863387086906,
+      "fit_time_sec": 3.43717885017395,
+      "artifact": "OUTPUT_DIR/candidate-HistGradientBoosting.joblib",
+      "model_worse_than_mean_baseline": false
+    },
+    {
+      "model_name": "XGBoost",
+      "tier": 3,
+      "status": "success",
+      "best_params": {
+        "model__n_estimators": 100,
+        "model__max_depth": 5,
+        "model__learning_rate": 0.1
+      },
+      "cv_r2_mean": 0.9179171514967169,
+      "cv_r2_std": 0.0,
+      "r2": 0.931278721729379,
+      "rmse": 2.8307186328571525,
+      "mae": 2.0739098940852387,
+      "fit_time_sec": 15.2333505153656,
+      "artifact": "OUTPUT_DIR/candidate-XGBoost.joblib",
+      "model_worse_than_mean_baseline": false
+    }
+  ],
+  "expansion_attempted": false,
+  "expansion_candidates": []
+}
