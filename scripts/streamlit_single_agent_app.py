@@ -429,6 +429,8 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
     current_step = None
     status = "running"
     errors: list[str] = []
+    completed_set: set[str] = set()
+
     
     # Parse audit results if available (step 17)
     audit_results = _parse_audit_results(output_dir)
@@ -437,7 +439,6 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
 
     if progress:
         completed = progress.get("completed_steps", [])
-        completed_set: set[str] = set()
         if isinstance(completed, list):
             completed_set = set(completed)
         current_step = progress.get("current_step")
