@@ -1,0 +1,65 @@
+[
+  {
+    "timestamp": "20260515T103906Z",
+    "timestamp_parsed": "2026-05-15T10:39:06",
+    "csv_path": "artifacts\\ui_uploads\\algiers_temperature.csv",
+    "target_column": "AvgTemperature",
+    "status": "completed",
+    "error_count": 2,
+    "error_rate": 0.2857142857142857,
+    "completed_steps": [
+      "10-csv-read-cleansing",
+      "11-data-exploration",
+      "12-feature-extraction",
+      "13-model-training",
+      "14-model-evaluation",
+      "15-model-selection",
+      "16-result-presentation"
+    ],
+    "best_model": "random_forest",
+    "best_r2": null,
+    "best_rmse": null,
+    "best_mae": null,
+    "model_candidates": [],
+    "quality_flag": "acceptable",
+    "llm_model_name": null,
+    "running_time_sec": null,
+    "tokens_generated": null,
+    "tokens_used": null
+  },
+  {
+    "timestamp": "20260523T123651Z",
+    "timestamp_parsed": "2026-05-23T12:36:51",
+    "csv_path": "/app/artifacts/ui_uploads/algiers_temperature.csv",
+    "target_column": "avgtemperature",
+    "status": "completed",
+    "error_count": 4,
+    "error_rate": 0.5714285714285714,
+    "completed_steps": [
+      "10-csv-read-cleansing",
+      "11-data-exploration",
+      "12-feature-extraction",
+      "13-model-training",
+      "14-model-evaluation",
+      "15-model-selection",
+      "16-result-presentation"
+    ],
+    "best_model": "ARIMA",
+    "best_r2": -0.020326812978680664,
+    "best_rmse": 10.907387411973877,
+    "best_mae": 9.377365470773977,
+    "model_candidates": [
+      "ARIMA",
+      "Ridge",
+      "ElasticNet",
+      "RandomForest",
+      "HistGradientBoosting",
+      "XGBoost"
+    ],
+    "quality_flag": "acceptable",
+    "llm_model_name": "claude-haiku-4.5",
+    "running_time_sec": 601.1931032309999,
+    "tokens_generated": null,
+    "tokens_used": null
+  }
+]

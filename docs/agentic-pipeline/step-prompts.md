@@ -191,7 +191,7 @@ PHASE 3 — VALIDATE:
 PHASE 1 — REASON:
 - Read docs/pipeline-framework/16-result-presentation.md.
 - Confirm required output:
-  - OUTPUT_DIR/step-16-report.md with required 6 sections.
+  - OUTPUT_DIR/step-16-report.md with required 7 sections.
 
 PHASE 2 — CODE:
 - Write CODE_DIR/step_16_report.py FROM SCRATCH using create_file. Do not copy from previous runs.
