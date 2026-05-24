@@ -25,8 +25,8 @@ Load customer CSV robustly and produce a typed, clean `polars.DataFrame` exporte
 - Do not silently drop rows/columns without logging initial count, final count, and reason.
 - Preserve original column names in metadata even if renamed.
 - **Extreme anomaly smoothing is mandatory**: After sorting by time, scan the target column (and all other numeric columns) for values with an **absolute z-score above 6** (i.e. $|z| > 6$). These are statistically impossible readings — not real extremes but corrupted / sentinel / instrument-error values. Null them out and replace with **linear interpolation** (`interpolate()`), falling back to `forward_fill()` / `backward_fill()` for boundary nulls. Log each replacement in `fixes` including the threshold, count, and affected column.
-  - **Chronological sort is mandatory after dedup**: `df.unique()` does not preserve row order. After deduplication, always sort by the detected time column (or by year/month/day if present). If no sort order can be established, raise a `RuntimeError` — a non-chronological dataset will corrupt the train/holdout split in step 12.
-  - **CRITICAL**: when synthesizing a date from year/month/day integer columns, use `pl.date(pl.col("year"), pl.col("month"), pl.col("day"))` — **never** `str.pad_left()` which does not exist in polars; use `pl.date()` directly.
+- **Chronological sort is the LAST operation before `write_parquet` — no exceptions.** `df.unique()` does not preserve row order; any interpolation, fill, or feature step can also shuffle rows. The very last line before writing must be `df = df.sort(time_col)`. Sort by the detected time column; if a synthetic date was constructed from year/month/day columns, sort by that synthetic column. If no time column can be identified at all, raise a `RuntimeError` with a descriptive message — a non-chronological parquet will silently corrupt every downstream step.
+- **CRITICAL**: when synthesizing a date from year/month/day integer columns, use `pl.date(pl.col("year"), pl.col("month"), pl.col("day"))` — **never** `str.pad_left()` which does not exist in polars; use `pl.date()` directly.
 ## Copilot Prompt Snippet
 
 ```markdown
@@ -78,11 +78,25 @@ def load_and_clean_csv(csv_path: str, config: dict, output_path: str) -> tuple[p
         }
     })
     
+    # ── MANDATORY FINAL SORT ─────────────────────────────────────────────
+    # cleaned.parquet MUST be in strict chronological order.
+    # This sort happens LAST, after all dedup / interpolation / fill steps,
+    # so no earlier operation can silently undo the ordering.
+    if time_col is None:
+        raise RuntimeError(
+            "No time column detected — cannot guarantee chronological order. "
+            "Aborting step 10 to prevent silent corruption of downstream steps."
+        )
+    df = df.sort(time_col)
+    quality_report["sorted_by"] = time_col
+    quality_report["fixes"].append(f"final_chronological_sort_by={time_col}")
+
     # Write to Parquet output
     df.write_parquet(output_path)
-    
+
     print(f"Final logged rows: {df.height}")
     print(f"Final logged schema: {df.schema}")
+    print(f"Parquet written in chronological order by '{time_col}'.")
 
     return df, quality_report
 ```
@@ -151,7 +165,8 @@ Also compute z-score outlier count (|z| > 3) for each column.
       "outlier_indices_sample": [4, 17, 88]
     }
   },
-  "fixes": ["normalized_column_names", "removed_duplicates"],
+  "sorted_by": "date",
+  "fixes": ["normalized_column_names", "removed_duplicates", "final_chronological_sort_by=date"],
   "artifacts": {
     "cleaned_parquet": "OUTPUT_DIR/cleaned.parquet"
   }
@@ -169,3 +184,6 @@ Also compute z-score outlier count (|z| > 3) for each column.
 - duplicate rows present
 - outlier detection: column with known extreme values produces correct `iqr_outlier_count`
 - column with no outliers produces `iqr_outlier_count: 0`
+- **chronological order**: load a shuffled CSV and verify `cleaned.parquet` rows are in strict ascending time order (assert `df["date"].is_sorted()` returns `True`)
+- **no time column**: verify the step raises `RuntimeError` when no time/date column can be detected
+- `sorted_by` key present in output JSON and matches the detected time column name
