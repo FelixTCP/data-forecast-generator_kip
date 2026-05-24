@@ -1,0 +1,101 @@
+{
+  "step": "17-critical-self-audit",
+  "run_id": "20260524T211328Z",
+  "data_profile": {
+    "detected_profile": "generic_regression",
+    "confidence": 0.5,
+    "characteristics": []
+  },
+  "checks": {
+    "temporal_consistency": {
+      "status": "pass",
+      "findings": [
+        "No time column detected; temporal consistency check skipped."
+      ],
+      "severity": "low"
+    },
+    "multi_series_detection": {
+      "status": "marginal",
+      "findings": [
+        "Column 'month': variance_ratio=0.27",
+        "Column 'day': variance_ratio=0.17",
+        "Column 'year': variance_ratio=4.70",
+        "Multi-series detected: potential grouping columns: ['year']"
+      ],
+      "severity": "medium",
+      "confidence": 0.6,
+      "potential_group_columns": [
+        "year"
+      ]
+    },
+    "feature_target_alignment": {
+      "status": "pass",
+      "findings": [
+        "Features excluded: 1 / 3 (33.3%)"
+      ],
+      "severity": "low",
+      "confidence": 0.8
+    },
+    "model_performance_baseline": {
+      "status": "pass",
+      "findings": [
+        "Best holdout R\u00b2: 0.9294, CV R\u00b2: 0.9219"
+      ],
+      "severity": "low",
+      "confidence": 0.8,
+      "best_r2": 0.9293704739339764,
+      "overfitting_detected": false
+    },
+    "data_distribution_drift": {
+      "status": "fail",
+      "findings": [
+        "Max KS statistic: 0.985",
+        "High-drift features (1): feature_1 (KS=0.985)"
+      ],
+      "severity": "high",
+      "confidence": 0.6,
+      "high_drift_features": [
+        "feature_1 (KS=0.985)"
+      ]
+    }
+  },
+  "overall_audit_result": "fail",
+  "critical_findings": [
+    {
+      "check": "data_distribution_drift",
+      "status": "fail",
+      "severity": "high",
+      "description": "Max KS statistic: 0.985; High-drift features (1): feature_1 (KS=0.985)"
+    }
+  ],
+  "remediation_actions": [
+    {
+      "action_id": "split_by_grouping_column",
+      "severity": "high",
+      "description": "Train separate models per group (year)",
+      "affected_steps": [
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "suggested_parameters": {
+        "group_column": "year"
+      }
+    },
+    {
+      "action_id": "remove_monotonic_index_features",
+      "severity": "high",
+      "description": "Remove high-drift features",
+      "affected_steps": [
+        "12",
+        "13"
+      ],
+      "suggested_parameters": {
+        "high_drift_features": [
+          "feature_1 (KS=0.985)"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "step": "15-model-selection",
+  "run_id": "20260524T203556Z",
+  "selected_model": "random_forest",
+  "weighted_score": 1.0,
+  "rationale": "Selected random_forest with weighted score 1.000. Best R\u00b2 on holdout: 0.819. Model provides best balance of accuracy, error metrics, and training stability.",
+  "quality_flag": "acceptable",
+  "candidate_analysis": {
+    "ridge": {
+      "r2": 0.10057342866061869,
+      "status": "subpar",
+      "score": 0.0006273205797658776,
+      "rationale": "R\u00b2=0.101, RMSE=10.253, MAE=8.614"
+    },
+    "random_forest": {
+      "r2": 0.8187091840513587,
+      "status": "acceptable",
+      "score": 1.0,
+      "rationale": "R\u00b2=0.819, RMSE=4.603, MAE=3.505"
+    },
+    "gradient_boosting": {
+      "r2": 0.8144478193632594,
+      "status": "acceptable",
+      "score": 0.9920435768025143,
+      "rationale": "R\u00b2=0.814, RMSE=4.657, MAE=3.531"
+    },
+    "elasticnet": {
+      "r2": 0.10065610818387782,
+      "status": "subpar",
+      "score": 0.010436843481684053,
+      "rationale": "R\u00b2=0.101, RMSE=10.252, MAE=8.636"
+    }
+  },
+  "full_ranking": [
+    {
+      "model_name": "random_forest",
+      "weighted_score": 1.0,
+      "status": "eligible"
+    },
+    {
+      "model_name": "gradient_boosting",
+      "weighted_score": 0.9920435768025143,
+      "status": "eligible"
+    },
+    {
+      "model_name": "elasticnet",
+      "weighted_score": 0.010436843481684053,
+      "status": "eligible"
+    },
+    {
+      "model_name": "ridge",
+      "weighted_score": 0.0006273205797658776,
+      "status": "eligible"
+    }
+  ],
+  "baselines": {
+    "mean_baseline_r2": 0.0,
+    "mean_baseline_description": "Predicting the mean target value"
+  }
+}

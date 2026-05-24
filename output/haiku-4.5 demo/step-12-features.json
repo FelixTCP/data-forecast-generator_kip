@@ -1,0 +1,62 @@
+{
+  "step": "12-feature-extraction",
+  "run_id": "20260524T211328Z",
+  "features": [
+    "year",
+    "month",
+    "day_of_week",
+    "quarter",
+    "avgtemperature_lag_1",
+    "avgtemperature_lag_2",
+    "avgtemperature_lag_3",
+    "avgtemperature_lag_4",
+    "avgtemperature_lag_5",
+    "month_lag_1",
+    "month_lag_2",
+    "month_lag_3",
+    "month_lag_6",
+    "month_lag_12",
+    "avgtemperature_rolling_mean_3",
+    "avgtemperature_rolling_mean_7"
+  ],
+  "features_count": 16,
+  "features_excluded": {},
+  "excluded_count": 0,
+  "target_column": "avgtemperature",
+  "split_strategy": {
+    "resolved_mode": "time_series"
+  },
+  "leakage": {
+    "status": "pass",
+    "leakage_candidates": [],
+    "threshold": 0.98,
+    "reconstruction_probe_r2": null
+  },
+  "scaling_metadata": {
+    "scaler_used": "StandardScaler",
+    "features_scaled": [
+      "year",
+      "month",
+      "day_of_week",
+      "quarter",
+      "avgtemperature_lag_1",
+      "avgtemperature_lag_2",
+      "avgtemperature_lag_3",
+      "avgtemperature_lag_4",
+      "avgtemperature_lag_5",
+      "month_lag_1",
+      "month_lag_2",
+      "month_lag_3",
+      "month_lag_6",
+      "month_lag_12",
+      "avgtemperature_rolling_mean_3",
+      "avgtemperature_rolling_mean_7"
+    ],
+    "features_not_scaled": [],
+    "scaler_path": "output\\20260524T211328Z\\scaler.joblib"
+  },
+  "artifacts": {
+    "features_parquet": "output\\20260524T211328Z\\features.parquet",
+    "scaler_joblib": "output\\20260524T211328Z\\scaler.joblib"
+  }
+}

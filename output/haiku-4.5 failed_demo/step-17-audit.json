@@ -1,0 +1,56 @@
+{
+  "step": "17-critical-self-audit",
+  "run_id": "20260524T203556Z",
+  "data_profile": {
+    "detected_profile": "generic_regression",
+    "confidence": 0.5,
+    "characteristics": [
+      "static_features"
+    ]
+  },
+  "checks": {
+    "temporal_consistency": {
+      "status": "pass",
+      "findings": [
+        "No time column detected"
+      ],
+      "severity": "low",
+      "confidence": 1.0
+    },
+    "multi_series_detection": {
+      "status": "pass",
+      "findings": [
+        "Single series detected (expected for univariate)"
+      ],
+      "severity": "low",
+      "confidence": 0.8
+    },
+    "feature_target_alignment": {
+      "status": "pass",
+      "findings": [
+        "Good feature-target alignment: 2 features, exclusion rate 33.3%"
+      ],
+      "severity": "low",
+      "confidence": 0.8
+    },
+    "model_performance_baseline": {
+      "status": "pass",
+      "findings": [
+        "Good model performance (R\u00b2=0.819, exceeds threshold 0.5)"
+      ],
+      "severity": "low",
+      "confidence": 0.9
+    },
+    "data_distribution_drift": {
+      "status": "pass",
+      "findings": [
+        "No significant distribution drift detected"
+      ],
+      "severity": "low",
+      "confidence": 0.9
+    }
+  },
+  "overall_audit_result": "pass",
+  "critical_findings": [],
+  "remediation_actions": []
+}

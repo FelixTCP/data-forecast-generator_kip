@@ -1,0 +1,15 @@
+{
+  "run_id": "20260524T211328Z",
+  "csv_path": "artifacts\\ui_uploads\\algiers_temperature.csv",
+  "target_column": "avgtemperature",
+  "status": "completed",
+  "current_step": "17-critical-self-audit",
+  "completed_steps": [
+    "10-csv-read-cleansing",
+    "15-model-selection",
+    "16-result-presentation",
+    "17-critical-self-audit"
+  ],
+  "errors": [],
+  "final_audit_result": "fail"
+}

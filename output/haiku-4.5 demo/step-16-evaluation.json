@@ -1,0 +1,19 @@
+{
+  "step": "16-result-presentation",
+  "run_id": "20260524T211328Z",
+  "selected_model": "gradient_boosting",
+  "quality_flag": "acceptable",
+  "r2_holdout": 0.9293704739339764,
+  "rmse_holdout": 2.87173141739443,
+  "mae_holdout": 2.1032291218733077,
+  "feature_count": 16,
+  "row_count": 9266,
+  "target_column": "avgtemperature",
+  "production_ready": true,
+  "artifacts": {
+    "report_md": "step-16-report.md",
+    "model_joblib": "model.joblib",
+    "holdout_npz": "holdout.npz",
+    "features_parquet": "features.parquet"
+  }
+}
