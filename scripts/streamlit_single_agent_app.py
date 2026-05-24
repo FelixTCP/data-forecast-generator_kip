@@ -3,10 +3,11 @@ Streamlit UI for Single Agent Pipeline — Professional data scientist dashboard
 
 Five views:
   Tab 1 — EDA       : stationarity, Hurst, ACF/PACF, MI, outliers, seasonality
-  Tab 2 — Models    : filterable comparison of all trained candidates
-  Tab 3 — Best Model: SHAP, residuals, detailed metrics
-  Tab 4 — Report    : full step-16-report.md
-  Tab 5 — Audit     : critical self-audit results, remediation actions
+  Tab 2 — Features  : feature groups, importances, PCA, correlation, data preview
+  Tab 3 — Models    : filterable comparison of all trained candidates
+  Tab 4 — Best Model: SHAP, residuals, detailed metrics
+  Tab 5 — Report    : full step-16-report.md
+  Tab 6 — Audit     : critical self-audit results, remediation actions
 """
 
 from __future__ import annotations
@@ -82,27 +83,89 @@ def _save_uploaded_csv(uploaded_file, destination_dir: Path) -> Path:
     return destination_path
 
 
+def _find_copilot_cli() -> str | None:
+    """Return the absolute path to the Copilot CLI binary, or None if not found.
+
+    Probe order (most reliable first):
+    1. System-wide installer EXE — works standalone, no VS Code required.
+    2. 'copilot' on the current PATH — works inside VS Code terminals where
+       the VS Code proxy BAT/shim is injected into PATH automatically.
+    3. VS Code global-storage proxy BAT (absolute path) — last resort; only
+       probed if VS Code is running as the proxy host.
+    """
+    import shutil, os, sys
+
+    def _probe(binary: str) -> bool:
+        """Run --version with stdin closed so interactive prompts never block."""
+        try:
+            r = subprocess.run(
+                [binary, "--version"],
+                stdin=subprocess.DEVNULL,
+                capture_output=True, text=True, timeout=5,
+            )
+            return r.returncode == 0
+        except Exception:
+            return False
+
+    # 1. System-wide installer locations (standalone EXE — preferred).
+    if sys.platform == "win32":
+        system_candidates = [
+            Path(r"C:\Program Files\GitHub Copilot CLI\copilot.exe"),
+            Path(r"C:\Program Files (x86)\GitHub Copilot CLI\copilot.exe"),
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "GitHub Copilot CLI" / "copilot.exe",
+        ]
+    else:
+        system_candidates = [
+            Path("/usr/local/bin/copilot"),
+            Path(os.path.expanduser("~/.local/bin/copilot")),
+        ]
+
+    for candidate in system_candidates:
+        if candidate.exists() and _probe(str(candidate)):
+            return str(candidate)
+
+    # 2. PATH lookup — works when launched from a VS Code terminal that has
+    #    injected copilotCli into PATH, or when a real binary is on PATH.
+    found = shutil.which("copilot")
+    if found and not found.lower().endswith(".bat") and _probe(found):
+        return found
+
+    # 3. VS Code proxy BAT (absolute path) — only useful when VS Code is running
+    #    as the proxy. Skip if PATH lookup already failed (BAT needs VS Code env).
+    vscode_appdata = os.environ.get("APPDATA", "")
+    if vscode_appdata:
+        bat = Path(vscode_appdata) / "Code" / "User" / "globalStorage" \
+              / "github.copilot-chat" / "copilotCli" / "copilot.bat"
+        if bat.exists() and _probe(str(bat)):
+            return str(bat)
+
+    # Last: accept a PATH-found .bat if it responded OK (VS Code terminal)
+    if found and _probe(found):
+        return found
+
+    return None
+
+
+def _copilot_cli_available() -> bool:
+    """Return True when any Copilot CLI binary is reachable (PATH or known paths)."""
+    return _find_copilot_cli() is not None
+
+
 def _start_pipeline_process(prompt: str, working_dir: Path,
                               model: str = "claude-haiku-4.5") -> subprocess.Popen[str]:
-    command = ["copilot", "--allow-all-tools", "--allow-all-paths",
+    cli = _find_copilot_cli()
+    if cli is None:
+        raise FileNotFoundError(
+            "Copilot CLI not found. Install it via 'npm install -g @github/copilot-cli' "
+            "or enable the Copilot Chat VS Code extension."
+        )
+    command = [cli, "--allow-all-tools", "--allow-all-paths",
                "--allow-all-urls", "--no-ask-user", "--model", model]
     if "gpt" in model.lower():
         command.extend(["--reasoning-effort", "low"])
     command.extend(["-s", "-p", prompt])
     return subprocess.Popen(command, cwd=working_dir,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-
-def _copilot_cli_available() -> bool:
-    """Return True when the `copilot` CLI binary is on PATH."""
-    try:
-        result = subprocess.run(
-            ["copilot", "--version"],
-            capture_output=True, text=True, timeout=5,
-        )
-        return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
 
 
 def _start_orchestrator_process(output_dir: Path, csv_path: Path,
@@ -931,7 +994,593 @@ def _hurst_legend() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Tab 2 — Model Comparison
+# Tab 2 — Feature Engineering
+# ─────────────────────────────────────────────────────────────────────────────
+
+_GROUP_META: dict[str, dict] = {
+    "A":     {"label": "Calendar",        "icon": "🗓️",  "color": "#4C9BE8",
+              "desc": "Date/time structural signals (hour, day, month, elapsed, …)"},
+    "B":     {"label": "Target Lags",     "icon": "⏱️",  "color": "#9B59B6",
+              "desc": "Autoregressive features from past target values"},
+    "C":     {"label": "Exogenous Lags",  "icon": "🔗",  "color": "#27AE60",
+              "desc": "Lagged exogenous variables with significant cross-correlation"},
+    "D":     {"label": "Differencing",    "icon": "📉",  "color": "#E67E22",
+              "desc": "First/seasonal differences for stationarity"},
+    "E":     {"label": "Rolling Stats",   "icon": "📊",  "color": "#16A085",
+              "desc": "Rolling mean, std, min, max & EWM (all lag-shifted)"},
+    "F":     {"label": "Fourier",         "icon": "🌊",  "color": "#E74C3C",
+              "desc": "Harmonic sin/cos components capturing periodic seasonality"},
+    "G":     {"label": "PCA Factors",     "icon": "🧩",  "color": "#F39C12",
+              "desc": "Compressed exogenous signal via PCA (designed for FAAR models)"},
+    "exog":  {"label": "Exogenous (raw)", "icon": "🔤",  "color": "#95A5A6",
+              "desc": "Forward-known exogenous features"},
+    "other": {"label": "Other",           "icon": "🔲",  "color": "#7F8C8D",
+              "desc": "Features that did not match a known pattern"},
+}
+
+# Display order for groups
+_GROUP_ORDER = ["A", "B", "C", "D", "E", "F", "G", "exog", "other"]
+
+
+def _group_meta(g: str) -> dict:
+    """Return display metadata for a group key, generating a fallback for unknown keys."""
+    if g in _GROUP_META:
+        return _GROUP_META[g]
+    # Unknown group — generate a display label from the key itself
+    return {"label": g.replace("_", " ").title(), "icon": "🔲", "color": "#7F8C8D", "desc": ""}
+
+
+def _infer_feature_group(fname: str, target_col: str) -> str:
+    """
+    Infer a feature group letter purely from the feature name.
+
+    Priority order (first match wins):
+      G — PCA factors
+      F — Fourier harmonics
+      D — Differencing
+      E — Rolling / EWM statistics
+      B — Target lags  (prefix matches target, or name starts with y_lag)
+      C — Exogenous lags
+      A — Calendar / time-structural features
+      other — anything else
+    """
+    fl = fname.lower()
+    tc = (target_col or "").lower()
+
+    if "pca_factor" in fl or "pca_component" in fl or re.match(r"^factor_\d+$", fl):
+        return "G"
+    if "fourier_" in fl or "_fourier" in fl:
+        return "F"
+    if "_diff_" in fl or fl.endswith("_diff") or re.search(r"_diff\d+$", fl):
+        return "D"
+    if "rolling_" in fl or "_rolling" in fl or "ewm_" in fl or "_ewm" in fl:
+        return "E"
+    # Lag features — distinguish target vs exogenous by prefix
+    if "_lag_" in fl or re.search(r"_lag\d+$", fl):
+        if fl.startswith("y_lag") or (tc and fl.startswith(tc + "_lag")):
+            return "B"
+        return "C"
+    # Calendar / time-structural
+    _CALENDAR_TOKENS = {
+        "month", "year", "hour", "quarter", "season", "elapsed",
+        "day_of", "day_of_week", "day_of_month", "day_of_year",
+        "week_of", "week_of_year", "month_of", "time_index",
+        "is_weekend", "is_month", "is_holiday", "t_elapsed", "trend",
+    }
+    if fl in ("month", "year", "day", "hour", "week", "quarter", "season"):
+        return "A"
+    if any(tok in fl for tok in _CALENDAR_TOKENS):
+        return "A"
+    # Last resort
+    return "other"
+
+
+def _parse_feature_groups(
+    feature_names: list[str],
+    features_created: dict,
+    target_col: str,
+) -> dict[str, list[str]]:
+    """
+    Group features by engineering type.
+
+    Strategy (in priority order):
+    1. If `features_created` carries group tags (group_A … group_G), use them.
+    2. Otherwise fall back to name-based inference via `_infer_feature_group`.
+
+    Returns {group_key: [feature_names]} preserving the canonical group order.
+    """
+    # --- path 1: tag-based (old schema) ---
+    TAG_MAP = {
+        "group_a": "A", "calendar": "A",
+        "group_b": "B",
+        "group_c": "C",
+        "group_d": "D",
+        "group_e": "E",
+        "group_f": "F",
+        "group_g": "G",
+        "exogenous_forward": "exog",
+        "exog": "exog",
+    }
+    if features_created:
+        groups: dict[str, list[str]] = {}
+        for feat, tag in features_created.items():
+            tl = str(tag).lower()
+            g = next((v for k, v in TAG_MAP.items() if k in tl), "other")
+            groups.setdefault(g, []).append(feat)
+        # Any feature in the feature_names list but missing from features_created
+        # gets assigned by name inference
+        tagged = set(features_created.keys())
+        for feat in feature_names:
+            if feat not in tagged:
+                groups.setdefault(_infer_feature_group(feat, target_col), []).append(feat)
+        return groups
+
+    # --- path 2: name inference (new/minimal schema) ---
+    groups = {}
+    for feat in feature_names:
+        g = _infer_feature_group(feat, target_col)
+        groups.setdefault(g, []).append(feat)
+    return groups
+
+
+def _sorted_groups(groups: dict[str, list[str]]) -> list[str]:
+    """Return group keys in canonical display order; unknown keys appended alphabetically."""
+    known = [g for g in _GROUP_ORDER if g in groups]
+    unknown = sorted(g for g in groups if g not in _GROUP_ORDER)
+    return known + unknown
+
+
+def _render_features_tab(output_dir: Path) -> None:
+    feat_info = _read_json(output_dir / "step-12-features.json")
+    leakage = _read_json(output_dir / "leakage_audit.json")
+    features_parquet = output_dir / "features.parquet"
+
+    if not feat_info:
+        st.info("Feature extraction step not yet complete. Run the pipeline to generate features.")
+        return
+
+    features_created: dict = feat_info.get("features_created", {})
+    # Accept both key spellings used by different pipeline versions
+    feature_count: int = (
+        feat_info.get("feature_count")
+        or feat_info.get("features_count")
+        or len(feat_info.get("features", []))
+        or len(features_created)
+    )
+    features_excluded: dict = feat_info.get("features_excluded", {}) or {}
+    # Normalise: excluded may be a list of strings rather than a dict
+    if isinstance(features_excluded, list):
+        features_excluded = {f: "excluded" for f in features_excluded}
+    target_col: str = feat_info.get("target_column", "")
+    # Feature name list: prefer the explicit 'features' key, fall back to features_created keys
+    feature_names: list[str] = feat_info.get("features") or list(features_created.keys())
+
+    # ── Split info — merge step-12 and step-13 (different schemas may omit fields) ──
+    split_info: dict = feat_info.get("split_strategy", {}) or {}
+    training_json = _read_json(output_dir / "step-13-training.json") or {}
+    train_rows: int | None = (
+        split_info.get("holdout_start_index")
+        or split_info.get("train_row_count")
+        or training_json.get("train_size")
+    )
+    holdout_rows: int | None = (
+        split_info.get("holdout_size")
+        or split_info.get("holdout_row_count")
+        or training_json.get("test_size")
+    )
+    burn_in: int = split_info.get("burn_in_rows", 0) or 0
+    # holdout_start_index for the data preview — reconstruct if missing
+    holdout_start_idx: int | None = (
+        split_info.get("holdout_start_index")
+        or (train_rows if isinstance(train_rows, int) else None)
+    )
+
+    # ── Leakage info — accept inline key or separate leakage_audit.json ─────
+    leakage_data: dict = (
+        leakage
+        or feat_info.get("leakage")
+        or {}
+    )
+
+    # ── PCA info — accept nested pca_info or top-level pca_* keys ───────────
+    pca_info: dict = feat_info.get("pca_info") or {}
+    if not pca_info and feat_info.get("pca_n_components"):
+        pca_info = {
+            "pca_n_components": feat_info.get("pca_n_components"),
+            "pca_explained_variance_ratio": feat_info.get("pca_explained_variance_ratio", []),
+        }
+
+    # ── Scaling metadata (new schema only) ───────────────────────────────────
+    scaling_meta: dict = feat_info.get("scaling_metadata") or {}
+
+    groups = _parse_feature_groups(feature_names, features_created, target_col)
+
+    # ── Feature → group lookup ────────────────────────────────────────────────
+    feat_to_group: dict[str, str] = {}
+    for g, feats in groups.items():
+        for f in feats:
+            feat_to_group[f] = g
+
+    ordered_groups = _sorted_groups(groups)
+
+    # ── Overview KPIs ─────────────────────────────────────────────────────────
+    st.subheader("🧱 Feature Engineering Overview")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Total Features", feature_count)
+    # Count only non-empty groups with meaningful content
+    c2.metric("Feature Groups", len([g for g in groups if groups[g]]))
+    c3.metric("Train Rows", f"{train_rows:,}" if isinstance(train_rows, int) else "—")
+    c4.metric("Holdout Rows", f"{holdout_rows:,}" if isinstance(holdout_rows, int) else "—")
+    c5.metric("Burn-in Dropped", f"{burn_in:,}")
+
+    # Leakage badge
+    if leakage_data:
+        ls = leakage_data.get("status", "unknown")
+        lcolor_map = {"pass": "success", "warn": "warning", "fail": "error"}
+        # Accept different key names for violations
+        violations = (
+            leakage_data.get("pearson_violations")
+            or leakage_data.get("leakage_candidates")
+            or []
+        )
+        msg = (
+            f"**Leakage Audit: {ls.upper()}** — No leakage detected ✓"
+            if ls == "pass"
+            else f"**Leakage Audit: {ls.upper()}** — violations: {violations}"
+        )
+        getattr(st, lcolor_map.get(ls, "info"))(msg)
+
+    # Scaling info badge (new schema)
+    if scaling_meta.get("scaler_used") and scaling_meta["scaler_used"] != "None":
+        st.info(f"Scaler applied: **{scaling_meta['scaler_used']}** on {len(scaling_meta.get('features_scaled', []))} features")
+
+    st.divider()
+
+    # ── Feature Group Breakdown — donut + per-group badge lists ──────────────
+    st.subheader("🎨 Feature Groups Breakdown")
+    col_donut, col_groups = st.columns([1, 1.7])
+
+    with col_donut:
+        g_labels, g_counts, g_colors = [], [], []
+        for g in ordered_groups:
+            meta = _group_meta(g)
+            g_labels.append(f"{meta['icon']} {meta['label']}")
+            g_counts.append(len(groups[g]))
+            g_colors.append(meta["color"])
+
+        fig_donut = go.Figure(go.Pie(
+            labels=g_labels,
+            values=g_counts,
+            hole=0.54,
+            marker_colors=g_colors,
+            textinfo="label+value",
+            hovertemplate="<b>%{label}</b><br>%{value} features (%{percent})<extra></extra>",
+        ))
+        fig_donut.update_layout(
+            showlegend=False,
+            margin=dict(t=10, b=10, l=0, r=0),
+            height=360,
+            annotations=[dict(
+                text=f"<b>{feature_count}</b><br>features",
+                x=0.5, y=0.5, showarrow=False, font=dict(size=17),
+            )],
+        )
+        st.plotly_chart(fig_donut, use_container_width=True)
+
+    with col_groups:
+        for g in ordered_groups:
+            meta = _group_meta(g)
+            feats = groups[g]
+            g_header = g if len(g) == 1 else g.title()
+            with st.expander(
+                f"{meta['icon']} **Group {g_header} — {meta['label']}** &nbsp; `{len(feats)}` features"
+                + (f" &nbsp;·&nbsp; _{meta['desc']}_" if meta.get("desc") else ""),
+                expanded=False,
+            ):
+                badge_html = " ".join(
+                    f'<span style="background:{meta["color"]}22;border:1px solid {meta["color"]}88;'
+                    f'border-radius:5px;padding:2px 8px;font-size:12px;font-family:monospace;'
+                    f'margin:2px 2px;display:inline-block">{f}</span>'
+                    for f in feats
+                )
+                st.markdown(badge_html, unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── Train / Holdout Split Visualisation ──────────────────────────────────
+    st.subheader("📐 Train / Holdout Split")
+    if isinstance(train_rows, int) and isinstance(holdout_rows, int) and train_rows > 0:
+        fig_split = go.Figure()
+        if burn_in:
+            fig_split.add_trace(go.Bar(
+                name="Burn-in (dropped)", x=[burn_in], y=["rows"], orientation="h",
+                marker_color="#BDC3C7",
+                hovertemplate=f"Burn-in: {burn_in:,} rows<extra></extra>",
+            ))
+        fig_split.add_trace(go.Bar(
+            name="Training", x=[train_rows], y=["rows"], orientation="h",
+            marker_color="#3498DB",
+            hovertemplate=f"Training: {train_rows:,} rows<extra></extra>",
+        ))
+        fig_split.add_trace(go.Bar(
+            name="Holdout (test)", x=[holdout_rows], y=["rows"], orientation="h",
+            marker_color="#E74C3C",
+            hovertemplate=f"Holdout: {holdout_rows:,} rows<extra></extra>",
+        ))
+        fig_split.update_layout(
+            barmode="stack", height=120,
+            margin=dict(t=5, b=5, l=5, r=5),
+            template="plotly_white",
+            legend=dict(orientation="h", y=1.5),
+            xaxis_title="Row count",
+        )
+        st.plotly_chart(fig_split, use_container_width=True)
+        pct = holdout_rows / (train_rows + holdout_rows) * 100
+        cs1, cs2, cs3 = st.columns(3)
+        cs1.metric("Training rows", f"{train_rows:,}")
+        cs2.metric("Holdout rows", f"{holdout_rows:,}")
+        cs3.metric("Holdout fraction", f"{pct:.1f}%")
+
+    st.divider()
+
+    # ── Model × Feature Group — importance heatmap + per-model bar charts ────
+    st.subheader("🔬 Feature Importance by Model & Group")
+    candidate_models = sorted(output_dir.glob("candidate-*.joblib"))
+    model_importance_by_group: dict[str, dict[str, float]] = {}
+    feat_importances_raw: dict[str, list[float]] = {}
+    # Track the source of each model's importances for labelling
+    importance_source: dict[str, str] = {}
+
+    for cpath in candidate_models:
+        mname = cpath.stem.replace("candidate-", "")
+        try:
+            mdl = joblib.load(str(cpath))
+            imps: np.ndarray | None = None
+
+            # Unwrap sklearn Pipeline — attributes live on the final estimator
+            estimator = mdl.steps[-1][1] if hasattr(mdl, "steps") else mdl
+
+            # Tree models: Gini impurity-based feature importances
+            if hasattr(estimator, "feature_importances_"):
+                raw = np.array(estimator.feature_importances_)
+                if len(raw) == len(feature_names):
+                    imps = raw
+                    importance_source[mname] = "impurity"
+
+            # Linear models (Ridge, ElasticNet, …): absolute coefficients, normalised
+            elif hasattr(estimator, "coef_"):
+                coef = np.array(estimator.coef_).ravel()
+                if len(coef) == len(feature_names):
+                    abs_coef = np.abs(coef)
+                    total = abs_coef.sum()
+                    imps = abs_coef / total if total > 0 else abs_coef
+                    importance_source[mname] = "coef"
+
+            if imps is not None:
+                feat_importances_raw[mname] = list(imps)
+                group_imp: dict[str, float] = {}
+                for fi, fname in enumerate(feature_names):
+                    g = feat_to_group.get(fname) or _infer_feature_group(fname, target_col)
+                    group_imp[g] = group_imp.get(g, 0.0) + float(imps[fi])
+                model_importance_by_group[mname] = group_imp
+        except Exception:
+            pass
+
+    if model_importance_by_group:
+        # Build x-axis labels that annotate the importance source
+        _source_label = {"impurity": "🌲 impurity", "coef": "📐 |coef|"}
+        model_names_sorted = list(model_importance_by_group.keys())
+        x_labels = [
+            f"{m}\n({_source_label.get(importance_source.get(m, ''), '?')})"
+            for m in model_names_sorted
+        ]
+
+        all_groups_in_data = _sorted_groups(
+            {g: [] for d in model_importance_by_group.values() for g in d}
+        )
+        y_labels = [
+            f"{_group_meta(g)['icon']} {_group_meta(g)['label']}"
+            for g in all_groups_in_data
+        ]
+        z_matrix = [
+            [model_importance_by_group[m].get(g, 0.0) for m in model_names_sorted]
+            for g in all_groups_in_data
+        ]
+        fig_heat = go.Figure(go.Heatmap(
+            z=z_matrix,
+            x=x_labels,
+            y=y_labels,
+            colorscale="Blues",
+            text=[[f"{v:.3f}" for v in row] for row in z_matrix],
+            texttemplate="%{text}",
+            hovertemplate="Group: %{y}<br>Model: %{x}<br>Cumulative importance: %{z:.4f}<extra></extra>",
+        ))
+        fig_heat.update_layout(
+            title=(
+                "Cumulative feature importance per group — "
+                "🌲 tree models: Gini impurity  |  📐 linear models: normalised |coef|"
+            ),
+            height=max(320, len(all_groups_in_data) * 54 + 80),
+            template="plotly_white",
+            xaxis_title="Model",
+            yaxis_title="Feature Group",
+            margin=dict(l=160, r=20, t=60, b=50),
+        )
+        st.plotly_chart(fig_heat, use_container_width=True)
+
+        st.markdown("#### 📌 Top-20 Features per Model")
+        for mname, imps in feat_importances_raw.items():
+            src = importance_source.get(mname, "")
+            src_note = "normalised |coef|" if src == "coef" else "Gini impurity"
+            with st.expander(f"`{mname}` — top 20 features  ·  _{src_note}_", expanded=False):
+                fi_pairs = sorted(zip(feature_names, imps), key=lambda x: x[1], reverse=True)[:20]
+                top_names = [p[0] for p in fi_pairs]
+                top_vals = [p[1] for p in fi_pairs]
+                top_colors = [
+                    _group_meta(feat_to_group.get(n) or _infer_feature_group(n, target_col))["color"]
+                    for n in top_names
+                ]
+                top_labels = [
+                    f"{_group_meta(feat_to_group.get(n) or _infer_feature_group(n, target_col))['icon']} {n}"
+                    for n in top_names
+                ]
+                fig_fi = go.Figure(go.Bar(
+                    x=top_vals, y=top_labels, orientation="h",
+                    marker_color=top_colors,
+                    text=[f"{v:.4f}" for v in top_vals], textposition="outside",
+                    hovertemplate="<b>%{y}</b><br>Importance: %{x:.5f}<extra></extra>",
+                ))
+                fig_fi.update_layout(
+                    height=max(320, len(top_names) * 28 + 80),
+                    template="plotly_white",
+                    xaxis_title=f"Feature Importance ({src_note})",
+                    margin=dict(l=20, r=70, t=20, b=20),
+                    yaxis=dict(autorange="reversed"),
+                )
+                st.plotly_chart(fig_fi, use_container_width=True)
+    else:
+        st.info(
+            "No feature importances available yet. "
+            "Once the pipeline has run, tree-model (impurity) and linear-model (|coef|) "
+            "importances will appear here."
+        )
+
+    # ── PCA Variance Explained ────────────────────────────────────────────────
+    if pca_info.get("pca_n_components"):
+        st.divider()
+        st.subheader("🧩 PCA Factor Analysis (Group G)")
+        evr = pca_info.get("pca_explained_variance_ratio", [])
+        n_comp = pca_info.get("pca_n_components", len(evr))
+        if evr:
+            cumulative = np.cumsum(evr).tolist()
+            comp_labels = [f"PC{i + 1}" for i in range(len(evr))]
+            fig_pca = go.Figure()
+            fig_pca.add_trace(go.Bar(
+                name="Individual", x=comp_labels, y=evr,
+                marker_color="#F39C12",
+                text=[f"{v:.1%}" for v in evr], textposition="outside",
+            ))
+            fig_pca.add_trace(go.Scatter(
+                name="Cumulative", x=comp_labels, y=cumulative,
+                mode="lines+markers", line=dict(color="#E74C3C", width=2),
+                yaxis="y2",
+            ))
+            fig_pca.update_layout(
+                title=f"PCA Explained Variance — {n_comp} components retained",
+                yaxis=dict(title="Individual Variance", tickformat=".0%", range=[0, max(evr) * 1.35]),
+                yaxis2=dict(
+                    title="Cumulative Variance", overlaying="y", side="right",
+                    tickformat=".0%", range=[0, 1.08],
+                ),
+                template="plotly_white", height=360,
+                legend=dict(orientation="h", y=1.15),
+                margin=dict(t=60, b=40),
+            )
+            st.plotly_chart(fig_pca, use_container_width=True)
+            cp1, cp2 = st.columns(2)
+            cp1.metric("Components retained", n_comp)
+            cp2.metric("Variance captured", f"{cumulative[-1]:.1%}")
+
+    # ── Feature–Target Correlation ────────────────────────────────────────────
+    if features_parquet.exists():
+        st.divider()
+        st.subheader("📈 Feature–Target Correlation (top 25)")
+        try:
+            df = pl.read_parquet(features_parquet)
+            # Detect target column: use feat_info, or fallback to second column
+            tgt = target_col or (df.columns[1] if len(df.columns) > 1 else None)
+            if tgt and tgt in df.columns:
+                tgt_arr = df[tgt].to_numpy(allow_copy=True).astype(float)
+                corrs: dict[str, float] = {}
+                for c in df.columns:
+                    if c in (tgt, "date"):
+                        continue
+                    try:
+                        arr = df[c].cast(pl.Float64).to_numpy(allow_copy=True)
+                        mask = ~(np.isnan(arr) | np.isnan(tgt_arr))
+                        if mask.sum() > 10:
+                            corrs[c] = float(np.corrcoef(arr[mask], tgt_arr[mask])[0, 1])
+                    except Exception:
+                        pass
+                sorted_corrs = sorted(corrs.items(), key=lambda x: abs(x[1]), reverse=True)[:25]
+                if sorted_corrs:
+                    c_names = [p[0] for p in sorted_corrs]
+                    c_vals = [p[1] for p in sorted_corrs]
+                    c_colors = [
+                        _group_meta(feat_to_group.get(n) or _infer_feature_group(n, target_col))["color"]
+                        for n in c_names
+                    ]
+                    c_labels = [
+                        f"{_group_meta(feat_to_group.get(n) or _infer_feature_group(n, target_col))['icon']} {n}"
+                        for n in c_names
+                    ]
+                    fig_corr = go.Figure(go.Bar(
+                        x=c_vals, y=c_labels, orientation="h",
+                        marker_color=c_colors,
+                        text=[f"{v:+.3f}" for v in c_vals], textposition="outside",
+                        hovertemplate="<b>%{y}</b><br>Pearson r = %{x:+.4f}<extra></extra>",
+                    ))
+                    fig_corr.update_layout(
+                        template="plotly_white",
+                        height=max(380, len(c_names) * 28 + 80),
+                        xaxis_title=f"Pearson r  with  {tgt}",
+                        xaxis=dict(range=[-1.08, 1.08]),
+                        yaxis=dict(autorange="reversed"),
+                        margin=dict(l=20, r=70, t=20, b=20),
+                    )
+                    st.plotly_chart(fig_corr, use_container_width=True)
+                    active_groups = _sorted_groups(
+                        {g: [] for g in feat_to_group.values()}
+                    )
+                    st.caption(
+                        "Colour = feature group: "
+                        + "  ".join(
+                            f'<span style="color:{_group_meta(g)["color"]};font-weight:bold">'
+                            f'{_group_meta(g)["icon"]} {_group_meta(g)["label"]}</span>'
+                            for g in active_groups
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Data preview
+            st.subheader("🗃️ Features Data Preview")
+            hi = holdout_start_idx
+            if isinstance(hi, int) and 0 < hi < len(df):
+                split_caption = (
+                    f"📦 **{len(df):,} rows × {df.width} columns** | "
+                    f"Train: rows 0–{hi - 1} | Holdout: rows {hi}–{len(df) - 1}"
+                )
+            else:
+                split_caption = f"📦 **{len(df):,} rows × {df.width} columns**"
+            st.caption(split_caption)
+            non_meta_cols = [c for c in df.columns if c not in ("date", tgt or "")]
+            preview_cols = st.multiselect(
+                "Select features to preview:",
+                options=non_meta_cols,
+                default=non_meta_cols[:min(8, len(non_meta_cols))],
+                key="feat_preview_cols",
+            )
+            show_cols = (["date"] if "date" in df.columns else []) + ([tgt] if tgt else []) + preview_cols
+            n_show = st.slider("Rows to display:", 5, 50, 10, key="feat_preview_rows")
+            st.dataframe(
+                df.select([c for c in show_cols if c in df.columns]).head(n_show).to_pandas(),
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.warning(f"Could not load features.parquet: {e}")
+
+    # ── Excluded Features ────────────────────────────────────────────────────
+    if features_excluded:
+        st.divider()
+        st.subheader("🗑️ Excluded Features")
+        st.dataframe(
+            [{"Feature": k, "Reason": v} for k, v in features_excluded.items()],
+            use_container_width=True,
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tab 3 — Model Comparison
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _collect_all_entries(training: dict | None, evaluation: dict | None) -> list[dict]:
@@ -1820,45 +2469,6 @@ def _render_audit_tab(output_dir: Path) -> None:
 # Launch mode handlers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _handle_vscode_mode(prompt: str, output_dir: Path, llm_model: str) -> None:
-    """
-    VS Code Chat mode: display the agent prompt so the user can paste it into
-    VS Code Copilot Chat, then poll the output directory for live progress.
-    """
-    st.subheader("📋 Paste this into VS Code Copilot Chat")
-    st.markdown(
-        "1. Open **GitHub Copilot Chat** in VS Code (`Ctrl+Alt+I`)\n"
-        "2. Select the **`Single Agent Pipeline`** agent from the agent dropdown\n"
-        "   (or prefix your message with `@Single Agent Pipeline`)\n"
-        "3. Copy the prompt below and send it\n"
-        "4. This page will automatically update as the agent writes output files"
-    )
-    st.code(prompt, language="text")
-    st.info(
-        f"The agent will write its output to:\n`{output_dir}`\n\n"
-        "This dashboard will refresh every 3 seconds once output files appear."
-    )
-
-    # Poll for progress while the user runs the agent
-    st.markdown("---")
-    st.subheader("⏱️ Live Progress Monitor")
-    started_at = time.monotonic()
-    monitor_ph = st.empty()
-
-    # Run up to ~6 hours of polling (7200 iterations × 3 s)
-    # In practice the user stops monitoring by navigating away or the run completes.
-    for _ in range(7200):
-        with monitor_ph.container():
-            progress = _render_live_status(output_dir, started_at)
-            if progress and progress.get("status") in ("completed", "failed", "error"):
-                break
-        time.sleep(3.0)
-    
-    # Save metadata when pipeline completes
-    elapsed = time.monotonic() - started_at
-    _save_metadata(output_dir, llm_model, elapsed)
-
-
 def _handle_cli_mode(prompt: str, output_dir: Path, model: str) -> None:
     """Copilot CLI mode: launch the agent subprocess and stream live progress."""
     st.subheader("⏱️ Pipeline Running (CLI)")
@@ -1962,8 +2572,6 @@ def main() -> None:
                        layout="wide", initial_sidebar_state="expanded")
     st.title("⏱️ Time Series Forecasting Pipeline")
 
-    cli_available = _copilot_cli_available()
-
     # ── Sidebar ──────────────────────────────────────────────────────────────
     with st.sidebar:
         st.header("⚙️ Configuration")
@@ -1977,20 +2585,6 @@ def main() -> None:
         st.markdown("---")
         st.subheader("▶️ Start New Run")
 
-        # Mode selector — only show CLI option when available
-        if cli_available:
-            launch_mode = st.radio(
-                "Launch mode",
-                options=["VS Code Chat", "Copilot CLI"],
-                index=0,
-                help=("VS Code Chat: generates the prompt for you to paste into "
-                      "VS Code Copilot Chat, then monitors progress.\n"
-                      "Copilot CLI: runs the agent automatically via the CLI."),
-            )
-        else:
-            launch_mode = "VS Code Chat"
-            st.info("Copilot CLI not found — using VS Code Chat mode.")
-
         uploaded = st.file_uploader("Upload CSV", type=["csv"])
         output_dir_input = st.text_input(
             "Output directory",
@@ -1998,7 +2592,7 @@ def main() -> None:
         )
         selected_model = st.selectbox(
             "Copilot model",
-            options=["claude-haiku-4.5", "gpt-5-mini"],
+            options=["claude-haiku-4.5", "claude-sonnet-4.6", "gpt-5.4-mini", ],
             index=0,
         )
 
@@ -2011,14 +2605,9 @@ def main() -> None:
             target_column = st.selectbox("🎯 Target column", options=dataframe.columns)
             st.caption(f"{dataframe.shape[0]} rows × {dataframe.shape[1]} cols")
 
-        if launch_mode == "VS Code Chat":
-            submitted = st.button("📋 Generate Prompt & Monitor", type="primary",
-                                  use_container_width=True,
-                                  disabled=(uploaded is None))
-        else:
-            submitted = st.button("▶️ Run Pipeline (CLI)", type="primary",
-                                  use_container_width=True,
-                                  disabled=(uploaded is None))
+        submitted = st.button("▶️ Run Pipeline (CLI)", type="primary",
+                              use_container_width=True,
+                              disabled=(uploaded is None))
 
         # Re-run with existing scripts (no agent needed)
         active_dir_for_rerun: Path | None = None
@@ -2069,10 +2658,7 @@ def main() -> None:
             output_dir=active_dir, copilot_model=selected_model,
         )
 
-        if launch_mode == "VS Code Chat":
-            _handle_vscode_mode(prompt, active_dir, selected_model)
-        else:
-            _handle_cli_mode(prompt, active_dir, selected_model)
+        _handle_cli_mode(prompt, active_dir, selected_model)
 
     # ── Show results in tabs ──────────────────────────────────────────────────
     if active_dir is None:
@@ -2103,8 +2689,9 @@ The pipeline runs 8 steps:
         st.info(f"No pipeline output found in `{active_dir.name}` yet.")
         return
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "🔍 EDA",
+        "⚙️ Features",
         "🏋️ Model Comparison",
         "🏆 Best Model",
         "📄 Report",
@@ -2115,15 +2702,18 @@ The pipeline runs 8 steps:
         _render_eda_tab(active_dir)
 
     with tab2:
-        _render_model_comparison_tab(active_dir)
+        _render_features_tab(active_dir)
 
     with tab3:
-        _render_best_model_tab(active_dir)
+        _render_model_comparison_tab(active_dir)
 
     with tab4:
+        _render_best_model_tab(active_dir)
+
+    with tab5:
         _render_report_tab(active_dir)
     
-    with tab5:
+    with tab6:
         _render_audit_tab(active_dir)
 
 
