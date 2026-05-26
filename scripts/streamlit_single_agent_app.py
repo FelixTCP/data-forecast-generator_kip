@@ -57,6 +57,160 @@ _NEG_COLOR = "rgb(200, 0, 0)"
 def _normalize_column_name(value: str) -> str:
     return re.sub(r"_+", "_", value.strip().lower().replace(" ", "_")).strip("_")
 
+def _read_uploaded_dataframe(raw_bytes: bytes) -> pl.DataFrame:
+    first_line = raw_bytes.split(b"\n", 1)[0].decode("utf-8", errors="replace")
+    separator = ";" if first_line.count(";") > first_line.count(",") else ","
+
+    read_options = {
+        "separator": separator,
+        "try_parse_dates": True,
+        "truncate_ragged_lines": True,
+    }
+
+    try:
+        return pl.read_csv(BytesIO(raw_bytes), **read_options)
+    except pl.exceptions.ComputeError:
+        # Retry with a wider inference window so mixed integer/float columns are
+        # detected as floating-point instead of being locked in as Int64.
+        return pl.read_csv(
+            BytesIO(raw_bytes),
+            **read_options,
+            infer_schema_length=10_000,
+        )
+
+# Keywords that strongly suggest a column is a good regression target
+_TARGET_KEYWORDS = [
+    "target", "sales", "revenue", "price", "amount", "total", "value",
+    "demand", "quantity", "volume", "count", "cost", "profit", "income",
+    "output", "production", "consumption", "forecast", "energy", "power",
+    "load", "usage", "temperature", "temp", "close", "appliance", "y",
+]
+
+# Keywords that suggest a column should NOT be the target
+_EXCLUDE_KEYWORDS = [
+    "id", "index", "key", "uuid", "date", "time", "year", "month",
+    "day", "hour", "minute", "second", "timestamp", "created", "updated",
+]
+
+_NUMERIC_DTYPES = (pl.Float32, pl.Float64, pl.Int8, pl.Int16, pl.Int32, pl.Int64,
+                   pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64)
+
+
+def _coerce_series_to_numeric(series: pl.Series) -> tuple[pl.Series | None, float]:
+    if series.dtype in _NUMERIC_DTYPES:
+        numeric = series.cast(pl.Float64)
+    else:
+        numeric = (
+            series.cast(pl.String, strict=False)
+            .str.strip_chars()
+            .str.replace_all(",", ".")
+            .cast(pl.Float64, strict=False)
+        )
+
+    non_null = numeric.drop_nulls()
+    if len(non_null) == 0:
+        return None, 0.0
+
+    return numeric, len(non_null) / len(series)
+
+
+def _pairwise_abs_correlation(left: np.ndarray, right: np.ndarray) -> float:
+    mask = np.isfinite(left) & np.isfinite(right)
+    if mask.sum() < 3:
+        return 0.0
+
+    left_values = left[mask]
+    right_values = right[mask]
+    if np.std(left_values) == 0 or np.std(right_values) == 0:
+        return 0.0
+
+    corr = np.corrcoef(left_values, right_values)[0, 1]
+    if not np.isfinite(corr):
+        return 0.0
+    return abs(float(corr))
+
+
+def _recommend_target_column(df: pl.DataFrame) -> str:
+    """Heuristically recommend the most suitable regression target column."""
+    if not df.columns:
+        return ""
+
+    n_rows = len(df)
+    normalized_columns = {_normalize_column_name(col) for col in df.columns}
+    has_ohlc_price_columns = len({"open", "high", "low", "close"} & normalized_columns) >= 2
+
+    candidates: list[dict[str, object]] = []
+    for col in df.columns:
+        col_lower = col.lower()
+        col_normalized = _normalize_column_name(col)
+
+        numeric_series, parsed_ratio = _coerce_series_to_numeric(df[col])
+        if numeric_series is None or parsed_ratio < 0.8:
+            continue
+
+        non_null = numeric_series.drop_nulls()
+
+        # Skip columns with too few unique values (likely categorical/binary)
+        n_unique = non_null.n_unique()
+        if n_unique <= 2:
+            continue
+
+        # Skip ID-like columns (near 100 % unique) or excluded keywords
+        if any(kw in col_lower for kw in _EXCLUDE_KEYWORDS):
+            continue
+        if n_rows > 10 and n_unique / n_rows > 0.99:
+            continue
+
+        score = 0.0
+
+        # Boost for target-related keywords
+        for kw in _TARGET_KEYWORDS:
+            if kw == col_lower or kw in col_lower:
+                score += 2.0
+                break
+
+        if has_ohlc_price_columns and col_normalized in {"open", "high", "low", "close"}:
+            score += 1.0
+        elif has_ohlc_price_columns and col_normalized == "volume":
+            score -= 1.5
+
+        # Use coefficient of variation as a signal of forecast-worthiness
+        col_std = non_null.std() or 0.0
+        col_mean = non_null.mean() or 0.0
+        if col_mean != 0:
+            score += min(abs(col_std / col_mean), 2.0)
+
+        # Prefer columns that can actually be parsed reliably from CSV input.
+        score += parsed_ratio
+
+        # Slight preference for the last numeric column (often the target in many CSVs)
+        if col == df.columns[-1]:
+            score += 0.25
+
+        candidates.append(
+            {
+                "column": col,
+                "score": score,
+                "values": numeric_series.to_numpy(),
+            }
+        )
+
+    if not candidates:
+        # Fallback: last column
+        return df.columns[-1]
+
+    for candidate in candidates:
+        correlations = sorted(
+            _pairwise_abs_correlation(candidate["values"], other["values"])
+            for other in candidates
+            if other["column"] != candidate["column"]
+        )
+        if correlations:
+            candidate["score"] += sum(correlations[-3:]) / min(len(correlations), 3)
+
+    candidates.sort(key=lambda item: (item["score"], item["column"]), reverse=True)
+    return str(candidates[0]["column"])
+
 
 def _render_single_agent_prompt(csv_path: Path, target_column: str,
                                  output_dir: Path, copilot_model: str) -> str:
@@ -2599,10 +2753,15 @@ def main() -> None:
         target_column: str | None = None
         if uploaded is not None:
             _raw = uploaded.getvalue()
-            _first_line = _raw.split(b"\n", 1)[0].decode("utf-8", errors="replace")
-            _sep = ";" if _first_line.count(";") > _first_line.count(",") else ","
-            dataframe = pl.read_csv(BytesIO(_raw), separator=_sep, try_parse_dates=True, truncate_ragged_lines=True)
-            target_column = st.selectbox("🎯 Target column", options=dataframe.columns)
+            dataframe = _read_uploaded_dataframe(_raw)
+            recommended_col = _recommend_target_column(dataframe)
+            st.info(f"💡 Empfohlene Zielspalte: **{recommended_col}**")
+            default_idx = list(dataframe.columns).index(recommended_col) if recommended_col in dataframe.columns else 0
+            target_column = st.selectbox(
+                "🎯 Zielspalte auswählen",
+                options=dataframe.columns,
+                index=default_idx,
+            )
             st.caption(f"{dataframe.shape[0]} rows × {dataframe.shape[1]} cols")
 
         submitted = st.button("▶️ Run Pipeline (CLI)", type="primary",
