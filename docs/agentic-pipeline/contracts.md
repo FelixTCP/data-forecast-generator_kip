@@ -51,6 +51,7 @@ This pipeline is for real forecasting. Any target leakage invalidates the run.
 | 15 — Model Selection      | `CODE_DIR/step_15_selection.py`   | `step-15-selection.json`   |
 | 16 — Result Presentation  | `CODE_DIR/step_16_report.py`      | `step-16-report.md`        |
 | 17 — Critical Self-Audit  | `CODE_DIR/step_17_audit.py`       | `step-17-audit.json`       |
+| 18 — LLM-as-a-Judge       | Single-Agent judge instruction    | `step-18-judge.json`       |
 | Orchestrator              | `CODE_DIR/orchestrator.py`        | —                          |
 
 ## Step Script Contract
@@ -78,22 +79,22 @@ If any of the three checks above fail, the step must be re-run (re-execution is 
 
 ## Remediation Loop Contract
 
-**The pipeline is not considered complete until the Self-Audit (Step 17) passes or `MAX_REMEDIATION_ITERATIONS = 3` remediation rounds have been completed.**
+**The pipeline is not considered complete until the Self-Audit (Step 17) passes and Step 18 has written `step-18-judge.json` and `step-18-judge.md`.**
 
 ### Procedure
 
-1. After all 9 steps complete, the orchestrator reads `step-17-audit.json`.
-2. `overall_audit_result == "pass"` → Pipeline is immediately finalized.
+1. After Steps 10–17 complete, the orchestrator reads `step-17-audit.json`.
+2. `overall_audit_result == "pass"` → Run Step 18, validate `step-18-judge.json` and `step-18-judge.md`, then finalize the pipeline.
 3. `overall_audit_result == "fail"`:
    - **This MUST ALWAYS trigger action. A fail result can never be silently accepted.**
    - All `remediation_actions` with `[AUTO]` type are collected (see `docs/self-audit/remediation.md`).
    - `OUTPUT_DIR/remediation_config.json` is updated with injected parameters.
-   - Output files of all steps from the earliest affected step through Step 17 are deleted.
+   - Output files of all steps from the earliest affected step through Step 18 are deleted.
    - Those steps are re-executed in order with the new parameters.
    - `step-17-audit.json` is re-read. Loop runs for at most `MAX_REMEDIATION_ITERATIONS = 3` iterations.
    - If after all iterations the audit is still `fail`, the orchestrator writes `remediation_required.json` and exits with **code `1`** — the run is NOT finalized as complete.
 4. At the end, `progress.json` receives the `final_audit_result` field (`"pass"` or `"fail"`).
-   - `status = "completed"` is only written when `final_audit_result == "pass"`.
+   - `status = "completed"` is only written when `final_audit_result == "pass"` and Step 18 outputs exist.
    - `status = "remediation_required"` is written when `final_audit_result == "fail"` after all iterations.
 
 ### All actions are now AUTO-executable
@@ -128,6 +129,8 @@ If any of the three checks above fail, the step must be re-run (re-execution is 
 - `OUTPUT_DIR/step-15-selection.json`
 - `OUTPUT_DIR/step-16-report.md`
 - `OUTPUT_DIR/step-17-audit.json` (objective audit results and optional remediation actions)
+- `OUTPUT_DIR/step-18-judge.json` (customer-facing use-case judgement)
+- `OUTPUT_DIR/step-18-judge.md` (customer-readable judge report)
 - `OUTPUT_DIR/code_audit.json` (Python file inventory + hashes per step)
 - `OUTPUT_DIR/leakage_audit.json` (explicit leakage diagnostics and pass/fail decision)
 
@@ -252,3 +255,11 @@ To apply remediation:
 
 See `docs/self-audit/remediation.md` for full remediation protocol and action definitions.
 - `pca_preprocessor.joblib` must be loadable independently; it exposes `transform(X)` for applying the fitted PCA to new exogenous data.
+
+## LLM-as-a-Judge Contract (Step 18)
+
+- Runs automatically after Step 17 passes and any remediation loop has finished successfully.
+- Uses only artifacts from the current `RUN_ID`, especially `progress.json`, `step-11-exploration.json`, `step-12-features.json`, `step-14-evaluation.json`, `step-15-selection.json`, `step-16-report.md`, and `step-17-audit.json` when present.
+- Does not create a separate Judge script, sub-agent, skill, framework, input file, renderer, or extra output folder.
+- Writes exactly `step-18-judge.json` and `step-18-judge.md` in `OUTPUT_DIR`.
+- Follows `docs/pipeline-framework/18-llm-as-judge.md` for the canonical schema, status values, claim rules, and Markdown sections.

@@ -21,6 +21,7 @@ Read these context sources before starting:
 - docs/pipeline-framework/15-model-selection.md
 - docs/pipeline-framework/16-result-presentation.md
 - docs/pipeline-framework/17-critical-self-audit.md
+- docs/pipeline-framework/18-llm-as-judge.md
 
 Operating model:
 - `docs/agentic-pipeline/*` defines runtime contracts and execution protocol.
@@ -28,10 +29,11 @@ Operating model:
 - If guidance conflicts, prefer `docs/pipeline-framework/*` for step logic.
 
 Core rules:
-- One Python file per step (`step_00_pre_exploration.py` … `step_16_report.py`) plus `orchestrator.py`.
+- One Python file per technical step (`step_00_pre_exploration.py` … `step_17_audit.py`) plus `orchestrator.py`; Step 18 is a Markdown-driven judge step that writes `step-18-judge.json` and `step-18-judge.md` directly.
 - Never write a monolithic pipeline script that executes all steps in one file.
 - **FORBIDDEN: Never copy, recycle, or reuse step scripts from previous run directories (`output/<OLD_RUN_ID>/code/`). Every script must be written fresh using file-creation tools (create_file, write_text, etc.). Violation makes the run invalid.**
 - Step 17 (`step_17_audit.py`) is a required step and must always be generated — it is never optional.
+- Step 18 is required after Step 17 passes. It must follow `docs/pipeline-framework/18-llm-as-judge.md` and must not create a separate Judge script, framework, sub-agent, or extra output folder.
 - Follow the Reason → Code → Validate protocol for every step.
 - **Resume behavior:**
   - If orchestrator is called WITH `--resume`: skip steps whose valid outputs already exist in OUTPUT_DIR.

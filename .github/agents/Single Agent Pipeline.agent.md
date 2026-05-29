@@ -1,6 +1,6 @@
 ---
 name: Single Agent Pipeline
-description: Executes the full CSV-to-forecast regression pipeline (steps 10–16) end-to-end as a single agent. Generates one Python file per step under CODE_DIR, validates each step's output before proceeding, supports resuming from the last completed step, and writes all artifacts and a final report to OUTPUT_DIR.
+description: Executes the full CSV-to-forecast regression pipeline (steps 10–18) end-to-end as a single agent. Generates one Python file per technical step under CODE_DIR, validates each step's output before proceeding, supports resuming from the last completed step, and writes all artifacts, audit, judge output, and reports to OUTPUT_DIR.
 argument-hint: "CSV path and target column, e.g.: data/appliances_energy_prediction.csv, target=appliances"
 tools: ['vscode', 'execute', 'read', 'edit', 'search', 'todo']
 ---
@@ -45,7 +45,7 @@ CODE_DIR/
 ├── step_14_evaluation.py
 ├── step_15_selection.py
 ├── step_16_report.py
-└── orchestrator.py        # calls steps in order, handles resume, implements remediation loop after step 17
+└── orchestrator.py        # calls steps in order, handles resume, implements remediation loop after step 17, then runs step 18
 ```
 
 **Why this matters:** If step 13 fails, you only fix and re-run `step_13_training.py`. Steps 10–12 are not re-executed. Fixing one step should never require touching another.
@@ -160,7 +160,15 @@ Before executing a step, check whether it can be skipped:
 - `step-17-audit.json` has `"overall_audit_result"` ("pass" or "fail")
 - `step-17-audit.json` contains `"critical_findings"` array (empty if audit passes, non-empty if audit fails)
 - `step-17-audit.json` contains `"remediation_actions"` array (may be empty)
-- `progress.json` has `"status": "completed"` (ONLY Step 17 marks final completion)
+- `progress.json` remains suitable for Step 18 continuation when the audit passes
+
+### After Step 18
+- `step-18-judge.json` exists and is valid JSON
+- `step-18-judge.md` exists and is customer-readable Markdown
+- `step-18-judge.json` contains `run_id`, `status`, `status_label`, `status_reason`,
+  `final_recommendation`, `use_case`, `ratings`, `metric_meaning`,
+  `business_potential_and_evidence`, `risks_and_caveats`, and `sources`
+- `progress.json` has `"status": "completed"` and `"final_audit_result": "pass"`
 
 ---
 
@@ -247,6 +255,13 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 - **Do NOT set `progress.json` to `"completed"` yet — the Remediation Loop runs next.**
 - Output: `step-17-audit.json`
 
+### Step 18 — LLM-as-a-Judge
+- Read the full spec at `docs/pipeline-framework/18-llm-as-judge.md`.
+- This is a Markdown-driven Single-Agent judge step. Do not create separate Judge scripts, sub-agents, skills, frameworks, input builders, renderers, or extra output folders.
+- Inspect only artifacts from the current `RUN_ID`: `progress.json`, `step-11-exploration.json`, `step-12-features.json`, `step-14-evaluation.json`, `step-15-selection.json`, `step-16-report.md`, and `step-17-audit.json` when present.
+- Apply the use-case judgement, metric interpretation, status, and claim rules from the Step 18 spec.
+- Output: `step-18-judge.json`, `step-18-judge.md`
+
 ---
 
 ## Remediation Loop (After Step 17)
@@ -260,7 +275,10 @@ After Step 17 completes, read `step-17-audit.json` and apply the following proto
 
 ```
 overall_audit_result == "pass"
-  → Set progress.json status="completed", final_audit_result="pass". Done.
+  → Set progress.json final_audit_result="pass".
+  → Run Step 18.
+  → Validate step-18-judge.json and step-18-judge.md.
+  → Set progress.json status="completed". Done.
 
 overall_audit_result == "fail" AND remediation_iteration < MAX_REMEDIATION_ITERATIONS
   → Collect AUTO actions from remediation_actions (see mapping below).
@@ -271,13 +289,13 @@ overall_audit_result == "fail" AND remediation_iteration < MAX_REMEDIATION_ITERA
       → Repeat decision tree.
   → If NO AUTO actions remain (only MANUAL):
       → Write remediation_required.json (see schema below).
-      → Set progress.json status="completed", final_audit_result="fail".
-      → Done (human intervention required).
+      → Set progress.json status="remediation_required", final_audit_result="fail".
+      → Exit with code 1 (human intervention required).
 
 overall_audit_result == "fail" AND remediation_iteration >= MAX_REMEDIATION_ITERATIONS
   → Write remediation_required.json.
-  → Set progress.json status="completed", final_audit_result="fail".
-  → Done (max iterations exhausted).
+  → Set progress.json status="remediation_required", final_audit_result="fail".
+  → Exit with code 1 (max iterations exhausted).
 ```
 
 ### AUTO Action → CLI Parameter Map
@@ -327,7 +345,7 @@ Add a `remediation` block to `progress.json` during the loop:
     "iteration": 1,
     "max_iterations": 3,
     "actions_applied": ["remove_monotonic_index_features"],
-    "steps_rerun": ["12", "13", "14", "15", "17"],
+    "steps_rerun": ["12", "13", "14", "15", "16", "17"],
     "audit_result_before": "fail",
     "audit_result_after": "pass"
   },
@@ -335,7 +353,7 @@ Add a `remediation` block to `progress.json` during the loop:
 }
 ```
 
-**Set `progress.json` status to `"completed"` only after the remediation loop exits** (whether the final audit is `pass` or `fail`).
+**Set `progress.json` status to `"completed"` only after the remediation loop exits with final audit `pass` and Step 18 succeeds.**
 
 ---
 
@@ -376,6 +394,8 @@ OUTPUT_DIR/
 ├── step-15-selection.json
 ├── step-16-report.md
 ├── step-17-audit.json
+├── step-18-judge.json
+├── step-18-judge.md
 └── code/
     ├── step_10_cleanse.py
     ├── step_11_exploration.py
@@ -441,11 +461,12 @@ Context is passed between scripts by serializing it under the `"context"` key of
 
 ## Acceptance Criteria
 
-- All 8 step scripts exist under `CODE_DIR` and are individually executable from the CLI.
+- All technical step scripts exist under `CODE_DIR` and are individually executable from the CLI.
 - Running any single step script in isolation (given prior step outputs) produces correct output without requiring a full pipeline re-run.
 - `model.joblib` loads cleanly in a fresh Python process and `model.predict(X)` runs without error.
 - `step-16-report.md` is human-readable and addresses all 6 sections.
 - `step-17-audit.json` is valid JSON with all five checks present and no `"warning"` status values.
-- `progress.json` has `"status": "completed"` and `"final_audit_result"` set to `"pass"` or `"fail"` at the end.
+- `step-18-judge.json` and `step-18-judge.md` exist after a passing final audit.
+- `progress.json` has `"status": "completed"` and `"final_audit_result": "pass"` at the end of a successful run.
 - All step scripts are inventoried in `code_audit.json`.
 - Every validation gate passes for every step.
