@@ -45,6 +45,7 @@ PIPELINE_STEPS = [
     "16-result-presentation",
     "17-critical-self-audit",
     "18-llm-as-judge",
+    "19-executive-summary",
 ]
 
 _BENCHMARK_NAMES = {"arima_benchmark", "kmeans_benchmark", "naive_persistence", "seasonal_naive",
@@ -2664,6 +2665,65 @@ def _render_audit_tab(output_dir: Path) -> None:
             st.error(f"**{check}** ({severity.upper()}): {desc}")
 
 
+def _render_executive_summary_tab(output_dir: Path) -> None:
+    """Render Step 19 Executive Summary for C-suite."""
+    summary_md_path = output_dir / "step-19-executive-summary.md"
+    summary_json_path = output_dir / "step-19-executive-summary.json"
+
+    if not summary_md_path.exists() and not summary_json_path.exists():
+        st.info("Executive summary not yet available (step 19 pending or Step 18 was not MVP-ready).")
+        return
+
+    if summary_md_path.exists():
+        summary_text = summary_md_path.read_text(encoding="utf-8", errors="replace")
+        
+        # Download button in top-right corner
+        col1, col2 = st.columns([5, 1])
+        with col2:
+            st.download_button(
+                "⬇️ Download Summary",
+                summary_text,
+                file_name="executive_summary.md",
+                mime="text/markdown"
+            )
+        
+        # Render markdown content
+        with col1:
+            st.markdown(summary_text)
+    else:
+        st.info("Markdown report not available, but metadata exists.")
+    
+    # Show metadata if available
+    if summary_json_path.exists():
+        st.divider()
+        st.subheader("📊 Summary Metadata")
+        summary_data = _read_json(summary_json_path)
+        if summary_data:
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Recommendation", summary_data.get("recommendation", "N/A").replace("_", " ").title())
+            with col2:
+                st.metric("Confidence", summary_data.get("confidence_level", "N/A").title())
+            with col3:
+                r2 = summary_data.get("key_metrics", {}).get("model_r2", 0)
+                st.metric("Model R²", f"{r2:.3f}")
+            with col4:
+                confidence_pct = summary_data.get("key_metrics", {}).get("confidence_percent", 0)
+                st.metric("Confidence %", f"{confidence_pct}%")
+            
+            st.write("**Use Case:** " + str(summary_data.get("use_case_summary", "N/A")))
+            
+            if summary_data.get("next_steps"):
+                st.write("**Next Steps:**")
+                for step in summary_data.get("next_steps", []):
+                    st.write(f"• {step}")
+            
+            if summary_data.get("risks"):
+                st.write("**Key Risks:**")
+                for risk in summary_data.get("risks", []):
+                    st.write(f"• {risk}")
+
+
 def _render_judge_tab(output_dir: Path) -> None:
     """Render Step 18 LLM-as-a-Judge results."""
     judge_json_path = output_dir / "step-18-judge.json"
@@ -3161,7 +3221,7 @@ The pipeline runs 9 steps:
         st.info(f"No pipeline output found in `{active_dir.name}` yet.")
         return
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "🔍 EDA",
         "⚙️ Features",
         "🏋️ Model Comparison",
@@ -3169,6 +3229,7 @@ The pipeline runs 9 steps:
         "📄 Report",
         "🔐 Audit",
         "⚖️ Judge",
+        "👔 Executive Summary",
     ])
 
     with tab1:
@@ -3191,6 +3252,9 @@ The pipeline runs 9 steps:
 
     with tab7:
         _render_judge_tab(active_dir)
+    
+    with tab8:
+        _render_executive_summary_tab(active_dir)
 
 
 if __name__ == "__main__":

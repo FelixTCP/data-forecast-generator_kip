@@ -1,6 +1,6 @@
 ---
 name: Single Agent Pipeline
-description: Executes the full CSV-to-forecast regression pipeline (steps 10–18) end-to-end as a single agent. Generates one Python file per technical step under CODE_DIR, validates each step's output before proceeding, supports resuming from the last completed step, and writes all artifacts, audit, judge output, and reports to OUTPUT_DIR.
+description: Executes the full CSV-to-forecast regression pipeline (steps 10–19) end-to-end as a single agent. Generates one Python file per technical step under CODE_DIR (steps 10–17), performs agentic reasoning for steps 18–19, validates each step's output before proceeding, supports resuming from the last completed step, and writes all artifacts, audit, judge output, executive summary, and reports to OUTPUT_DIR.
 argument-hint: "CSV path and target column, e.g.: data/appliances_energy_prediction.csv, target=appliances"
 tools: ['vscode', 'execute', 'read', 'edit', 'search', 'todo']
 ---
@@ -45,7 +45,10 @@ CODE_DIR/
 ├── step_14_evaluation.py
 ├── step_15_selection.py
 ├── step_16_report.py
-└── orchestrator.py        # calls steps in order, handles resume, implements remediation loop after step 17, then runs step 18
+├── step_17_audit.py
+├── step_18_judge.py (may be empty/stub if agentic)
+├── step_19_executive_summary.py (may be empty/stub if agentic)
+└── orchestrator.py        # calls steps in order, handles resume, implements remediation loop after step 17, runs step 18 judge, then triggers step 19 executive summary
 ```
 
 **Why this matters:** If step 13 fails, you only fix and re-run `step_13_training.py`. Steps 10–12 are not re-executed. Fixing one step should never require touching another.
@@ -170,6 +173,16 @@ Before executing a step, check whether it can be skipped:
   `business_potential_and_evidence`, `risks_and_caveats`, and `sources`
 - `progress.json` has `"status": "completed"` and `"final_audit_result": "pass"`
 
+### After Step 19
+- `step-19-executive-summary.md` exists and is at least 400 bytes
+- `step-19-executive-summary.json` exists and is valid JSON
+- `step-19-executive-summary.json` contains all required fields: `step`, `run_id`, `status`, `headline`, `recommendation`, `confidence_level`, `key_metrics`, `next_steps`, `risks`, `report_path`, `generated_at`
+- `step-19-executive-summary.md` contains all 7–8 required section headings (case-insensitive)
+- `recommendation` field is one of: `proceed_to_mvp`, `proceed_with_caution`, `not_recommended`
+- `key_metrics` object contains at least: `model_r2`, `model_rmse`, `model_mae`, `confidence_level`
+- `next_steps` array is non-empty (at least 1 entry)
+- `progress.json` has `"status": "completed"`, `"final_audit_result": "pass"`, and Step 19 is marked complete
+
 ---
 
 ## Step Specifications
@@ -261,6 +274,21 @@ Read the full spec from `docs/pipeline-framework/<NN>-<name>.md` during Phase 1 
 - Inspect only artifacts from the current `RUN_ID`: `progress.json`, `step-11-exploration.json`, `step-12-features.json`, `step-14-evaluation.json`, `step-15-selection.json`, `step-16-report.md`, and `step-17-audit.json` when present.
 - Apply the use-case judgement, metric interpretation, status, and claim rules from the Step 18 spec.
 - Output: `step-18-judge.json`, `step-18-judge.md`
+
+### Step 19 — Executive Summary
+- Read the full spec at `docs/pipeline-framework/19-executive-summary.md`.
+- This is an agentic reasoning step (not a Python script execution).
+- **Trigger**: Only run if Step 18 `status` is one of: `mvp_discussion_ready`, `mvp_discussion_ready_with_caveats`.
+- **Skip condition**: If Step 18 status is not MVP-ready → skip Step 19 gracefully (do not fail pipeline).
+- **Agent reasoning tasks**:
+  1. Read all artifacts: `step-14-evaluation.json`, `step-15-selection.json`, `step-16-report.md`, `step-17-audit.json`, `step-18-judge.json`, `step-18-judge.md`, `step-10-cleanse.json`
+  2. Extract & translate key metrics (R² → confidence %, RMSE/MAE → business terms)
+  3. Synthesize findings into 7–8 C-suite sections (plain English, no ML jargon)
+  4. Generate outputs: `step-19-executive-summary.md` (500–1000 words) + `step-19-executive-summary.json` (metadata)
+  5. Validate both outputs against 7 blocking gates (file existence, structure, required fields)
+  6. Update `progress.json` with Step 19 completion status
+- Tone: Plain English, business-impact framing, C-suite audience (no technical jargon)
+- Output: `step-19-executive-summary.md`, `step-19-executive-summary.json`
 
 ---
 
@@ -396,6 +424,8 @@ OUTPUT_DIR/
 ├── step-17-audit.json
 ├── step-18-judge.json
 ├── step-18-judge.md
+├── step-19-executive-summary.md
+├── step-19-executive-summary.json
 └── code/
     ├── step_10_cleanse.py
     ├── step_11_exploration.py
@@ -405,6 +435,8 @@ OUTPUT_DIR/
     ├── step_15_selection.py
     ├── step_16_report.py
     ├── step_17_audit.py
+    ├── step_18_judge.py
+    ├── step_19_executive_summary.py
     └── orchestrator.py
 ```
 

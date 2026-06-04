@@ -52,6 +52,7 @@ This pipeline is for real forecasting. Any target leakage invalidates the run.
 | 16 — Result Presentation  | `CODE_DIR/step_16_report.py`      | `step-16-report.md`        |
 | 17 — Critical Self-Audit  | `CODE_DIR/step_17_audit.py`       | `step-17-audit.json`       |
 | 18 — LLM-as-a-Judge       | Single-Agent judge instruction    | `step-18-judge.json`       |
+| 19 — Executive Summary    | Agentic reasoning instruction     | `step-19-executive-summary.json` |
 | Orchestrator              | `CODE_DIR/orchestrator.py`        | —                          |
 
 ## Step Script Contract
