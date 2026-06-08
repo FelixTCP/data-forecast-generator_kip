@@ -19,6 +19,9 @@ Der Data Forecast Generator soll aus einer CSV-Datei, einer Zielspalte und Laufp
 5. Evaluation
 6. Modellauswahl
 7. Ergebnisreport
+8. Kritischer Self-Audit
+
+Nach abgeschlossenem Step 17 kann die Streamlit-App automatisch den separaten Post Run Judge Agent starten. Der Judge ist kein Pipeline-Step, sondern bewertet den fertigen Run fuer MVP- und Use-Case-Diskussionen.
 
 ## Artefakte
 
@@ -34,6 +37,9 @@ Ein Run liegt unter `output/<RUN_ID>/` und enthaelt typischerweise:
 - `step-*.json`
 - `step-16-report.md`
 - `code_audit.json`
+- `step-17-audit.json`
+- `step-18-judge.json`
+- `step-18-judge.md`
 
 ## Verifizierter Beispiel-Run
 
@@ -67,10 +73,12 @@ uv run streamlit run scripts/streamlit_single_agent_app.py
 uv run streamlit run scripts/streamlit_inference_app.py
 ```
 
+Die Training-App kann Runs ueber Copilot CLI oder Codex CLI starten und zeigt nach Abschluss einen Judge-Tab mit der Post-run-Bewertung.
+
 ## Roadmap
 
 - Phase 1: Agentische Pipeline fuer CSV-Cleansing, Exploration, Feature Engineering, Training, Evaluation und Reporting
-- Phase 2: Qualitaetsbewertung mit robusten Metriken, Vergleichsbaselines und optionalem LLM-as-Judge
+- Phase 2: Qualitaetsbewertung mit robusten Metriken, Vergleichsbaselines und Post-run Judge-Bewertung
 - Phase 3: Produktisierung mit Frontend, FastAPI-Server, Datei-Workspace und Sandbox-Ausfuehrung
 
 ## Dokumentation

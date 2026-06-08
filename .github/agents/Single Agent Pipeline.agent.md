@@ -449,3 +449,9 @@ Context is passed between scripts by serializing it under the `"context"` key of
 - `progress.json` has `"status": "completed"` and `"final_audit_result"` set to `"pass"` or `"fail"` at the end.
 - All step scripts are inventoried in `code_audit.json`.
 - Every validation gate passes for every step.
+
+---
+
+## Automatic Post-Run Judge Handoff
+
+After Step 17 has finished and `progress.json` has `"status": "completed"`, finish this agent and return control to the application. Do not invoke the Judge or write Judge artifacts yourself. The application must then automatically invoke the separate `Post Run Judge Agent`.
