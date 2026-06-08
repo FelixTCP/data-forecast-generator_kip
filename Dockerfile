@@ -20,13 +20,16 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends gh \
  && rm -rf /var/lib/apt/lists/*
 
-# ── GitHub Copilot CLI ────────────────────────────────────────────────────────
-# Pin global npm prefix to /usr/local so the binary lands in /usr/local/bin
-# (predictable, guaranteed to be in PATH). Authentication via GITHUB_TOKEN.
+# ── Agent CLIs ────────────────────────────────────────────────────────────────
+# Pin global npm prefix to /usr/local so binaries land in /usr/local/bin.
+# Copilot authentication uses GH_TOKEN. Codex can use OPENAI_API_KEY or a
+# mounted CODEX_HOME with an existing login.
 RUN npm config set prefix /usr/local \
- && npm install -g @github/copilot \
+ && npm install -g @github/copilot @openai/codex \
  && ls /usr/local/bin/copilot \
- && echo "copilot installed: $(copilot --version 2>&1 || true)"
+ && ls /usr/local/bin/codex \
+ && echo "copilot installed: $(copilot --version 2>&1 || true)" \
+ && echo "codex installed: $(codex --version 2>&1 || true)"
 
 # ── uv (fast Python package manager) ─────────────────────────────────────────
 RUN pip install --no-cache-dir uv
@@ -44,7 +47,7 @@ ENV UV_SYSTEM_PYTHON=1
 RUN uv sync --no-dev --no-install-project
 
 # uv sync creates a venv at /app/.venv — put its bin on PATH.
-# Also spell out /usr/local/bin explicitly so copilot is always found
+# Also spell out /usr/local/bin explicitly so agent CLIs are always found
 # regardless of how the process is launched (shell or exec form).
 ENV PATH="/app/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 

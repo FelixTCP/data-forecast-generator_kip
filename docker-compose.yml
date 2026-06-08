@@ -16,7 +16,7 @@ services:
 
   # ── Agent pipeline UI ────────────────────────────────────────────────────
   # Upload a CSV, pick a target column, and run the full forecasting pipeline
-  # via GitHub Copilot CLI (copilot command).
+  # via GitHub Copilot CLI (copilot command) or Codex CLI (codex command).
   agent-app:
     image: data-forecast-generator:local
     build:
@@ -30,10 +30,17 @@ services:
       - GH_TOKEN=${GH_TOKEN}
       # Optional: override default model
       - COPILOT_MODEL=${COPILOT_MODEL:-claude-haiku-4.5}
+      - CODEX_MODEL=${CODEX_MODEL:-gpt-5.5}
+      - CODEX_REASONING_EFFORT=${CODEX_REASONING_EFFORT:-medium}
+      # Optional for Codex CLI API-key auth. Alternatively mount CODEX_HOME below.
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - CODEX_HOME=/home/appuser/.codex
     volumes:
       # Persist pipeline run artifacts and uploaded CSVs on the host
       - ./output:/app/output
       - ./artifacts/ui_uploads:/app/artifacts/ui_uploads
+      # Optional: persist/share Codex CLI login state.
+      - ${CODEX_HOME_HOST:-./artifacts/codex_home}:/home/appuser/.codex
     restart: unless-stopped
 
   # ── Inference / XAI app ─────────────────────────────────────────────────
