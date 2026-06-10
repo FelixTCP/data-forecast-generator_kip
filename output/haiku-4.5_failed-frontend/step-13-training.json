@@ -1,0 +1,77 @@
+{
+  "step": "13-model-training",
+  "run_id": "20260604T110505Z",
+  "split_mode": "time_series",
+  "train_size": 7412,
+  "test_size": 1854,
+  "feature_count": 16,
+  "model": {
+    "name": "xgboost",
+    "r2": 0.9303504581343225,
+    "rmse": 2.8497726957923453,
+    "mae": 2.084972066375173,
+    "joblib": "/app/output/20260604T110505Z/model.joblib"
+  },
+  "candidates": [
+    {
+      "name": "random_forest",
+      "train_r2": 0.9591225403076106,
+      "train_rmse": 2.184333330512004,
+      "train_mae": 1.6835553036857516,
+      "r2": 0.9273319582114905,
+      "rmse": 2.910870050104608,
+      "mae": 2.1474684743127592,
+      "cv_mean": 0.9192538785729442,
+      "cv_std": 0.008392714007937462,
+      "model_worse_than_mean_baseline": false
+    },
+    {
+      "name": "xgboost",
+      "train_r2": 0.9399620902166294,
+      "train_rmse": 2.647218231331558,
+      "train_mae": 1.9711556046059244,
+      "r2": 0.9303504581343225,
+      "rmse": 2.8497726957923453,
+      "mae": 2.084972066375173,
+      "cv_mean": 0.9180472519144081,
+      "cv_std": 0.011256857008602555,
+      "model_worse_than_mean_baseline": false
+    }
+  ],
+  "benchmarks": [
+    {
+      "name": "naive_persistence",
+      "r2": 0.9177141164315755,
+      "rmse": 3.0975174200584608,
+      "mae": 2.254314994606257,
+      "residual_mean": -0.0007011866235167229,
+      "residual_max_abs": 15.899999999999999
+    },
+    {
+      "name": "seasonal_naive",
+      "r2": 0.9177141164315755,
+      "rmse": 3.0975174200584608,
+      "mae": 2.254314994606257,
+      "residual_mean": -0.0007011866235167229,
+      "residual_max_abs": 15.899999999999999,
+      "seasonal_period": 1
+    },
+    {
+      "name": "ar1_benchmark",
+      "r2": -0.007742087129424258,
+      "rmse": 10.839912770119192,
+      "mae": 9.347078157326271,
+      "residual_mean": 0.8874320267886899,
+      "residual_max_abs": 28.91293887123254,
+      "lags": 1
+    }
+  ],
+  "artifacts": {
+    "model_joblib": "/app/output/20260604T110505Z/model.joblib",
+    "holdout_npz": "/app/output/20260604T110505Z/holdout.npz",
+    "candidates": {
+      "random_forest": "/app/output/20260604T110505Z/candidate-random_forest.joblib",
+      "xgboost": "/app/output/20260604T110505Z/candidate-xgboost.joblib"
+    }
+  }
+}

@@ -1,0 +1,254 @@
+{
+  "step": "11-data-exploration",
+  "run_id": "20260604T110505Z",
+  "shape": {
+    "rows": 9266,
+    "columns": 9
+  },
+  "numeric_columns": [
+    "month",
+    "day",
+    "year"
+  ],
+  "high_cardinality": [],
+  "low_variance_columns": [],
+  "time_series_detected": true,
+  "time_column": "synthesized_date",
+  "multiple_series_detected": false,
+  "series_id_column": null,
+  "detected_frequency": "unknown",
+  "ts_diagnostics": {
+    "adf_statistic": -7.263329352658379,
+    "adf_pvalue": 1.6595152151193303e-10,
+    "kpss_statistic": 0.014293664540493384,
+    "kpss_pvalue": 0.1,
+    "stationarity_conclusion": "stationary",
+    "acf_values": [
+      0.9564314264205966,
+      0.9148552975940725,
+      0.8922197575411549,
+      0.881274462775577,
+      0.8738112594944792,
+      0.8666813177875212,
+      0.8625055633828353,
+      0.8594965718812958,
+      0.856483586798711,
+      0.8512993019656435,
+      0.8478306273756211,
+      0.8442013963970669,
+      0.8407584023714765,
+      0.8368193165488093,
+      0.8333843418427265,
+      0.828675545065849,
+      0.8233164449787498,
+      0.8164494488036331,
+      0.8103623983253108,
+      0.8045621913467139,
+      0.7991199572011357,
+      0.7951681613410948,
+      0.7889648008550275,
+      0.7811970419877127,
+      0.7739894721849456,
+      0.7668853107214276,
+      0.7602160121586569,
+      0.752346006885212,
+      0.7427528826518727,
+      0.7340125725217085,
+      0.7261485864921857,
+      0.7188443349762753,
+      0.7126387532008549,
+      0.7054532612819401,
+      0.6970505079230765,
+      0.6856708813187002,
+      0.6762279892864321,
+      0.6681992243313126,
+      0.6594240821396244,
+      0.649248081373883,
+      0.6392787815081536,
+      0.6308339409329341,
+      0.6215496108759613,
+      0.611064625102363,
+      0.5996977001932877,
+      0.5883172729936188,
+      0.5764091920953509,
+      0.5642838175394125
+    ],
+    "pacf_values": [
+      0.9564314264205963,
+      0.0011054121977326103,
+      0.20100443077357721,
+      0.14052792274445608,
+      0.09811227004773758,
+      0.07592815277127118,
+      0.09801862621127538,
+      0.06882189072239317,
+      0.06082389666790477,
+      0.02748368334513394,
+      0.06261517913473391,
+      0.026593227551654067,
+      0.036772616100796574,
+      0.02173629139061561,
+      0.030556318840050604,
+      0.001265856681446233,
+      0.007829586356658712,
+      -0.0160170317081148,
+      0.006138962966592515,
+      -0.008742935522489444,
+      -0.0003738721110717109,
+      0.012508794758280144,
+      -0.028955671473735584,
+      -0.02308113897202984,
+      -0.00976729681825723,
+      -0.022339882119216323,
+      -0.01131667852263894,
+      -0.03195189215833707,
+      -0.03996893818520248,
+      -0.01927336982098304,
+      -0.021901331814709647,
+      -0.015344353872861195,
+      -0.002006332348291028,
+      -0.0238081065994565,
+      -0.0235079394300326,
+      -0.055091308849269875,
+      -0.0038964280815674654,
+      -0.01665838306012251,
+      -0.027257594986957945,
+      -0.030584550671806453,
+      -0.018527711112061026,
+      -0.00899087472002196,
+      -0.026329930502765105,
+      -0.02762246224516396,
+      -0.028900249661786778,
+      -0.028823090698062034,
+      -0.03593454867209907,
+      -0.03169841692207704
+    ],
+    "acf_significant_lags": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "pacf_significant_lags": [
+      1,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "suggested_ar_order": 1,
+    "suggested_ma_order": 0,
+    "hurst_exponent": 1.0348152067839045,
+    "hurst_interpretation": "strongly_persistent",
+    "hurst_r2_fit": 0.9950658812869783,
+    "hurst_skipped_reason": null,
+    "ljung_box_pvalues": {
+      "6": 0.0,
+      "12": 0.0,
+      "24": 0.0
+    },
+    "white_noise": false,
+    "detected_periods": [],
+    "primary_seasonal_period": null,
+    "trend_strength": 0.0,
+    "trend_detected": false
+  },
+  "model_class_recommendations": [
+    {
+      "model_class": "ARMA",
+      "justification": "Stationary series suitable for ARMA models."
+    },
+    {
+      "model_class": "Ridge",
+      "justification": "Interpretable linear baseline."
+    }
+  ],
+  "acf_pacf_orders": {
+    "suggested_ar_order": 1,
+    "suggested_ma_order": 0
+  },
+  "mi_ranking": [
+    {
+      "feature": "month",
+      "mi_score": 0.8281738961600302,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "year",
+      "mi_score": 0.05762560883232304,
+      "below_noise_baseline": false
+    },
+    {
+      "feature": "day",
+      "mi_score": 0.0,
+      "below_noise_baseline": true
+    }
+  ],
+  "noise_mi_baseline": 0.0020805156813963775,
+  "redundant_columns": [],
+  "useful_lag_features": [
+    {
+      "feature": "month",
+      "lag": 1,
+      "xcorr": 0.3091591089414351
+    },
+    {
+      "feature": "month",
+      "lag": 2,
+      "xcorr": 0.29832852338721116
+    },
+    {
+      "feature": "month",
+      "lag": 3,
+      "xcorr": 0.2880965676652914
+    },
+    {
+      "feature": "month",
+      "lag": 6,
+      "xcorr": 0.25468752952245227
+    },
+    {
+      "feature": "month",
+      "lag": 12,
+      "xcorr": 0.1848811504399868
+    }
+  ],
+  "significant_lags": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "recommended_features": [
+    "month",
+    "year"
+  ],
+  "excluded_features": {
+    "day": "below_noise_baseline"
+  },
+  "target_candidates": [
+    {
+      "column": "avgtemperature",
+      "reason": "primary_target"
+    }
+  ],
+  "client_facing_summary": "Dataset contains 9266 records across 9 columns. Target: avgtemperature. Time column: synthesized_date. Numeric features: 3. Recommended for modeling: 2. The target series is stationary, suitable for linear forecasting methods.",
+  "context": {}
+}
