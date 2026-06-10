@@ -4,7 +4,9 @@ Systemueberblick und aktuelle Arbeitsweise des vorhandenen Forecasting-Systems.
 
 ## 1. Projektueberblick
 
-Der Data Forecast Generator fuehrt eine CSV-Datei durch einen agentischen, mehrstufigen Forecasting- bzw. Regressionsworkflow. Aus Rohdaten, Zielspalte und Laufparametern entstehen bereinigte Daten, Features, trainierte Modellkandidaten, eine Modellentscheidung und ein Markdown-Report.
+Der Data Forecast Generator fuehrt eine CSV-Datei durch einen agentischen, mehrstufigen Forecasting- bzw. Regressionsworkflow. Aus Rohdaten, Zielspalte und Laufparametern entstehen bereinigte Daten, Features, trainierte Modellkandidaten, eine Modellentscheidung, ein Markdown-Report und ein kritischer Self-Audit.
+
+Nach abgeschlossenem Kernlauf kann die Anwendung den separaten Post Run Judge Agent starten. Diese Bewertung ist kein Pipeline-Step und veraendert keine bestehenden Run-Artefakte.
 
 Der Systemkern besteht aus eigenstaendigen Python-Step-Skripten, die pro Run unter `OUTPUT_DIR/code` liegen. Jeder Schritt liest seine Eingaben aus dem Run-Verzeichnis, schreibt seine Artefakte zurueck nach `OUTPUT_DIR` und aktualisiert `progress.json`.
 
@@ -35,6 +37,9 @@ Der Systemkern besteht aus eigenstaendigen Python-Step-Skripten, die pro Run unt
 - `step-15-model-selection-metrics.png`
 - `step-16-report.md`
 - `code_audit.json`
+- `step-17-audit.json`
+- `step-18-judge.json`
+- `step-18-judge.md`
 
 ## 2. Laufmodell
 
@@ -63,7 +68,9 @@ output/<RUN_ID>/
 ├── step-15-model-selection-report.md
 ├── step-15-model-selection-metrics.png
 ├── step-16-report.md
-└── step-17-audit.json
+├── step-17-audit.json
+├── step-18-judge.json
+└── step-18-judge.md
 ```
 
 Die Step-Skripte sind einzeln ausfuehrbar. Der Orchestrator ist nur eine duenne Ausfuehrungsschicht, die die Schritte in Reihenfolge startet und den gemeinsamen Run-Kontext uebergibt.
@@ -78,6 +85,8 @@ Die Step-Skripte sind einzeln ausfuehrbar. Der Orchestrator ist nur eine duenne 
 6. `15-model-selection`
 7. `16-result-presentation`
 8. `17-critical-self-audit`
+
+Anschliessend kann die Anwendung automatisch den separaten `Post Run Judge Agent` ausfuehren. Er liest nur den fertigen Run und schreibt `step-18-judge.json` sowie `step-18-judge.md`.
 
 ## 3. End-to-End-Ablauf
 
@@ -238,7 +247,7 @@ Wichtige Felder:
 
 ### 3.7 Reporting
 
-Step 16 erzeugt den finalen Markdown-Report und markiert den Run als abgeschlossen.
+Step 16 erzeugt den finalen Markdown-Report. Der Kernlauf ist danach noch nicht abgeschlossen, weil Step 17 den Self-Audit ausfuehrt.
 
 Output:
 
@@ -253,6 +262,23 @@ Der Report enthaelt sechs Pflichtabschnitte:
 5. Risks and caveats
 6. Next iteration recommendations
 
+### 3.8 Critical Self-Audit
+
+Step 17 prueft den fertigen Pipeline-Run auf Artefaktkonsistenz, Daten- und Leakage-Probleme, Metrikplausibilitaet und Report-Widersprueche. Erst dieser Schritt markiert den Kernlauf als abgeschlossen.
+
+Output:
+
+- `step-17-audit.json`
+
+### 3.9 Post-run Judge
+
+Der Post Run Judge Agent laeuft erst nach abgeschlossenem Step 17. Er bewertet den fertigen Run als externe, kundennahe Entscheidungsgrundlage und schreibt nur Judge-Artefakte.
+
+Outputs:
+
+- `step-18-judge.json`
+- `step-18-judge.md`
+
 ## 4. Visuelle Architekturuebersicht
 
 ```mermaid
@@ -264,6 +290,8 @@ flowchart TD
     F --> G["14 Evaluation"]
     G --> H["15 Selection"]
     H --> I["16 Reporting"]
+    I --> J["17 Self-Audit"]
+    J --> K["Post-run Judge"]
 
     C --> C1["cleaned.parquet"]
     E --> E1["features.parquet"]
@@ -274,6 +302,8 @@ flowchart TD
     H --> H1["step-15-selection.json"]
     H --> H2["selection report + metrics plot"]
     I --> I1["step-16-report.md"]
+    J --> J1["step-17-audit.json"]
+    K --> K1["step-18-judge.json + .md"]
 ```
 
 ```mermaid
@@ -285,6 +315,8 @@ flowchart LR
     E --> F["Evaluationsmetriken"]
     F --> G["Auswahlentscheidung"]
     G --> H["Finaler Report"]
+    H --> I["Self-Audit"]
+    I --> J["Judge-Bewertung"]
 ```
 
 ## 5. Demo- und Pruefbefehle
@@ -307,7 +339,7 @@ uv run streamlit run scripts/streamlit_single_agent_app.py
 uv run streamlit run scripts/streamlit_inference_app.py
 ```
 
-Die Training-/Analyse-App liegt in `scripts/streamlit_single_agent_app.py`. Die Inferenz- und Forecasting-App fuer vorhandene Run-Artefakte liegt in `scripts/streamlit_inference_app.py`. Streamlit gibt nach dem Start die lokale URL aus, typischerweise `http://localhost:8501`.
+Die Training-/Analyse-App liegt in `scripts/streamlit_single_agent_app.py`. Sie kann Runs ueber Copilot CLI oder Codex CLI starten und zeigt nach abgeschlossenem Run einen Judge-Tab. Die Inferenz- und Forecasting-App fuer vorhandene Run-Artefakte liegt in `scripts/streamlit_inference_app.py`. Streamlit gibt nach dem Start die lokale URL aus, typischerweise `http://localhost:8501`.
 
 ## 6. Laufzeitumgebung
 
@@ -332,7 +364,7 @@ Im zuletzt verifizierten Lauf waren diese Pakete vorhanden:
 
 ## 7. Validierungsgates
 
-Ein Run gilt als erfolgreich, wenn die Step-Artefakte vorhanden sind, die erwarteten JSON-Felder gesetzt sind, Modellartefakte ladbar sind und `progress.json` am Ende `status=completed` enthaelt.
+Ein Kernlauf gilt als erfolgreich, wenn die Step-Artefakte vorhanden sind, die erwarteten JSON-Felder gesetzt sind, Modellartefakte ladbar sind und `progress.json` nach Step 17 `status=completed` enthaelt.
 
 ### Wichtige Gates
 
@@ -366,7 +398,13 @@ Ein Run gilt als erfolgreich, wenn die Step-Artefakte vorhanden sind, die erwart
   - `step-16-report.md` existiert
   - Report ist mindestens 500 Bytes gross
   - alle sechs Pflichtabschnitte sind enthalten
+- Step 17:
+  - `step-17-audit.json` existiert
+  - Audit-Ergebnis und gepruefte Artefakte sind dokumentiert
   - `progress.json.status = completed`
+- Post-run Judge:
+  - `step-18-judge.json` und `step-18-judge.md` existieren, wenn der Judge ausgefuehrt wurde
+  - die Bewertung liest nur den fertigen Run und schreibt keine Pipeline-Artefakte um
 
 ## 8. Zuletzt verifizierter End-to-End-Run
 
@@ -428,7 +466,7 @@ Die Step-Skripte enthalten die eigentliche Pipeline-Logik. Sie sind eigenstaendi
 
 ### `scripts/streamlit_single_agent_app.py`
 
-Streamlit-Frontend fuer Training und Analyse.
+Streamlit-Frontend fuer Training, Analyse, CLI-Auswahl und Post-run Judge-Bewertung.
 
 ### `scripts/streamlit_inference_app.py`
 

@@ -1,18 +1,19 @@
 """
 Streamlit UI for Single Agent Pipeline — Professional data scientist dashboard.
 
-Five views:
+Seven views:
   Tab 1 — EDA       : stationarity, Hurst, ACF/PACF, MI, outliers, seasonality
   Tab 2 — Features  : feature groups, importances, PCA, correlation, data preview
   Tab 3 — Models    : filterable comparison of all trained candidates
   Tab 4 — Best Model: SHAP, residuals, detailed metrics
   Tab 5 — Report    : full step-16-report.md
   Tab 6 — Audit     : critical self-audit results, remediation actions
-  Tab 7 — Judge     : compact customer-facing judgement
+  Tab 7 — Judge     : external post-run assessment
 """
 
 from __future__ import annotations
 
+import html
 import json
 import html
 import re
@@ -34,6 +35,31 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_UPLOAD_DIR = ROOT_DIR / "artifacts" / "ui_uploads"
 DEFAULT_RUNS_DIR = ROOT_DIR / "output"
+
+AGENT_CLI_OPTIONS = {
+    "copilot": {
+        "label": "GitHub Copilot CLI",
+        "default_model": os.environ.get("COPILOT_MODEL", "claude-haiku-4.5"),
+        "models": ["claude-haiku-4.5", "claude-sonnet-4.6", "gpt-5.4-mini"],
+    },
+    "codex": {
+        "label": "Codex CLI",
+        "default_model": os.environ.get("CODEX_MODEL", "gpt-5.5"),
+        "models": [
+            "gpt-5.5",
+            "gpt-5.4",
+            "gpt-5.4-mini",
+            "gpt-5.3-codex",
+            "gpt-5.3-codex-spark",
+            "gpt-5.2",
+        ],
+    },
+}
+
+CODEX_REASONING_EFFORT_OPTIONS = ["low", "medium", "high", "xhigh"]
+DEFAULT_CODEX_REASONING_EFFORT = os.environ.get("CODEX_REASONING_EFFORT", "medium")
+if DEFAULT_CODEX_REASONING_EFFORT not in CODEX_REASONING_EFFORT_OPTIONS:
+    DEFAULT_CODEX_REASONING_EFFORT = "medium"
 
 PIPELINE_STEPS = [
     "10-csv-read-cleansing",
@@ -218,9 +244,12 @@ def _recommend_target_column(df: pl.DataFrame) -> str:
 
 
 def _render_single_agent_prompt(csv_path: Path, target_column: str,
-                                 output_dir: Path, copilot_model: str) -> str:
+                                 output_dir: Path, model: str,
+                                 agent_cli: str = "copilot",
+                                 reasoning_effort: str = DEFAULT_CODEX_REASONING_EFFORT) -> str:
     run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     code_dir = output_dir / "code"
+    cli_name = AGENT_CLI_OPTIONS.get(agent_cli, {}).get("label", agent_cli)
     return (
         "Run the custom agent `Single Agent Pipeline` end-to-end.\n\n"
         f"CSV path: {csv_path}\n"
@@ -228,7 +257,11 @@ def _render_single_agent_prompt(csv_path: Path, target_column: str,
         f"OUTPUT_DIR={output_dir}\n"
         f"RUN_ID={run_id}\n"
         f"CODE_DIR={code_dir}\n"
-        f"COPILOT_MODEL={copilot_model}\n"
+        f"AGENT_CLI={cli_name}\n"
+        f"LLM_MODEL={model}\n"
+        f"COPILOT_MODEL={model}\n"
+        f"CODEX_MODEL={model}\n"
+        f"CODEX_REASONING_EFFORT={reasoning_effort}\n"
         "CONTINUE_MODE=false\n\n"
         "Hard completion rule:\n"
         "- Do not stop after an intermediate step.\n"
@@ -241,6 +274,232 @@ def _render_single_agent_prompt(csv_path: Path, target_column: str,
         "Follow exactly the contract in "
         "`@.github/agents/Single Agent Pipeline.agent.md`."
     )
+
+
+def _render_post_run_judge_prompt(output_dir: Path) -> str:
+    progress = _read_json(output_dir / "progress.json") or {}
+    run_id = progress.get("run_id") or output_dir.name
+    return (
+        "Run the custom agent `Post Run Judge Agent` for this completed run.\n\n"
+        f"OUTPUT_DIR={output_dir}\n"
+        f"RUN_ID={run_id}\n\n"
+        "Use only artifacts from this OUTPUT_DIR. The forecasting pipeline has already run; "
+        "do not modify existing artifacts, do not create Python files, and do not rerun any "
+        "pipeline step. Write exactly these two files:\n"
+        "- step-18-judge.json\n"
+        "- step-18-judge.md\n\n"
+        "Follow exactly `.github/agents/Post Run Judge Agent.agent.md`."
+    )
+
+
+def _forbidden_judge_claims() -> tuple[str, ...]:
+    return (
+        "excellent",
+        "approved",
+        "approved_for_deployment",
+        "production_ready",
+        "ready_for_customer",
+        "guaranteed accuracy",
+        "proven roi",
+    )
+
+
+_JUDGE_DECIMAL_PATTERN = re.compile(r"(?<![\w.])-?\d+\.\d+(?!\w|\.\d)")
+
+
+def _format_judge_decimals(value: object) -> str:
+    """Render decimal values in Judge prose with exactly three decimal places."""
+    text = str(value)
+    return _JUDGE_DECIMAL_PATTERN.sub(lambda match: f"{float(match.group()):.3f}", text)
+
+
+def _judge_source_title(value: object) -> str:
+    """Return a source title without an absolute or relative directory path."""
+    return str(value).replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+
+
+def _normalize_judge_outputs(output_dir: Path) -> None:
+    """Keep Judge output shape compact without changing its judgement."""
+    judge_path = output_dir / "step-18-judge.json"
+    md_path = output_dir / "step-18-judge.md"
+    judge = _read_json(judge_path)
+    source_titles: list[str] = []
+
+    if isinstance(judge, dict):
+        judge.pop("risks_and_caveats", None)
+        recommendation = judge.get("final_recommendation")
+        if isinstance(recommendation, dict):
+            recommendation.pop("main_caveat", None)
+
+        seen_sources: set[str] = set()
+        for source in judge.get("sources", []):
+            title = _judge_source_title(source)
+            if title and title not in seen_sources:
+                seen_sources.add(title)
+                source_titles.append(title)
+        judge["sources"] = source_titles
+        judge_path.write_text(
+            json.dumps(judge, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+
+    if md_path.exists():
+        markdown = md_path.read_text(encoding="utf-8", errors="replace")
+        markdown = re.sub(
+            r"\n## Risks and Caveats\b.*?(?=\n## |\Z)",
+            "",
+            markdown,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        markdown = re.sub(
+            r"\s+The main caveat\b[^\n]*(?=\n|$)",
+            "",
+            markdown,
+            flags=re.IGNORECASE,
+        )
+        markdown = re.sub(
+            r"^\s*(?:\*\*)?Main caveat(?:\*\*)?:?[^\n]*\n?",
+            "",
+            markdown,
+            flags=re.IGNORECASE | re.MULTILINE,
+        )
+        if source_titles:
+            source_marker = "\n## Sources"
+            if source_marker in markdown:
+                markdown = markdown.split(source_marker, 1)[0].rstrip()
+            source_lines = "\n".join(f"- `{title}`" for title in source_titles)
+            markdown = f"{markdown}\n\n## Sources\n\n{source_lines}\n"
+        md_path.write_text(markdown, encoding="utf-8")
+
+
+def _judge_html(value: object, default: str = "") -> str:
+    """Escape Judge text for the compact HTML card renderer."""
+    if value is None:
+        return default
+    return html.escape(_format_judge_decimals(value))
+
+
+def _judge_html_block(value: str) -> str:
+    return textwrap.dedent(value).strip()
+
+
+def _judge_list_html(items: object, empty_text: str) -> str:
+    values = items if isinstance(items, list) else []
+    if not values:
+        values = [empty_text]
+    return "".join(f"<li>{_judge_html(item)}</li>" for item in values)
+
+
+def _judge_numeric_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "Available" if value else "Not available"
+    if isinstance(value, (int, float)):
+        return f"{float(value):.3f}"
+    return _format_judge_decimals(value)
+
+
+def _validate_judge_outputs(output_dir: Path) -> list[str]:
+    """Validate the post-run Judge Agent contract without replacing the judgement."""
+    issues: list[str] = []
+    judge_path = output_dir / "step-18-judge.json"
+    md_path = output_dir / "step-18-judge.md"
+    judge = _read_json(judge_path)
+
+    if not isinstance(judge, dict):
+        return ["step-18-judge.json is missing or invalid JSON."]
+    if not md_path.exists():
+        issues.append("step-18-judge.md is missing.")
+
+    allowed_statuses = {
+        "mvp_discussion_ready",
+        "needs_validation_before_mvp_discussion",
+        "not_mvp_ready",
+        "no_reliable_forecast_use_case_supported",
+    }
+    if judge.get("status") not in allowed_statuses:
+        issues.append("Judge status is not in the allowed status set.")
+
+    required_dicts = [
+        "final_recommendation",
+        "use_case",
+        "ratings",
+        "code_assessment_details",
+        "metric_meaning",
+        "business_potential_and_evidence",
+    ]
+    for key in required_dicts:
+        if not isinstance(judge.get(key), dict):
+            issues.append(f"{key} must be a JSON object.")
+
+    ratings = judge.get("ratings", {})
+    if isinstance(ratings, dict):
+        for key in (
+            "forecastability",
+            "use_case_potential",
+            "business_potential",
+            "business_value_evidence",
+            "code_assessment",
+        ):
+            item = ratings.get(key)
+            if not isinstance(item, dict):
+                issues.append(f"ratings.{key} must be an object.")
+                continue
+            if not item.get("rating") or not item.get("headline") or not item.get("explanation"):
+                issues.append(f"ratings.{key} needs rating, headline, and explanation.")
+
+    code_details = judge.get("code_assessment_details", {})
+    if isinstance(code_details, dict):
+        inspected = code_details.get("inspected_files", [])
+        positives = code_details.get("positive_observations", [])
+        critical = code_details.get("critical_observations", [])
+        gaps = code_details.get("production_gaps", [])
+        if (output_dir / "code").exists() and not inspected:
+            issues.append("code_assessment_details.inspected_files is empty despite generated code artifacts.")
+        for key, value in {
+            "positive_observations": positives,
+            "critical_observations": critical,
+            "production_gaps": gaps,
+        }.items():
+            if not isinstance(value, list) or not value or not all(len(str(item).strip()) >= 24 for item in value):
+                issues.append(f"code_assessment_details.{key} needs concrete observations.")
+
+    final_recommendation = judge.get("final_recommendation", {})
+    if isinstance(final_recommendation, dict):
+        strongest = str(final_recommendation.get("strongest_supporting_reason", ""))
+        if strongest and re.search(r"\b(r2|r²|rmse|mae)\b", strongest, flags=re.IGNORECASE):
+            issues.append("strongest_supporting_reason should not be a metric recap.")
+
+    sources = judge.get("sources", [])
+    if not isinstance(sources, list) or not sources:
+        issues.append("sources must contain the titles of the artifacts used.")
+    elif any(_judge_source_title(source) != str(source) for source in sources):
+        issues.append("sources must contain titles only, without directory paths.")
+
+    combined = json.dumps(judge, ensure_ascii=False).lower()
+    if md_path.exists():
+        combined += "\n" + md_path.read_text(encoding="utf-8", errors="replace").lower()
+    for claim in _forbidden_judge_claims():
+        if claim in combined:
+            issues.append(f"Forbidden Judge claim found: {claim}")
+
+    if md_path.exists():
+        markdown = md_path.read_text(encoding="utf-8", errors="replace")
+        sections = [
+            line.strip() for line in markdown.splitlines()
+            if line.startswith("## ")
+        ]
+        expected = [
+            "## Final Recommendation",
+            "## Use Case",
+            "## Assessment Scores",
+            "## Metric Meaning for This Use Case",
+            "## Business Potential and Evidence",
+            "## Sources",
+        ]
+        if sections != expected:
+            issues.append("Judge markdown does not use exactly the required major sections.")
+
+    return issues
 
 
 def _save_uploaded_csv(uploaded_file, destination_dir: Path) -> Path:
@@ -318,16 +577,87 @@ def _copilot_cli_available() -> bool:
     return _find_copilot_cli() is not None
 
 
+def _find_codex_cli() -> str | None:
+    """Return the absolute path to the Codex CLI binary, or None if not found."""
+    import shutil
+
+    def _probe(binary: str) -> bool:
+        try:
+            result = subprocess.run(
+                [binary, "--version"],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    candidates = [
+        shutil.which("codex"),
+        "/usr/local/bin/codex",
+        str(Path(os.path.expanduser("~/.local/bin/codex"))),
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists() and _probe(candidate):
+            return candidate
+    return None
+
+
+def _codex_cli_available() -> bool:
+    """Return True when a Codex CLI binary is reachable."""
+    return _find_codex_cli() is not None
+
+
 def _start_pipeline_process(prompt: str, working_dir: Path,
-                              model: str = "claude-haiku-4.5") -> subprocess.Popen[str]:
+                              model: str = "claude-haiku-4.5",
+                              agent: str | None = None,
+                              agent_cli: str = "copilot",
+                              reasoning_effort: str = DEFAULT_CODEX_REASONING_EFFORT) -> subprocess.Popen[str]:
+    if agent_cli == "codex":
+        cli = _find_codex_cli()
+        if cli is None:
+            raise FileNotFoundError(
+                "Codex CLI not found. Install it via 'npm install -g @openai/codex' "
+                "or the official Codex installer."
+            )
+        command = [
+            cli,
+            "exec",
+            "-c",
+            f'model_reasoning_effort="{reasoning_effort}"',
+            "--cd",
+            str(working_dir),
+            "--dangerously-bypass-approvals-and-sandbox",
+            "-",
+        ]
+        command[2:2] = ["--model", model]
+        process = subprocess.Popen(
+            command,
+            cwd=working_dir,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if process.stdin is not None:
+            process.stdin.write(prompt)
+            process.stdin.close()
+            process.stdin = None
+        return process
+
     cli = _find_copilot_cli()
     if cli is None:
         raise FileNotFoundError(
-            "Copilot CLI not found. Install it via 'npm install -g @github/copilot-cli' "
+            "Copilot CLI not found. Install it via 'npm install -g @github/copilot' "
             "or enable the Copilot Chat VS Code extension."
         )
     command = [cli, "--allow-all-tools", "--allow-all-paths",
-               "--allow-all-urls", "--no-ask-user", "--model", model]
+               "--allow-all-urls", "--no-ask-user"]
+    if agent:
+        command.extend(["--agent", agent])
+    command.extend(["--model", model])
     if "gpt" in model.lower():
         command.extend(["--reasoning-effort", "low"])
     command.extend(["-s", "-p", prompt])
@@ -354,6 +684,36 @@ def _start_orchestrator_process(output_dir: Path, csv_path: Path,
         ],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
     )
+
+
+def _capture_process_output(
+    process: subprocess.Popen[str],
+) -> tuple[threading.Thread, dict[str, object]]:
+    """Drain process pipes while the UI continues rendering live status."""
+    result: dict[str, object] = {"stdout": "", "stderr": "", "error": None}
+
+    def _communicate() -> None:
+        try:
+            stdout, stderr = process.communicate()
+            result["stdout"] = stdout or ""
+            result["stderr"] = stderr or ""
+        except Exception as exc:
+            result["error"] = exc
+
+    thread = threading.Thread(target=_communicate, daemon=True)
+    thread.start()
+    return thread, result
+
+
+def _finish_process_output_capture(
+    thread: threading.Thread,
+    result: dict[str, object],
+) -> tuple[str, str]:
+    thread.join()
+    error = result.get("error")
+    if isinstance(error, Exception):
+        raise error
+    return str(result.get("stdout", "")), str(result.get("stderr", ""))
 
 
 def _read_json(path: Path) -> dict | None:
@@ -408,6 +768,24 @@ def _html_escape(value: object, default: str = "") -> str:
 def _html_block(value: str) -> str:
     """Dedent HTML before sending it to Streamlit markdown."""
     return textwrap.dedent(value).strip()
+def _step_number(value: object) -> int | None:
+    """Normalize a numeric step or a step ID such as ``12-feature-extraction``."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        number = value
+    elif isinstance(value, float) and value.is_integer():
+        number = int(value)
+    elif isinstance(value, str):
+        match = re.match(r"^\s*(\d+)(?:\D|$)", value)
+        if not match:
+            return None
+        number = int(match.group(1))
+    else:
+        return None
+
+    valid_numbers = {int(step.split("-", 1)[0]) for step in PIPELINE_STEPS}
+    return number if number in valid_numbers else None
 
 
 def _existing_runs() -> list[Path]:
@@ -518,7 +896,11 @@ def _parse_audit_results(output_dir: Path) -> dict | None:
                 action_id = action.get("action_id")
                 embedded = action.get("affected_steps")
                 if isinstance(embedded, list) and embedded:
-                    result["affected_steps"].update(embedded)
+                    result["affected_steps"].update(
+                        step_number
+                        for step in embedded
+                        if (step_number := _step_number(step)) is not None
+                    )
                 elif action_id in _REMEDIATION_STEPS_MAP:
                     result["affected_steps"].update(_REMEDIATION_STEPS_MAP[action_id])
         
@@ -677,7 +1059,7 @@ def _trigger_auto_remediation(output_dir: Path) -> bool:
                 "--resume",
             ],
             env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True,
         )
         return True
     except Exception as exc:
@@ -700,6 +1082,7 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
     audit_results = _parse_audit_results(output_dir)
     remediation_triggered = False
     restart_step = None
+    remediation_progress_text = ""
 
     if progress:
         completed = progress.get("completed_steps", [])
@@ -749,14 +1132,24 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
             rem_iter = remediation_block.get("iteration", 1)
             max_iter = remediation_block.get("max_iterations", 3)
             steps_rerun = remediation_block.get("steps_rerun", [])
-            progress_text += f" (Remediation {rem_iter}/{max_iter} — re-running steps {steps_rerun})"
+            remediation_progress_text = (
+                f" (Remediation {rem_iter}/{max_iter} — re-running steps {steps_rerun})"
+            )
         elif restart_step is not None and status not in ("remediating", "completed"):
             # Not yet remediating: show where it will restart
-            completed_count = restart_step - 10  # Step 10 is first step
-            status = "remediation"
+            restart_step_number = _step_number(restart_step)
+            if restart_step_number is not None:
+                first_step_number = _step_number(PIPELINE_STEPS[0]) or 10
+                completed_count = max(
+                    0,
+                    min(len(PIPELINE_STEPS), restart_step_number - first_step_number),
+                )
+                restart_step = restart_step_number
+                status = "remediation"
 
     # Update progress bar with correct count
     progress_text = f"Completed {completed_count}/{len(PIPELINE_STEPS)} steps"
+    progress_text += remediation_progress_text
     if remediation_triggered and restart_step is not None:
         progress_text += f" (Restart at Step {restart_step})"
     
@@ -2991,15 +3384,409 @@ def _render_judge_tab(output_dir: Path) -> None:
             st.json(judge or _read_json(judge_json_path))
 
 
+def _render_judge_tab(output_dir: Path) -> None:
+    """Render the separate Post-run Judge Agent result."""
+    st.subheader("⚖️ Post-run Judge")
+
+    judge_json_path = output_dir / "step-18-judge.json"
+    judge_md_path = output_dir / "step-18-judge.md"
+    if not judge_json_path.exists() and not judge_md_path.exists():
+        progress = _read_json(output_dir / "progress.json") or {}
+        if progress.get("status") == "completed":
+            st.info("Pipeline is completed, but the Post-run Judge Agent has not written a result yet.")
+        else:
+            st.info("Judge result is not available until the pipeline has completed.")
+        return
+
+    judge = _read_json(judge_json_path) if judge_json_path.exists() else {}
+    if not isinstance(judge, dict):
+        judge = {}
+
+    def as_dict(value: object) -> dict[str, object]:
+        return value if isinstance(value, dict) else {}
+
+    def as_list(value: object) -> list[object]:
+        return value if isinstance(value, list) else []
+
+    def rating_pill(value: object) -> str:
+        rating = str(value or "unclear").lower()
+        css_rating = rating if rating in {"high", "medium", "low", "unclear"} else "unclear"
+        return (
+            f'<span class="judge-pill judge-{css_rating}">'
+            f"{_judge_html(rating.replace('_', ' ').title())}</span>"
+        )
+
+    st.markdown(
+        _judge_html_block(
+            """
+            <style>
+            .judge-grid {
+                display:grid;
+                gap:12px;
+                grid-template-columns:repeat(12,minmax(0,1fr));
+                margin-bottom:12px;
+            }
+            .judge-auto-grid {
+                display:grid;
+                gap:12px;
+                grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+                margin-bottom:12px;
+            }
+            .judge-card {
+                border:1px solid rgba(128,128,128,.28);
+                background:rgba(128,128,128,.055);
+                border-radius:8px;
+                padding:18px;
+                min-height:100%;
+            }
+            .judge-span-5 {grid-column:span 5;}
+            .judge-span-6 {grid-column:span 6;}
+            .judge-span-7 {grid-column:span 7;}
+            .judge-span-12 {grid-column:span 12;}
+            .judge-title {font-size:18px;font-weight:700;margin:0 0 12px;}
+            .judge-label {
+                font-size:12px;
+                font-weight:700;
+                text-transform:uppercase;
+                opacity:.68;
+                margin:14px 0 5px;
+            }
+            .judge-status {font-size:22px;font-weight:800;color:#2fb344;margin-bottom:8px;}
+            .judge-status.warn {color:#f59f00;}
+            .judge-status.bad {color:#fa5252;}
+            .judge-copy {line-height:1.55;font-size:14px;opacity:.94;}
+            .judge-muted {line-height:1.5;font-size:13px;opacity:.70;}
+            .judge-pill {
+                display:inline-block;
+                border-radius:5px;
+                padding:3px 9px;
+                font-weight:700;
+                font-size:12px;
+            }
+            .judge-high {background:rgba(47,179,68,.16);color:#40c057;}
+            .judge-medium,.judge-unclear {background:rgba(245,159,0,.16);color:#fab005;}
+            .judge-low {background:rgba(250,82,82,.16);color:#ff6b6b;}
+            .judge-card-head {display:flex;justify-content:space-between;gap:10px;align-items:start;}
+            .judge-metric-value {font-size:24px;font-weight:800;color:#339af0;margin:4px 0 9px;}
+            .judge-list {margin:7px 0 0 18px;padding:0;font-size:13px;line-height:1.55;}
+            .judge-detail-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;}
+            .judge-source {display:block;padding:5px 0;border-bottom:1px solid rgba(128,128,128,.18);}
+            .judge-source:last-child {border-bottom:0;}
+            @media (max-width: 900px) {
+                .judge-grid,.judge-detail-grid {grid-template-columns:1fr;}
+                .judge-span-5,.judge-span-6,.judge-span-7,.judge-span-12 {grid-column:span 1;}
+            }
+            </style>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
+
+    if judge:
+        recommendation = as_dict(judge.get("final_recommendation"))
+        use_case = as_dict(judge.get("use_case"))
+        ratings = as_dict(judge.get("ratings"))
+        metric_meaning = as_dict(judge.get("metric_meaning"))
+        business = as_dict(judge.get("business_potential_and_evidence"))
+        code_details = as_dict(judge.get("code_assessment_details"))
+
+        status_label = recommendation.get("label") or judge.get("status_label") or "Judge result"
+        status = str(judge.get("status") or "")
+        status_class = (
+            "bad"
+            if status in {"not_mvp_ready", "no_reliable_forecast_use_case_supported"}
+            else "warn"
+            if status == "needs_validation_before_mvp_discussion"
+            else ""
+        )
+        summary = recommendation.get("summary") or judge.get("status_reason") or ""
+        strongest = recommendation.get("strongest_supporting_reason") or ""
+        use_case_type = str(use_case.get("type", "unclear")).replace("_", " ").title()
+
+        st.markdown(
+            _judge_html_block(
+                f"""
+                <div class="judge-grid">
+                  <div class="judge-card judge-span-6">
+                    <div class="judge-title">Final Recommendation</div>
+                    <div class="judge-status {status_class}">{_judge_html(status_label)}</div>
+                    <div class="judge-copy">{_judge_html(summary)}</div>
+                    <div class="judge-label">Strongest supporting reason</div>
+                    <div class="judge-muted">{_judge_html(strongest)}</div>
+                  </div>
+                  <div class="judge-card judge-span-6">
+                    <div class="judge-title">Use Case</div>
+                    <div class="judge-copy"><strong>{_judge_html(use_case.get("title", "Use case unclear"))}</strong></div>
+                    <div class="judge-muted" style="margin-top:8px;">{_judge_html(use_case.get("description", ""))}</div>
+                    <div class="judge-label">Type</div>
+                    <div class="judge-copy">{_judge_html(use_case_type)}</div>
+                    <div class="judge-label">Decision context</div>
+                    <div class="judge-muted">{_judge_html(use_case.get("decision_context", ""))}</div>
+                    <div class="judge-label">Evidence strength</div>
+                    {rating_pill(use_case.get("evidence_strength"))}
+                  </div>
+                </div>
+                """
+            ),
+            unsafe_allow_html=True,
+        )
+
+        rating_order = [
+            ("Forecastability", "forecastability"),
+            ("Use Case Potential", "use_case_potential"),
+            ("Business Potential", "business_potential"),
+            ("Business Value Evidence", "business_value_evidence"),
+            ("Code Assessment", "code_assessment"),
+        ]
+        rating_cards: list[str] = []
+        for label, key in rating_order:
+            item = as_dict(ratings.get(key))
+            rating_cards.append(
+                _judge_html_block(
+                    f"""
+                    <div class="judge-card">
+                      <div class="judge-card-head">
+                        <div class="judge-title" style="font-size:15px;">{_judge_html(label)}</div>
+                        {rating_pill(item.get("rating"))}
+                      </div>
+                      <div class="judge-copy"><strong>{_judge_html(item.get("headline", ""))}</strong></div>
+                      <div class="judge-muted" style="margin-top:8px;">{_judge_html(item.get("explanation", ""))}</div>
+                    </div>
+                    """
+                )
+            )
+        st.markdown(
+            _judge_html_block(
+                f"""
+                <div class="judge-title">Assessment Scores</div>
+                <div class="judge-auto-grid">{"".join(rating_cards)}</div>
+                """
+            ),
+            unsafe_allow_html=True,
+        )
+
+        if code_details:
+            inspected = [_judge_source_title(item) for item in as_list(code_details.get("inspected_files"))]
+            inspected_text = " · ".join(inspected) if inspected else "No inspected files documented."
+            st.markdown(
+                _judge_html_block(
+                    f"""
+                    <div class="judge-card" style="margin-bottom:12px;">
+                      <div class="judge-title">Code Assessment Details</div>
+                      <div class="judge-copy">{_judge_html(code_details.get("overall_interpretation", ""))}</div>
+                      <div class="judge-label">Inspected files</div>
+                      <div class="judge-muted">{_judge_html(inspected_text)}</div>
+                      <div class="judge-detail-grid" style="margin-top:16px;">
+                        <div><div class="judge-label">Positive observations</div><ul class="judge-list">{_judge_list_html(code_details.get("positive_observations"), "No positive observations documented.")}</ul></div>
+                        <div><div class="judge-label">Critical observations</div><ul class="judge-list">{_judge_list_html(code_details.get("critical_observations"), "No critical observations documented.")}</ul></div>
+                        <div><div class="judge-label">Production gaps</div><ul class="judge-list">{_judge_list_html(code_details.get("production_gaps"), "No production gaps documented.")}</ul></div>
+                      </div>
+                    </div>
+                    """
+                ),
+                unsafe_allow_html=True,
+            )
+
+        metric_cards: list[str] = []
+        for label, key in [
+            ("R²", "r2"),
+            ("RMSE", "rmse"),
+            ("MAE", "mae"),
+            ("Baseline", "baseline"),
+            ("Target Scale", "target_scale"),
+        ]:
+            item = as_dict(metric_meaning.get(key))
+            value = item.get("value")
+            if value is not None:
+                value_text = _judge_numeric_value(value)
+                if item.get("unit"):
+                    value_text += f" {_format_judge_decimals(item['unit'])}"
+            elif "available" in item:
+                value_text = "Available" if item.get("available") else "Not available"
+            else:
+                value_text = "Context only"
+            metric_cards.append(
+                _judge_html_block(
+                    f"""
+                    <div class="judge-card">
+                      <div class="judge-label" style="margin-top:0;">{_judge_html(label)}</div>
+                      <div class="judge-metric-value">{_judge_html(value_text)}</div>
+                      <div class="judge-copy">{_judge_html(item.get("meaning", ""))}</div>
+                      <div class="judge-muted" style="margin-top:8px;">{_judge_html(item.get("limitation", ""))}</div>
+                    </div>
+                    """
+                )
+            )
+        st.markdown(
+            _judge_html_block(
+                f"""
+                <div class="judge-title">Metric Meaning for This Use Case</div>
+                <div class="judge-auto-grid">{"".join(metric_cards)}</div>
+                """
+            ),
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            _judge_html_block(
+                f"""
+                <div class="judge-title">Business Potential and Evidence</div>
+                <div class="judge-grid">
+                  <div class="judge-card judge-span-6">
+                    <div class="judge-title">Supported Discussion Points</div>
+                    <ul class="judge-list">{_judge_list_html(business.get("supported_discussion_points"), "No supported discussion points documented.")}</ul>
+                  </div>
+                  <div class="judge-card judge-span-6">
+                    <div class="judge-title">Evidence Limits</div>
+                    <ul class="judge-list">{_judge_list_html(business.get("evidence_limits"), "No evidence limits documented.")}</ul>
+                  </div>
+                </div>
+                """
+            ),
+            unsafe_allow_html=True,
+        )
+
+        sources = as_list(judge.get("sources"))
+        if sources:
+            source_lines = "".join(
+                f'<span class="judge-source">{_judge_html(_judge_source_title(source))}</span>'
+                for source in sources
+            )
+            st.markdown(
+                _judge_html_block(
+                    f"""
+                    <div class="judge-card">
+                      <div class="judge-title">Sources</div>
+                      <div class="judge-muted">{source_lines}</div>
+                    </div>
+                    """
+                ),
+                unsafe_allow_html=True,
+            )
+
+    if judge_md_path.exists():
+        judge_text = judge_md_path.read_text(encoding="utf-8", errors="replace")
+        st.download_button(
+            "Download Judge Report",
+            judge_text,
+            file_name="step-18-judge.md",
+            mime="text/markdown",
+        )
+        with st.expander("Rendered Markdown Report"):
+            st.markdown(judge_text)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Launch mode handlers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _handle_cli_mode(prompt: str, output_dir: Path, model: str) -> None:
-    """Copilot CLI mode: launch the agent subprocess and stream live progress."""
-    st.subheader("⏱️ Pipeline Running (CLI)")
+def _run_post_run_judge(output_dir: Path, model: str, agent_cli: str,
+                        reasoning_effort: str) -> bool:
+    """Invoke the separate post-run Judge Agent and verify its two outputs."""
+    progress = _read_json(output_dir / "progress.json") or {}
+    if progress.get("status") != "completed":
+        st.warning("Post-run Judge Agent skipped because the pipeline is not completed.")
+        return False
+
+    st.subheader("⚖️ Post-run Judge Agent")
     started_at = time.monotonic()
-    process = _start_pipeline_process(prompt, ROOT_DIR, model=model)
+
+    logs: list[tuple[int, str, str]] = []
+    validation_issues: list[str] = []
+    judge_failed = False
+    for attempt in range(1, 3):
+        prompt = _render_post_run_judge_prompt(output_dir)
+        if validation_issues:
+            prompt += (
+                "\n\nPrevious Judge output failed validation. Rewrite only "
+                "`step-18-judge.json` and `step-18-judge.md` and fix these issues:\n"
+                + "\n".join(f"- {issue}" for issue in validation_issues)
+            )
+
+        try:
+            process = _start_pipeline_process(
+                prompt,
+                ROOT_DIR,
+                model=model,
+                agent="Post Run Judge Agent",
+                agent_cli=agent_cli,
+                reasoning_effort=reasoning_effort,
+            )
+        except FileNotFoundError as exc:
+            st.error(str(exc))
+            return False
+
+        capture_thread, capture_result = _capture_process_output(process)
+        status_ph = st.empty()
+        while process.poll() is None:
+            elapsed = _format_elapsed(time.monotonic() - started_at)
+            status_ph.info(f"Post-run Judge Agent running (attempt {attempt}/2)... elapsed {elapsed}")
+            time.sleep(1.0)
+        status_ph.empty()
+
+        stdout, stderr = _finish_process_output_capture(capture_thread, capture_result)
+        logs.append((attempt, stdout or "", stderr or ""))
+        if process.returncode != 0:
+            st.error(f"❌ Judge Agent failed (exit {process.returncode})")
+            judge_failed = True
+            break
+
+        _normalize_judge_outputs(output_dir)
+        missing = [
+            name for name in ("step-18-judge.json", "step-18-judge.md")
+            if not (output_dir / name).exists()
+        ]
+        validation_issues = missing or _validate_judge_outputs(output_dir)
+        if not validation_issues:
+            break
+
+    with st.expander("📝 Judge Agent Logs"):
+        for attempt, stdout, stderr in logs:
+            st.caption(f"Attempt {attempt}")
+            st.code(stdout.strip() or "<no stdout>", language="text")
+            if stderr:
+                st.code(stderr.strip(), language="bash")
+
+    if judge_failed:
+        return False
+
+    missing = [
+        name for name in ("step-18-judge.json", "step-18-judge.md")
+        if not (output_dir / name).exists()
+    ]
+    if missing:
+        st.error("❌ Judge Agent finished but did not create: " + ", ".join(missing))
+        return False
+
+    if validation_issues:
+        st.error("❌ Judge Agent output failed validation:")
+        for issue in validation_issues:
+            st.write(f"- {issue}")
+        return False
+
+    st.success("✅ Post-run Judge Agent completed successfully!")
+    return True
+
+
+def _handle_cli_mode(prompt: str, output_dir: Path, model: str, agent_cli: str,
+                     reasoning_effort: str) -> None:
+    """Launch the selected agent CLI and stream live progress."""
+    cli_label = AGENT_CLI_OPTIONS[agent_cli]["label"]
+    st.subheader(f"⏱️ Pipeline Running ({cli_label})")
+    started_at = time.monotonic()
+    try:
+        process = _start_pipeline_process(
+            prompt,
+            ROOT_DIR,
+            model=model,
+            agent="Single Agent Pipeline",
+            agent_cli=agent_cli,
+            reasoning_effort=reasoning_effort,
+        )
+    except FileNotFoundError as exc:
+        st.error(str(exc))
+        return
+    capture_thread, capture_result = _capture_process_output(process)
     status_ph = st.empty()
 
     while process.poll() is None:
@@ -3009,7 +3796,7 @@ def _handle_cli_mode(prompt: str, output_dir: Path, model: str) -> None:
     with status_ph.container():
         _render_live_status(output_dir, started_at)
 
-    stdout, stderr = process.communicate()
+    stdout, stderr = _finish_process_output_capture(capture_thread, capture_result)
     with st.expander("📝 Execution Logs"):
         st.code((stdout or "").strip() or "<no stdout>", language="text")
         if stderr:
@@ -3019,12 +3806,18 @@ def _handle_cli_mode(prompt: str, output_dir: Path, model: str) -> None:
         st.error(f"❌ Pipeline failed (exit {process.returncode})")
     else:
         st.success("✅ Pipeline completed successfully!")
+        if not _run_post_run_judge(output_dir, model, agent_cli, reasoning_effort):
+            return
         # Save metadata when pipeline completes successfully
         elapsed = time.monotonic() - started_at
-        _save_metadata(output_dir, model, elapsed)
+        model_metadata = f"{agent_cli}:{model}"
+        if agent_cli == "codex":
+            model_metadata += f":reasoning={reasoning_effort}"
+        _save_metadata(output_dir, model_metadata, elapsed)
 
 
-def _handle_rerun(output_dir: Path, target_column: str, csv_path_override: str | None) -> None:
+def _handle_rerun(output_dir: Path, target_column: str, csv_path_override: str | None,
+                  model: str, agent_cli: str, reasoning_effort: str) -> None:
     """
     Re-run mode: execute an already-generated orchestrator.py directly via Python.
     No Copilot CLI or agent needed.
@@ -3063,6 +3856,7 @@ def _handle_rerun(output_dir: Path, target_column: str, csv_path_override: str |
         st.error(f"Failed to launch orchestrator: {e}")
         return
 
+    capture_thread, capture_result = _capture_process_output(process)
     started_at = time.monotonic()
     status_ph = st.empty()
 
@@ -3073,7 +3867,7 @@ def _handle_rerun(output_dir: Path, target_column: str, csv_path_override: str |
     with status_ph.container():
         _render_live_status(output_dir, started_at)
 
-    stdout, stderr = process.communicate()
+    stdout, stderr = _finish_process_output_capture(capture_thread, capture_result)
     with st.expander("📝 Execution Logs"):
         st.code((stdout or "").strip() or "<no stdout>", language="text")
         if stderr:
@@ -3083,6 +3877,8 @@ def _handle_rerun(output_dir: Path, target_column: str, csv_path_override: str |
         st.error(f"❌ Re-run failed (exit {process.returncode})")
     else:
         st.success("✅ Re-run completed successfully!")
+        if not _run_post_run_judge(output_dir, model, agent_cli, reasoning_effort):
+            return
         # Save metadata when pipeline completes successfully
         elapsed = time.monotonic() - started_at
         # Use 'orchestrator-rerun' as model name for re-runs
@@ -3116,11 +3912,29 @@ def main() -> None:
             "Output directory",
             value=str(DEFAULT_RUNS_DIR / datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")),
         )
-        selected_model = st.selectbox(
-            "Copilot model",
-            options=["claude-haiku-4.5", "claude-sonnet-4.6", "gpt-5.4-mini", ],
+        selected_agent_cli = st.selectbox(
+            "Agent CLI",
+            options=list(AGENT_CLI_OPTIONS.keys()),
+            format_func=lambda key: AGENT_CLI_OPTIONS[key]["label"],
             index=0,
         )
+        model_options = AGENT_CLI_OPTIONS[selected_agent_cli]["models"]
+        default_model = AGENT_CLI_OPTIONS[selected_agent_cli]["default_model"]
+        default_model_index = (
+            model_options.index(default_model) if default_model in model_options else 0
+        )
+        selected_model = st.selectbox(
+            "Model",
+            options=model_options,
+            index=default_model_index,
+        )
+        selected_reasoning_effort = DEFAULT_CODEX_REASONING_EFFORT
+        if selected_agent_cli == "codex":
+            selected_reasoning_effort = st.selectbox(
+                "Reasoning effort",
+                options=CODEX_REASONING_EFFORT_OPTIONS,
+                index=CODEX_REASONING_EFFORT_OPTIONS.index(DEFAULT_CODEX_REASONING_EFFORT),
+            )
 
         target_column: str | None = None
         if uploaded is not None:
@@ -3136,9 +3950,16 @@ def main() -> None:
             )
             st.caption(f"{dataframe.shape[0]} rows × {dataframe.shape[1]} cols")
 
+        selected_cli_available = (
+            _codex_cli_available() if selected_agent_cli == "codex"
+            else _copilot_cli_available()
+        )
+        if not selected_cli_available:
+            st.warning(f"{AGENT_CLI_OPTIONS[selected_agent_cli]['label']} not found in this runtime.")
+
         submitted = st.button("▶️ Run Pipeline (CLI)", type="primary",
                               use_container_width=True,
-                              disabled=(uploaded is None))
+                              disabled=(uploaded is None or not selected_cli_available))
 
         # Re-run with existing scripts (no agent needed)
         active_dir_for_rerun: Path | None = None
@@ -3167,7 +3988,10 @@ def main() -> None:
     if active_dir_for_rerun is not None:
         _handle_rerun(active_dir_for_rerun,
                       st.session_state.get("rerun_target", ""),
-                      st.session_state.get("rerun_csv"))
+                      st.session_state.get("rerun_csv"),
+                      selected_model,
+                      selected_agent_cli,
+                      selected_reasoning_effort)
         active_dir = active_dir_for_rerun
 
     # ── Handle new run ────────────────────────────────────────────────────────
@@ -3186,10 +4010,18 @@ def main() -> None:
         run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         prompt = _render_single_agent_prompt(
             csv_path=csv_path, target_column=normalized_target,
-            output_dir=active_dir, copilot_model=selected_model,
+            output_dir=active_dir, model=selected_model,
+            agent_cli=selected_agent_cli,
+            reasoning_effort=selected_reasoning_effort,
         )
 
-        _handle_cli_mode(prompt, active_dir, selected_model)
+        _handle_cli_mode(
+            prompt,
+            active_dir,
+            selected_model,
+            selected_agent_cli,
+            selected_reasoning_effort,
+        )
 
     # ── Show results in tabs ──────────────────────────────────────────────────
     if active_dir is None:

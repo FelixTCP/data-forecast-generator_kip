@@ -23,13 +23,14 @@ def extract_metrics_from_folder(folder_path: Path) -> Optional[Dict[str, Any]]:
     Extract metrics from a single output folder.
     
     Args:
-        folder_path: Path to the timestamped output folder (e.g., 20260520T073850Z)
+        folder_path: Path to an output folder
     
     Returns:
         Dictionary of extracted metrics, or None if extraction fails
     """
     metrics = {
-        "timestamp": folder_path.name,
+        "folder_name": folder_path.name,
+        "timestamp": None,
         "timestamp_parsed": None,
         "csv_path": None,
         "target_column": None,
@@ -49,20 +50,18 @@ def extract_metrics_from_folder(folder_path: Path) -> Optional[Dict[str, Any]]:
         "tokens_used": None,
     }
     
-    # Parse timestamp from folder name (ISO 8601 format: 20260520T073850Z)
-    try:
-        metrics["timestamp_parsed"] = datetime.strptime(
-            folder_path.name, "%Y%m%dT%H%M%SZ"
-        ).isoformat()
-    except ValueError:
-        print(f"  Warning: Could not parse timestamp from folder name: {folder_path.name}")
-    
     # 1. Extract from progress.json
     progress_file = folder_path / "progress.json"
     if progress_file.exists():
         try:
             with open(progress_file, "r") as f:
                 progress = json.load(f)
+            
+            # Use run_id as timestamp if available
+            run_id = progress.get("run_id")
+            if run_id:
+                metrics["timestamp"] = run_id
+            
             metrics["csv_path"] = progress.get("csv_path")
             metrics["target_column"] = progress.get("target_column")
             metrics["status"] = progress.get("status")
@@ -78,6 +77,15 @@ def extract_metrics_from_folder(folder_path: Path) -> Optional[Dict[str, Any]]:
             print(f"  Warning: Error reading progress.json: {e}")
     else:
         print(f"  Warning: progress.json not found in {folder_path.name}")
+    
+    # Parse timestamp to ISO format (ISO 8601 format: 20260520T073850Z)
+    try:
+        metrics["timestamp_parsed"] = datetime.strptime(
+            metrics["timestamp"], "%Y%m%dT%H%M%SZ"
+        ).isoformat()
+    except ValueError:
+        # If parsing fails, keep timestamp as-is
+        pass
     
     # 2. Extract from step-13-training.json
     training_file = folder_path / "step-13-training.json"
@@ -138,10 +146,10 @@ def extract_metrics_from_folder(folder_path: Path) -> Optional[Dict[str, Any]]:
 
 def extract_all_metrics(output_dir: Path) -> List[Dict[str, Any]]:
     """
-    Extract metrics from all timestamped folders in the output directory.
+    Extract metrics from all folders in the output directory.
     
     Args:
-        output_dir: Path to the output directory containing timestamped folders
+        output_dir: Path to the output directory containing result folders
     
     Returns:
         List of metric dictionaries, one per folder
@@ -152,14 +160,14 @@ def extract_all_metrics(output_dir: Path) -> List[Dict[str, Any]]:
         print(f"Error: Output directory not found: {output_dir}")
         return metrics_list
     
-    # Find all timestamped folders (directories matching YYYYMMDDTHHMMSSZ pattern)
-    timestamped_folders = sorted([
+    # Find all subdirectories (skip files)
+    all_folders = sorted([
         folder for folder in output_dir.iterdir()
-        if folder.is_dir() and len(folder.name) == 16 and folder.name[8] == 'T'
+        if folder.is_dir()
     ])
     
-    print(f"\nFound {len(timestamped_folders)} output folder(s) to process:")
-    for folder in timestamped_folders:
+    print(f"\nFound {len(all_folders)} folder(s) to process:")
+    for folder in all_folders:
         print(f"\nProcessing: {folder.name}")
         metrics = extract_metrics_from_folder(folder)
         if metrics:
