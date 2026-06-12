@@ -20,8 +20,9 @@ Der Data Forecast Generator soll aus einer CSV-Datei, einer Zielspalte und Laufp
 6. Modellauswahl
 7. Ergebnisreport
 8. Kritischer Self-Audit
+9. Executive Summary
 
-Nach abgeschlossenem Step 17 kann die Streamlit-App automatisch den separaten Post Run Judge Agent starten. Der Judge ist kein Pipeline-Step, sondern bewertet den fertigen Run fuer MVP- und Use-Case-Diskussionen.
+Nach abgeschlossenem Step 18 kann die Streamlit-App automatisch den separaten Post Run Judge Agent starten. Der Judge ist kein Pipeline-Step, sondern bewertet den fertigen Run fuer MVP- und Use-Case-Diskussionen.
 
 ## Artefakte
 
@@ -38,8 +39,10 @@ Ein Run liegt unter `output/<RUN_ID>/` und enthaelt typischerweise:
 - `step-16-report.md`
 - `code_audit.json`
 - `step-17-audit.json`
-- `step-18-judge.json`
-- `step-18-judge.md`
+- `step-18-executive-summary.json`
+- `step-18-executive-summary.md`
+- `judge.json`
+- `judge.md`
 
 ## Verifizierter Beispiel-Run
 

@@ -1,20 +1,18 @@
-# Step 19: Executive Summary
+# Step 18: Executive Summary
 
 ## Purpose
 
-**Step 19 is an agentic reasoning step** that synthesizes all pipeline findings into a **C-suite executive summary**. After Steps 10–18 complete, the agent reads artifacts from the entire pipeline run and produces a plain-English narrative report for business decision-makers.
+**Step 18 is an agentic reasoning step** that synthesizes all pipeline findings into a **C-suite executive summary**. After Steps 10–17 complete successfully, the agent reads artifacts from the completed technical pipeline run and produces a plain-English narrative report for business decision-makers.
 
 No Python script execution, no model training, no new analysis—only **synthesis and framing** of existing results for executive consumption.
 
 ---
 
-## When Step 19 Runs
+## When Step 18 Runs
 
-- **Trigger**: After Step 18 (LLM-as-a-Judge) completes successfully
-- **Condition**: Only if Step 18 `status` is one of:
-  - `mvp_discussion_ready`
-  - `mvp_discussion_ready_with_caveats`
-- **Skip condition**: If Step 18 status is `needs_validation_before_mvp_discussion`, `not_mvp_ready`, or `no_reliable_forecast_use_case_supported` → **skip Step 19 gracefully** (do not fail pipeline)
+- **Trigger**: After Step 17 (Critical Self-Audit) completes successfully
+- **Condition**: Only if Step 17 has `overall_audit_result == "pass"` and `progress.json` has `final_audit_result == "pass"`
+- **Skip condition**: If Step 17 does not pass → **skip Step 18 gracefully** (do not fail pipeline)
 
 ---
 
@@ -28,8 +26,6 @@ From `OUTPUT_DIR`, read:
 - `step-15-selection.json` — selected model, weighted scores, rationale
 - `step-16-report.md` — customer-facing technical report (6 sections)
 - `step-17-audit.json` — audit findings (data profile, check results, any concerns)
-- `step-18-judge.json` — MVP assessment (status, use case, business ratings)
-- `step-18-judge.md` — judge narrative (business potential, risks, recommendation)
 - `step-10-cleanse.json` — row counts, data quality notes (for scale context)
 
 ### 2. Extract & Translate Key Metrics
@@ -40,7 +36,7 @@ From JSON artifacts, extract:
 - **Model type**: e.g., "Random Forest", "Gradient Boosting" → translate to business terms (e.g., "ensemble tree-based model")
 - **Data profile**: detected in Step 11 → business context (e.g., "time-series sales data with 3-year history")
 - **Audit concerns**: from Step 17 → any risk flags or data quality issues
-- **Business potential**: from Step 18 judge → high/medium/low ratings across 4 dimensions
+- **Audit result**: from Step 17 audit → pass/fail status, critical findings, remediation context, and confidence limits
 
 ### 3. Identify Audience Questions
 
@@ -52,17 +48,17 @@ The executive summary must answer (in plain English):
 
 ### 4. Synthesize Narrative
 
-Combine extracted metrics, audit findings, and judge assessment into **7–8 sections** of cohesive, C-suite-friendly narrative. See "Output Structure" below.
+Combine extracted metrics, selection rationale, report narrative, and audit findings into **7–8 sections** of cohesive, C-suite-friendly narrative. See "Output Structure" below.
 
 ### 5. Validate Outputs
 
 After generating both output files, check:
-1. Both files exist: `step-19-executive-summary.md` and `step-19-executive-summary.json`
+1. Both files exist: `step-18-executive-summary.md` and `step-18-executive-summary.json`
 2. Markdown ≥ 400 bytes (sanity check)
 3. Markdown contains all 7–8 required section headings (case-insensitive match)
 4. JSON is valid and contains all required fields (see schema below)
 5. Recommendation field is one of: `proceed_to_mvp`, `proceed_with_caution`, `not_recommended`
-6. key_metrics object contains: `model_r2`, `model_rmse`, `model_mae`, `confidence_level`
+6. key_metrics object contains: `model_r2`, `model_rmse`, `model_mae`, `confidence_percent`
 7. `next_steps` array is non-empty
 
 If any gate fails, report the error clearly (do NOT fail pipeline—this is informational).
@@ -77,15 +73,13 @@ If any gate fails, report the error clearly (do NOT fail pipeline—this is info
 | `step-15-selection.json` | Step 15 output | Selected model info + weighted score + rationale |
 | `step-16-report.md` | Step 16 output | Customer-facing technical report |
 | `step-17-audit.json` | Step 17 output | Audit findings (data profile, check status) |
-| `step-18-judge.json` | Step 18 output | MVP status, business ratings, recommendation |
-| `step-18-judge.md` | Step 18 output | Judge narrative + business assessment |
 | `step-10-cleanse.json` | Step 10 output | Data shape, quality notes (context only) |
 
 ---
 
 ## Output Structure
 
-### File 1: `step-19-executive-summary.md` (Markdown Report)
+### File 1: `step-18-executive-summary.md` (Markdown Report)
 
 **Target length**: 500–1000 words  
 **Tone**: Plain English, no ML jargon, business-impact framing  
@@ -156,14 +150,14 @@ If any gate fails, report the error clearly (do NOT fail pipeline—this is info
 
 ---
 
-### File 2: `step-19-executive-summary.json` (Metadata)
+### File 2: `step-18-executive-summary.json` (Metadata)
 
 **Purpose**: Structured output for programmatic consumption (dashboards, databases, report generators)
 
 **Schema**:
 ```json
 {
-  "step": "19-executive-summary",
+  "step": "18-executive-summary",
   "run_id": "<RUN_ID>",
   "status": "completed",
   "headline": "We successfully identified a production-ready demand forecasting use case with 82% confidence.",
@@ -196,7 +190,7 @@ If any gate fails, report the error clearly (do NOT fail pipeline—this is info
     "Requires daily data feed; model degrades with gaps >1 week"
   ],
   "audit_concerns_summary": "No critical audit concerns; model passed all validation checks.",
-  "report_path": "step-19-executive-summary.md",
+  "report_path": "step-18-executive-summary.md",
   "generated_at": "<ISO8601 timestamp>"
 }
 ```
@@ -205,16 +199,16 @@ If any gate fails, report the error clearly (do NOT fail pipeline—this is info
 
 ## Validation Gates (Blocking)
 
-All gates must pass before Step 19 is considered complete:
+All gates must pass before Step 18 is considered complete:
 
-1. **File existence**: Both `step-19-executive-summary.md` and `step-19-executive-summary.json` exist
+1. **File existence**: Both `step-18-executive-summary.md` and `step-18-executive-summary.json` exist
 2. **Markdown size**: ≥ 400 bytes (sanity check—ensure content written)
 3. **JSON validity**: Valid JSON; no parse errors
 4. **Required JSON fields**: Must contain all of: `step`, `run_id`, `status`, `headline`, `recommendation`, `confidence_level`, `key_metrics`, `next_steps`, `risks`, `report_path`, `generated_at`
 5. **Markdown structure**: Contains all 7–8 required section headings (case-insensitive match)
    - Check for: "Executive Headline", "Problem", "What We Did", "Key Findings", "Business", "Risks", "Recommendation"
 6. **Recommendation validity**: `recommendation` is one of: `proceed_to_mvp`, `proceed_with_caution`, `not_recommended`
-7. **Key metrics presence**: `key_metrics` object contains at least: `model_r2`, `model_rmse`, `model_mae`, `confidence_level`
+7. **Key metrics presence**: `key_metrics` object contains at least: `model_r2`, `model_rmse`, `model_mae`, `confidence_percent`
 8. **Next steps non-empty**: `next_steps` array contains ≥ 1 entry
 
 ---
@@ -235,15 +229,15 @@ All gates must pass before Step 19 is considered complete:
 
 ## Exception Handling
 
-- **If Step 18 status is not MVP-ready**: Skip Step 19 entirely; log to `progress.json` as info; do NOT fail pipeline
-- **If artifacts are missing or corrupt**: Report the specific file(s) that could not be read; mark Step 19 as `status: failed`; do NOT mark pipeline as incomplete
-- **If JSON validation fails**: Log the specific validation error (missing field, wrong type, etc.) in Step 19 output; do NOT halt
-- **If gate failures exist**: Log which gates failed; mark Step 19 `status: completed_with_warnings`; do NOT block final pipeline completion
+- **If Step 17 did not pass**: Skip Step 18 entirely; log to `progress.json` as info; do NOT fail pipeline
+- **If artifacts are missing or corrupt**: Report the specific file(s) that could not be read; mark Step 18 as `status: failed`; do NOT mark pipeline as incomplete
+- **If JSON validation fails**: Log the specific validation error (missing field, wrong type, etc.) in Step 18 output; do NOT halt
+- **If gate failures exist**: Log which gates failed; mark Step 18 `status: completed_with_warnings`; do NOT block final pipeline completion
 
 ---
 
 ## Reference
 
-- Related specs: `docs/pipeline-framework/18-llm-as-judge.md` (prior step), `docs/pipeline-framework/16-result-presentation.md` (technical report for reference)
+- Related specs: `docs/pipeline-framework/17-critical-self-audit.md` (prior step), `docs/pipeline-framework/16-result-presentation.md` (technical report for reference)
 - Contracts: `docs/agentic-pipeline/contracts.md` (runtime execution, file layout)
 - For agent: Read this spec → perform reasoning tasks → validate outputs → update `progress.json`

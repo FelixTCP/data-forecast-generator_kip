@@ -17,7 +17,6 @@ import threading
 import os
 import html
 import json
-import html
 import re
 import subprocess
 import textwrap
@@ -72,8 +71,7 @@ PIPELINE_STEPS = [
     "15-model-selection",
     "16-result-presentation",
     "17-critical-self-audit",
-    "18-llm-as-judge",
-    "19-executive-summary",
+    "18-executive-summary",
 ]
 
 _BENCHMARK_NAMES = {"arima_benchmark", "kmeans_benchmark", "naive_persistence", "seasonal_naive",
@@ -265,14 +263,6 @@ def _render_single_agent_prompt(csv_path: Path, target_column: str,
         f"CODEX_MODEL={model}\n"
         f"CODEX_REASONING_EFFORT={reasoning_effort}\n"
         "CONTINUE_MODE=false\n\n"
-        "Hard completion rule:\n"
-        "- Do not stop after an intermediate step.\n"
-        "- A successful run requires all steps 10 through 18 to complete.\n"
-        "- Do not exit successfully until these files exist in OUTPUT_DIR: "
-        "step-13-training.json, step-14-evaluation.json, step-15-selection.json, "
-        "step-16-report.md, step-17-audit.json, step-18-judge.json, step-18-judge.md.\n"
-        "- progress.json must end with status=\"completed\" and final_audit_result=\"pass\".\n"
-        "- If any required artifact is missing, treat the run as incomplete and report the missing files.\n\n"
         "Follow exactly the contract in "
         "`@.github/agents/Single Agent Pipeline.agent.md`."
     )
@@ -288,8 +278,8 @@ def _render_post_run_judge_prompt(output_dir: Path) -> str:
         "Use only artifacts from this OUTPUT_DIR. The forecasting pipeline has already run; "
         "do not modify existing artifacts, do not create Python files, and do not rerun any "
         "pipeline step. Write exactly these two files:\n"
-        "- step-18-judge.json\n"
-        "- step-18-judge.md\n\n"
+        "- judge.json\n"
+        "- judge.md\n\n"
         "Follow exactly `.github/agents/Post Run Judge Agent.agent.md`."
     )
 
@@ -322,8 +312,8 @@ def _judge_source_title(value: object) -> str:
 
 def _normalize_judge_outputs(output_dir: Path) -> None:
     """Keep Judge output shape compact without changing its judgement."""
-    judge_path = output_dir / "step-18-judge.json"
-    md_path = output_dir / "step-18-judge.md"
+    judge_path = output_dir / "judge.json"
+    md_path = output_dir / "judge.md"
     judge = _read_json(judge_path)
     source_titles: list[str] = []
 
@@ -403,14 +393,14 @@ def _judge_numeric_value(value: object) -> str:
 def _validate_judge_outputs(output_dir: Path) -> list[str]:
     """Validate the post-run Judge Agent contract without replacing the judgement."""
     issues: list[str] = []
-    judge_path = output_dir / "step-18-judge.json"
-    md_path = output_dir / "step-18-judge.md"
+    judge_path = output_dir / "judge.json"
+    md_path = output_dir / "judge.md"
     judge = _read_json(judge_path)
 
     if not isinstance(judge, dict):
-        return ["step-18-judge.json is missing or invalid JSON."]
+        return ["judge.json is missing or invalid JSON."]
     if not md_path.exists():
-        issues.append("step-18-judge.md is missing.")
+        issues.append("judge.md is missing.")
 
     allowed_statuses = {
         "mvp_discussion_ready",
@@ -740,36 +730,6 @@ def _format_step_label(step: str | None) -> str:
     return step.replace("-", " ").title()
 
 
-def _metric_display_value(value: object, default: str = "unknown") -> str | int | float:
-    """Convert arbitrary JSON values into types accepted by st.metric."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return "Yes" if value else "No"
-    if isinstance(value, (int, float)):
-        return value
-    if isinstance(value, str):
-        return value if value.strip() else default
-    if isinstance(value, list):
-        items = [str(item).strip() for item in value if str(item).strip()]
-        return ", ".join(items) if items else default
-    if isinstance(value, dict):
-        if not value:
-            return default
-        return ", ".join(f"{k}: {v}" for k, v in value.items())
-    return str(value)
-
-
-def _html_escape(value: object, default: str = "") -> str:
-    """Escape arbitrary values for small HTML dashboard snippets."""
-    if value is None:
-        return default
-    return html.escape(str(value))
-
-
-def _html_block(value: str) -> str:
-    """Dedent HTML before sending it to Streamlit markdown."""
-    return textwrap.dedent(value).strip()
 def _step_number(value: object) -> int | None:
     """Normalize a numeric step or a step ID such as ``12-feature-extraction``."""
     if isinstance(value, bool):
@@ -927,7 +887,7 @@ _STEP_SENTINEL_FILES: dict[str, str] = {
     "15-model-selection":      "step-15-selection.json",
     "16-result-presentation":  "step-16-report.md",
     "17-critical-self-audit":  "step-17-audit.json",
-    "18-llm-as-judge":         "step-18-judge.json",
+    "18-executive-summary":    "step-18-executive-summary.json",
 }
 
 
@@ -951,7 +911,7 @@ _STEP_OUTPUT_FILES: dict[int, list[str]] = {
     15: ["step-15-selection.json"],
     16: ["step-16-report.md"],
     17: ["step-17-audit.json"],
-    18: ["step-18-judge.json", "step-18-judge.md"],
+    18: ["step-18-executive-summary.json", "step-18-executive-summary.md"],
 }
 
 # AUTO action → env var to inject so the step scripts apply the remediation
@@ -3061,12 +3021,12 @@ def _render_audit_tab(output_dir: Path) -> None:
 
 
 def _render_executive_summary_tab(output_dir: Path) -> None:
-    """Render Step 19 Executive Summary for C-suite."""
-    summary_md_path = output_dir / "step-19-executive-summary.md"
-    summary_json_path = output_dir / "step-19-executive-summary.json"
+    """Render Step 18 Executive Summary for C-suite."""
+    summary_md_path = output_dir / "step-18-executive-summary.md"
+    summary_json_path = output_dir / "step-18-executive-summary.json"
 
     if not summary_md_path.exists() and not summary_json_path.exists():
-        st.info("Executive summary not yet available (step 19 pending or Step 18 was not MVP-ready).")
+        st.info("Executive summary not yet available (step 18 pending or Step 17 did not pass).")
         return
 
     if summary_md_path.exists():
@@ -3120,278 +3080,11 @@ def _render_executive_summary_tab(output_dir: Path) -> None:
 
 
 def _render_judge_tab(output_dir: Path) -> None:
-    """Render Step 18 LLM-as-a-Judge results."""
-    judge_json_path = output_dir / "step-18-judge.json"
-    judge_md_path = output_dir / "step-18-judge.md"
-
-    if not judge_json_path.exists() and not judge_md_path.exists():
-        st.info("Judge report not yet available (step 18 pending).")
-        return
-
-    judge = _read_json(judge_json_path) if judge_json_path.exists() else {}
-
-    if judge:
-        st.markdown(
-            _html_block("""
-            <style>
-            .judge-grid {display:grid; gap:12px; grid-template-columns:repeat(12,minmax(0,1fr));}
-            .judge-card {
-                border:1px solid rgba(148,163,184,.22);
-                background:linear-gradient(180deg,rgba(30,41,59,.64),rgba(15,23,42,.72));
-                border-radius:8px;
-                padding:18px;
-                min-height:100%;
-                box-shadow:0 8px 26px rgba(0,0,0,.18);
-            }
-            .judge-span-3 {grid-column:span 3;}
-            .judge-span-4 {grid-column:span 4;}
-            .judge-span-5 {grid-column:span 5;}
-            .judge-span-6 {grid-column:span 6;}
-            .judge-span-7 {grid-column:span 7;}
-            .judge-span-12 {grid-column:span 12;}
-            .judge-title {font-size:18px;font-weight:700;margin:0 0 14px;color:#e5e7eb;}
-            .judge-kicker {font-size:12px;text-transform:uppercase;color:#94a3b8;margin-bottom:4px;}
-            .judge-status {font-size:25px;font-weight:800;color:#4ade80;margin:0 0 8px;}
-            .judge-status.warn {color:#facc15;}
-            .judge-status.bad {color:#f87171;}
-            .judge-body {color:#e5e7eb;line-height:1.55;font-size:14px;}
-            .judge-muted {color:#9ca3af;font-size:13px;line-height:1.45;}
-            .judge-pill {display:inline-block;border-radius:5px;padding:3px 9px;font-weight:700;font-size:13px;}
-            .judge-high {background:rgba(34,197,94,.18);color:#4ade80;}
-            .judge-medium,.judge-unclear {background:rgba(250,204,21,.18);color:#facc15;}
-            .judge-low {background:rgba(248,113,113,.18);color:#f87171;}
-            .judge-metric-value {font-size:26px;font-weight:800;color:#60a5fa;margin:2px 0 8px;}
-            .judge-list {margin:8px 0 0 18px;padding:0;color:#e5e7eb;font-size:14px;line-height:1.55;}
-            .judge-source-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
-            .judge-source {border:1px solid rgba(148,163,184,.16);border-radius:6px;padding:8px;color:#cbd5e1;background:rgba(15,23,42,.38);}
-            @media (max-width: 900px) {
-                .judge-grid {grid-template-columns:1fr;}
-                .judge-span-3,.judge-span-4,.judge-span-5,.judge-span-6,.judge-span-7,.judge-span-12 {grid-column:span 1;}
-                .judge-source-grid {grid-template-columns:1fr;}
-            }
-            </style>
-            """),
-            unsafe_allow_html=True,
-        )
-
-        valid_statuses = {
-            "mvp_discussion_ready",
-            "mvp_discussion_ready_with_caveats",
-            "needs_validation_before_mvp_discussion",
-            "not_mvp_ready",
-            "no_reliable_forecast_use_case_supported",
-        }
-        status = str(judge.get("status", "unknown"))
-        status_label = str(judge.get("status_label") or status).replace("_", " ").title()
-        status_class = "bad" if status in {"not_mvp_ready", "no_reliable_forecast_use_case_supported"} else (
-            "warn" if status in {"mvp_discussion_ready_with_caveats", "needs_validation_before_mvp_discussion"} else ""
-        )
-        recommendation = judge.get("final_recommendation", {})
-        if not isinstance(recommendation, dict):
-            recommendation = {}
-        use_case = judge.get("use_case", {})
-        if not isinstance(use_case, dict):
-            use_case = {}
-        ratings = judge.get("ratings", {})
-        if not isinstance(ratings, dict):
-            ratings = {}
-
-        if status not in valid_statuses:
-            st.error(
-                "Final recommendation uses an invalid Step 18 status. "
-                f"Received: `{status}`"
-            )
-
-        def _rating_item(name: str) -> dict:
-            item = ratings.get(name, {})
-            return item if isinstance(item, dict) else {"rating": item}
-
-        def _pill(value: object) -> str:
-            rating = str(value or "unclear").lower()
-            css = rating if rating in {"high", "medium", "low", "unclear"} else "unclear"
-            return f'<span class="judge-pill judge-{css}">{_html_escape(str(value).title() if value else "Unclear")}</span>'
-
-        summary = recommendation.get("summary") or judge.get("status_reason", "")
-        strongest = recommendation.get("strongest_supporting_reason", "")
-        caveat = recommendation.get("main_caveat", "")
-        use_case_type = str(use_case.get("type", "unclear")).replace("_", " ").title()
-
-        st.markdown(
-            _html_block(f"""
-            <div class="judge-grid">
-              <div class="judge-card judge-span-6">
-                <div class="judge-title">Final Recommendation</div>
-                <div class="judge-status {status_class}">{_html_escape(status_label)}</div>
-                <div class="judge-body">{_html_escape(summary)}</div>
-                <div class="judge-grid" style="margin-top:14px;">
-                  <div class="judge-card judge-span-6"><div class="judge-kicker">Strongest reason</div><div class="judge-muted">{_html_escape(strongest)}</div></div>
-                  <div class="judge-card judge-span-6"><div class="judge-kicker">Main caveat</div><div class="judge-muted">{_html_escape(caveat)}</div></div>
-                </div>
-              </div>
-              <div class="judge-card judge-span-6">
-                <div class="judge-title">Use Case</div>
-                <div class="judge-body"><strong>{_html_escape(use_case.get("title", "Use case unclear"))}</strong></div>
-                <div class="judge-muted" style="margin-top:8px;">{_html_escape(use_case.get("description", ""))}</div>
-                <div class="judge-grid" style="margin-top:14px;">
-                  <div class="judge-card judge-span-4"><div class="judge-kicker">Type</div><div class="judge-body">{_html_escape(use_case_type)}</div></div>
-                  <div class="judge-card judge-span-5"><div class="judge-kicker">Decision context</div><div class="judge-muted">{_html_escape(use_case.get("decision_context", ""))}</div></div>
-                  <div class="judge-card judge-span-3"><div class="judge-kicker">Evidence strength</div>{_pill(use_case.get("evidence_strength"))}</div>
-                </div>
-              </div>
-            </div>
-            """),
-            unsafe_allow_html=True,
-        )
-
-        if ratings:
-            cards = []
-            for key, label in [
-                ("forecastability", "Forecastability"),
-                ("use_case_potential", "Use Case Potential"),
-                ("business_potential", "Business Potential"),
-                ("business_value_evidence", "Business Value Evidence"),
-            ]:
-                item = _rating_item(key)
-                rating = _metric_display_value(item.get("rating"))
-                headline = str(item.get("headline") or label).strip()
-                explanation = str(item.get("explanation") or "").strip()
-                cards.append(
-                    _html_block(f"""
-                    <div class="judge-card judge-span-3">
-                      <div style="display:flex;justify-content:space-between;gap:10px;align-items:start;">
-                        <div class="judge-title" style="font-size:16px;margin-bottom:8px;">{_html_escape(label)}</div>
-                        {_pill(rating)}
-                      </div>
-                      <div class="judge-body"><strong>{_html_escape(headline)}</strong></div>
-                      <div class="judge-muted" style="margin-top:8px;">{_html_escape(explanation)}</div>
-                    </div>
-                    """)
-                )
-            st.markdown(
-                _html_block(f"""
-                <div class="judge-title" style="margin-top:12px;">Assessment Scores</div>
-                <div class="judge-grid">{"".join(cards)}</div>
-                """),
-                unsafe_allow_html=True,
-            )
-
-        metric_meaning = judge.get("metric_meaning", {})
-        if isinstance(metric_meaning, dict) and metric_meaning:
-            metric_cards = []
-            for key, label in [
-                ("r2", "R²"),
-                ("rmse", "RMSE"),
-                ("mae", "MAE"),
-                ("baseline", "Baseline"),
-                ("target_scale", "Target Scale"),
-            ]:
-                item = metric_meaning.get(key)
-                if not item:
-                    continue
-                if isinstance(item, dict):
-                    value = item.get("value", item.get("actual_value", item.get("metric_value")))
-                    unit = item.get("unit")
-                    if value is None and "available" in item:
-                        value_text = "Available" if item.get("available") else "Not available"
-                    elif value is not None:
-                        value_text = str(value)
-                        if unit:
-                            value_text = f"{value_text} {unit}"
-                    else:
-                        value_text = ""
-                    meaning = item.get("meaning", "")
-                    implication = item.get("relation_to_use_case") or item.get("explanation") or ""
-                    metric_cards.append(
-                        _html_block(f"""
-                        <div class="judge-card judge-span-3">
-                          <div class="judge-kicker">{_html_escape(label)}</div>
-                          <div class="judge-metric-value">{_html_escape(value_text)}</div>
-                          <div class="judge-body">{_html_escape(meaning)}</div>
-                          {f'<div class="judge-muted" style="margin-top:8px;">{_html_escape(implication)}</div>' if implication else ''}
-                        </div>
-                        """)
-                    )
-                else:
-                    metric_cards.append(
-                        f'<div class="judge-card judge-span-3"><div class="judge-kicker">{_html_escape(label)}</div><div class="judge-body">{_html_escape(item)}</div></div>'
-                    )
-            st.markdown(
-                _html_block(f"""
-                <div class="judge-title" style="margin-top:12px;">Metric Meaning for This Use Case</div>
-                <div class="judge-grid">{"".join(metric_cards)}</div>
-                """),
-                unsafe_allow_html=True,
-            )
-
-        business = judge.get("business_potential_and_evidence", {})
-        if isinstance(business, dict) and business:
-            points = business.get("supported_discussion_points", [])
-            limits = business.get("evidence_limits", [])
-            points_html = "".join(f"<li>{_html_escape(point)}</li>" for point in points) or "<li>No supported discussion points documented.</li>"
-            limits_html = "".join(f"<li>{_html_escape(limit)}</li>" for limit in limits) or "<li>No evidence limits documented.</li>"
-            st.markdown(
-                _html_block(f"""
-                <div class="judge-grid" style="margin-top:12px;">
-                  <div class="judge-card judge-span-7">
-                    <div class="judge-title">Business Potential and Evidence</div>
-                    <div class="judge-kicker">Supported discussion points</div>
-                    <ul class="judge-list">{points_html}</ul>
-                  </div>
-                  <div class="judge-card judge-span-5">
-                    <div class="judge-title">Evidence limits</div>
-                    <ul class="judge-list">{limits_html}</ul>
-                  </div>
-                </div>
-                """),
-                unsafe_allow_html=True,
-            )
-
-        risks = judge.get("risks_and_caveats", [])
-        sources = judge.get("sources", [])
-
-        if risks:
-            with st.expander("Risks and caveats", expanded=False):
-                if risks:
-                    for risk in risks:
-                        st.markdown(f"- {risk}")
-                else:
-                    st.caption("No risks documented.")
-
-        if sources:
-            sources_html = "".join(f'<div class="judge-source">{_html_escape(source)}</div>' for source in sources)
-            st.markdown(
-                _html_block(f"""
-                <div class="judge-card" style="margin-top:12px;">
-                  <div class="judge-title">Sources</div>
-                  <div class="judge-source-grid">{sources_html}</div>
-                </div>
-                """),
-                unsafe_allow_html=True,
-            )
-
-    if judge_md_path.exists():
-        judge_text = judge_md_path.read_text(encoding="utf-8", errors="replace")
-        st.markdown("---")
-        st.download_button(
-            "⬇️ Download Judge Report",
-            judge_text,
-            file_name="step-18-judge.md",
-            mime="text/markdown",
-        )
-        with st.expander("Rendered Markdown Report"):
-            st.markdown(judge_text)
-
-    if judge_json_path.exists():
-        with st.expander("📋 Judge JSON"):
-            st.json(judge or _read_json(judge_json_path))
-
-
-def _render_judge_tab(output_dir: Path) -> None:
     """Render the separate Post-run Judge Agent result."""
     st.subheader("⚖️ Post-run Judge")
 
-    judge_json_path = output_dir / "step-18-judge.json"
-    judge_md_path = output_dir / "step-18-judge.md"
+    judge_json_path = output_dir / "judge.json"
+    judge_md_path = output_dir / "judge.md"
     if not judge_json_path.exists() and not judge_md_path.exists():
         progress = _read_json(output_dir / "progress.json") or {}
         if progress.get("status") == "completed":
@@ -3671,7 +3364,7 @@ def _render_judge_tab(output_dir: Path) -> None:
         st.download_button(
             "Download Judge Report",
             judge_text,
-            file_name="step-18-judge.md",
+            file_name="judge.md",
             mime="text/markdown",
         )
         with st.expander("Rendered Markdown Report"):
@@ -3701,7 +3394,7 @@ def _run_post_run_judge(output_dir: Path, model: str, agent_cli: str,
         if validation_issues:
             prompt += (
                 "\n\nPrevious Judge output failed validation. Rewrite only "
-                "`step-18-judge.json` and `step-18-judge.md` and fix these issues:\n"
+                "`judge.json` and `judge.md` and fix these issues:\n"
                 + "\n".join(f"- {issue}" for issue in validation_issues)
             )
 
@@ -3735,7 +3428,7 @@ def _run_post_run_judge(output_dir: Path, model: str, agent_cli: str,
 
         _normalize_judge_outputs(output_dir)
         missing = [
-            name for name in ("step-18-judge.json", "step-18-judge.md")
+            name for name in ("judge.json", "judge.md")
             if not (output_dir / name).exists()
         ]
         validation_issues = missing or _validate_judge_outputs(output_dir)
@@ -3753,7 +3446,7 @@ def _run_post_run_judge(output_dir: Path, model: str, agent_cli: str,
         return False
 
     missing = [
-        name for name in ("step-18-judge.json", "step-18-judge.md")
+        name for name in ("judge.json", "judge.md")
         if not (output_dir / name).exists()
     ]
     if missing:
@@ -4042,7 +3735,7 @@ The pipeline runs 9 steps:
 - **15** Model selection with weighted ranking
 - **16** Full report generation
 - **17** Critical self-audit & remediation (validates results, triggers re-runs if needed)
-- **18** LLM-as-a-Judge customer-facing judgement
+- **18** Executive summary
         """)
         return
 
@@ -4062,8 +3755,8 @@ The pipeline runs 9 steps:
         "🏆 Best Model",
         "📄 Report",
         "🔐 Audit",
-        "⚖️ Judge",
         "👔 Executive Summary",
+        "⚖️ Judge",
     ])
 
     with tab1:
@@ -4085,10 +3778,10 @@ The pipeline runs 9 steps:
         _render_audit_tab(active_dir)
 
     with tab7:
-        _render_judge_tab(active_dir)
+        _render_executive_summary_tab(active_dir)
     
     with tab8:
-        _render_executive_summary_tab(active_dir)
+        _render_judge_tab(active_dir)
 
 
 if __name__ == "__main__":

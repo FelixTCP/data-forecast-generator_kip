@@ -38,8 +38,10 @@ Der Systemkern besteht aus eigenstaendigen Python-Step-Skripten, die pro Run unt
 - `step-16-report.md`
 - `code_audit.json`
 - `step-17-audit.json`
-- `step-18-judge.json`
-- `step-18-judge.md`
+- `step-18-executive-summary.json`
+- `step-18-executive-summary.md`
+- `judge.json`
+- `judge.md`
 
 ## 2. Laufmodell
 
@@ -69,8 +71,10 @@ output/<RUN_ID>/
 ├── step-15-model-selection-metrics.png
 ├── step-16-report.md
 ├── step-17-audit.json
-├── step-18-judge.json
-└── step-18-judge.md
+├── step-18-executive-summary.json
+├── step-18-executive-summary.md
+├── judge.json
+└── judge.md
 ```
 
 Die Step-Skripte sind einzeln ausfuehrbar. Der Orchestrator ist nur eine duenne Ausfuehrungsschicht, die die Schritte in Reihenfolge startet und den gemeinsamen Run-Kontext uebergibt.
@@ -85,8 +89,9 @@ Die Step-Skripte sind einzeln ausfuehrbar. Der Orchestrator ist nur eine duenne 
 6. `15-model-selection`
 7. `16-result-presentation`
 8. `17-critical-self-audit`
+9. `18-executive-summary`
 
-Anschliessend kann die Anwendung automatisch den separaten `Post Run Judge Agent` ausfuehren. Er liest nur den fertigen Run und schreibt `step-18-judge.json` sowie `step-18-judge.md`.
+Anschliessend kann die Anwendung automatisch den separaten `Post Run Judge Agent` ausfuehren. Er liest nur den fertigen Run und schreibt `judge.json` sowie `judge.md`.
 
 ## 3. End-to-End-Ablauf
 
@@ -270,14 +275,23 @@ Output:
 
 - `step-17-audit.json`
 
-### 3.9 Post-run Judge
+### 3.9 Executive Summary
 
-Der Post Run Judge Agent laeuft erst nach abgeschlossenem Step 17. Er bewertet den fertigen Run als externe, kundennahe Entscheidungsgrundlage und schreibt nur Judge-Artefakte.
+Step 18 erstellt nach bestandenem kritischem Self-Audit eine kurze Executive Summary fuer Business-Entscheider.
 
 Outputs:
 
-- `step-18-judge.json`
-- `step-18-judge.md`
+- `step-18-executive-summary.json`
+- `step-18-executive-summary.md`
+
+### 3.10 Post-run Judge
+
+Der Post Run Judge Agent laeuft erst nach abgeschlossenem Step 18. Er bewertet den fertigen Run als externe, kundennahe Entscheidungsgrundlage und schreibt nur Judge-Artefakte.
+
+Outputs:
+
+- `judge.json`
+- `judge.md`
 
 ## 4. Visuelle Architekturuebersicht
 
@@ -303,7 +317,7 @@ flowchart TD
     H --> H2["selection report + metrics plot"]
     I --> I1["step-16-report.md"]
     J --> J1["step-17-audit.json"]
-    K --> K1["step-18-judge.json + .md"]
+    K --> K1["judge.json + judge.md"]
 ```
 
 ```mermaid
@@ -364,7 +378,7 @@ Im zuletzt verifizierten Lauf waren diese Pakete vorhanden:
 
 ## 7. Validierungsgates
 
-Ein Kernlauf gilt als erfolgreich, wenn die Step-Artefakte vorhanden sind, die erwarteten JSON-Felder gesetzt sind, Modellartefakte ladbar sind und `progress.json` nach Step 17 `status=completed` enthaelt.
+Ein Kernlauf gilt als erfolgreich, wenn die Step-Artefakte vorhanden sind, die erwarteten JSON-Felder gesetzt sind, Modellartefakte ladbar sind und `progress.json` nach Step 18 `status=completed` enthaelt.
 
 ### Wichtige Gates
 
@@ -403,7 +417,7 @@ Ein Kernlauf gilt als erfolgreich, wenn die Step-Artefakte vorhanden sind, die e
   - Audit-Ergebnis und gepruefte Artefakte sind dokumentiert
   - `progress.json.status = completed`
 - Post-run Judge:
-  - `step-18-judge.json` und `step-18-judge.md` existieren, wenn der Judge ausgefuehrt wurde
+  - `judge.json` und `judge.md` existieren, wenn der Judge ausgefuehrt wurde
   - die Bewertung liest nur den fertigen Run und schreibt keine Pipeline-Artefakte um
 
 ## 8. Zuletzt verifizierter End-to-End-Run

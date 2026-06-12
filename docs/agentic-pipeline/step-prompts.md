@@ -200,7 +200,7 @@ PHASE 2 — CODE:
 
 PHASE 3 — VALIDATE:
 - step-16-report.md exists and includes all required headings.
-- progress.json remains suitable for Step 17/18 continuation; do not treat Step 16 as final pipeline completion.
+- progress.json remains suitable for Step 17 continuation; do not treat Step 16 as final pipeline completion.
 ```
 
 ---
@@ -263,7 +263,7 @@ PHASE 4 — REMEDIATE (mandatory when overall_audit_result == "fail"):
 - **If at least one [AUTO] action exists:**
   1. Log: "Self-audit FAIL — starting remediation iteration <N>/3. Restarting from step <earliest_step>. Reason: <action descriptions>."
   2. Write/update `OUTPUT_DIR/remediation_config.json` with iteration number, applied actions, and injected parameters.
-  3. Delete output artifacts of all steps from the restart step through 18 (see Orchestrator section for exact file lists).
+  3. Delete output artifacts of all steps from the restart step through 17 (see Orchestrator section for exact file lists).
   4. Re-run the affected steps in order with injected parameters.
   5. Re-run step 17. Re-read audit result. If still "fail" and iterations < 3 → repeat from step 1.
   6. If still "fail" after 3 iterations: write `remediation_required.json`, set `progress.json status = "remediation_required"`, exit code 1.
@@ -274,39 +274,35 @@ PHASE 4 — REMEDIATE (mandatory when overall_audit_result == "fail"):
   - Set `progress.json status = "remediation_required"`, exit code 1.
 
 - **If overall_audit_result == "pass":**
-  - Set `progress.json final_audit_result = "pass"`.
-  - Continue to Step 18. Do not mark the full pipeline completed until Step 18 succeeds.
+  - Set `progress.json final_audit_result = "pass"` and keep the run non-final until Step 18 validates.
+  - Continue to Step 18 Executive Summary.
 ```
 
 ---
 
-## 18-llm-as-judge
+## 18-executive-summary
 
 ```markdown
 PHASE 1 — REASON:
-- Read docs/pipeline-framework/18-llm-as-judge.md.
-- Step 18 is a Markdown-driven Single-Agent judge step, not a separate script or subsystem.
+- Read docs/pipeline-framework/18-executive-summary.md.
+- Confirm Step 17 passed with overall_audit_result == "pass".
 - Confirm required outputs:
-  - OUTPUT_DIR/step-18-judge.json
-  - OUTPUT_DIR/step-18-judge.md
+  - OUTPUT_DIR/step-18-executive-summary.json
+  - OUTPUT_DIR/step-18-executive-summary.md
 
-PHASE 2 — JUDGE:
-- Inspect the current run directory and use only artifacts belonging to the current RUN_ID.
-- Read current-run artifacts when present: progress.json, step-11-exploration.json,
-  step-12-features.json, step-14-evaluation.json, step-15-selection.json,
-  step-16-report.md, step-17-audit.json.
-- Do not mix artifacts from different runs.
-- Apply the use-case judgement, metric interpretation, status, and claim rules from the Step 18 spec.
-- Write OUTPUT_DIR/step-18-judge.json directly.
-- Write OUTPUT_DIR/step-18-judge.md directly.
+PHASE 2 — SYNTHESIZE:
+- Read current-run artifacts only: step-10-cleanse.json, step-14-evaluation.json,
+  step-15-selection.json, step-16-report.md, and step-17-audit.json.
+- Do not read or depend on separate Post Run Judge Agent artifacts.
+- Write OUTPUT_DIR/step-18-executive-summary.json directly.
+- Write OUTPUT_DIR/step-18-executive-summary.md directly.
 
 PHASE 3 — VALIDATE:
-- step-18-judge.json exists and is valid JSON.
-- Contains run_id, status, status_label, status_reason, final_recommendation,
-  use_case, ratings, metric_meaning, business_potential_and_evidence,
-  risks_and_caveats, and sources.
-- step-18-judge.md exists and contains the required sections from the Step 18 spec.
-- Update progress.json with "18-llm-as-judge" in completed_steps and set status="completed".
+- step-18-executive-summary.json exists and is valid JSON.
+- step-18-executive-summary.md exists and includes all required headings.
+- key_metrics contains model_r2, model_rmse, model_mae, and confidence_percent.
+- progress.json remains completed with final_audit_result == "pass".
+- Pipeline finalized. Exit code 0.
 ```
 
 ---
@@ -326,11 +322,11 @@ PHASE 2 — CODE:
 
 **Remediation loop (after step 17 completes):**
 - Read step-17-audit.json.
-- If overall_audit_result == "pass": run Step 18, validate Judge outputs, then finalize.
+- If overall_audit_result == "pass": run Step 18 Executive Summary, validate outputs, then finalize.
 - If overall_audit_result == "fail":
   1. Collect all remediation_actions whose action_id maps to an [AUTO] action (see mapping below).
   2. If NO auto-executable actions exist: log "No auto-remediable actions — manual review required" and break.
-  3. Otherwise: apply ALL auto actions, delete output files of affected steps (from earliest step through 18), re-run affected steps in order, then re-run step 17.
+  3. Otherwise: apply ALL auto actions, delete output files of affected steps (from earliest step through 17), re-run affected steps in order, then re-run step 17.
   4. Re-read step-17-audit.json. Repeat loop (max 3 iterations).
 
 **Full [AUTO] action → restart-step mapping (implement ALL of these, no exceptions):**
@@ -354,27 +350,25 @@ PHASE 2 — CODE:
 - Pass `--group-column <col>` to step 12 and 13.
 - Steps 12/13 loop over unique group values with tqdm, fit one sub-model per group.
 - `model.joblib` = `{"type": "grouped", "models": {group_val: model, ...}, "weights": {group_val: r2, ...}}`.
-- Restart from step 12 through 17. Run Step 18 only after the final audit passes.
+- Restart from step 12 through 17.
 
 **CRITICAL: A `fail` audit MUST ALWAYS trigger action. If NO auto-executable action applies after all iterations, exit with code `1` and write `remediation_required.json`. Never silently accept a fail.**
 
 **Steps to delete and re-run when restart is at step 12:**
 - Delete: step-12-features.json, features.parquet, leakage_audit.json,
   step-13-training.json, model.joblib, candidate-*.joblib, holdout.npz,
-  step-14-evaluation.json, step-15-selection.json, step-16-report.md, step-17-audit.json,
-  step-18-judge.json, step-18-judge.md
-- Re-run: 12, 13, 14, 15, 16, 17, then 18 after audit passes
+  step-14-evaluation.json, step-15-selection.json, step-16-report.md, step-17-audit.json
+- Re-run: 12, 13, 14, 15, 16, 17
 
 **Steps to delete and re-run when restart is at step 13:**
 - Delete: step-13-training.json, model.joblib, candidate-*.joblib, holdout.npz,
-  step-14-evaluation.json, step-15-selection.json, step-16-report.md, step-17-audit.json,
-  step-18-judge.json, step-18-judge.md
-- Re-run: 13, 14, 15, 16, 17, then 18 after audit passes
+  step-14-evaluation.json, step-15-selection.json, step-16-report.md, step-17-audit.json
+- Re-run: 13, 14, 15, 16, 17
 
 **After the loop, regardless of final audit result:**
 - Write final_audit_result to progress.json.
 - Build code_audit.json.
-- Exit with code 0 when status == "completed", final_audit_result == "pass", and Step 18 outputs exist.
+- Exit with code 0 when status == "completed", final_audit_result == "pass", and Step 18 Executive Summary outputs exist.
 - Exit with code 1 only when a step crashes.
 
 PHASE 3 — VALIDATE:
