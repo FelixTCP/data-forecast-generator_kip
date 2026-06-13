@@ -263,6 +263,15 @@ def _render_single_agent_prompt(csv_path: Path, target_column: str,
         f"CODEX_MODEL={model}\n"
         f"CODEX_REASONING_EFFORT={reasoning_effort}\n"
         "CONTINUE_MODE=false\n\n"
+        "Hard completion rule:\n"
+        "- Do not stop after an intermediate step.\n"
+        "- A successful run requires all steps 10 through 18 to complete.\n"
+        "- Do not exit successfully until these files exist in OUTPUT_DIR: "
+        "step-13-training.json, step-14-evaluation.json, step-15-selection.json, "
+        "step-16-report.md, step-17-audit.json, step-18-executive-summary.json, "
+        "step-18-executive-summary.md.\n"
+        "- progress.json must end with status=\"completed\" and final_audit_result=\"pass\".\n"
+        "- If any required artifact is missing, treat the run as incomplete and report the missing files.\n\n"
         "Follow exactly the contract in "
         "`@.github/agents/Single Agent Pipeline.agent.md`."
     )
@@ -3347,17 +3356,15 @@ def _render_judge_tab(output_dir: Path) -> None:
                 f'<span class="judge-source">{_judge_html(_judge_source_title(source))}</span>'
                 for source in sources
             )
-            st.markdown(
-                _judge_html_block(
-                    f"""
-                    <div class="judge-card">
-                      <div class="judge-title">Sources</div>
-                      <div class="judge-muted">{source_lines}</div>
-                    </div>
-                    """
-                ),
-                unsafe_allow_html=True,
-            )
+            with st.expander("Sources", expanded=False):
+                st.markdown(
+                    _judge_html_block(
+                        f"""
+                        <div class="judge-muted">{source_lines}</div>
+                        """
+                    ),
+                    unsafe_allow_html=True,
+                )
 
     if judge_md_path.exists():
         judge_text = judge_md_path.read_text(encoding="utf-8", errors="replace")
