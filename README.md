@@ -2,27 +2,27 @@
 
 Run-basierte Forecasting- und Regressionspipeline fuer CSV-Daten.
 
-Der Data Forecast Generator verarbeitet Kundendaten als CSV, erzeugt daraus eine trainierbare Feature-Matrix, bewertet mehrere Regressionsmodelle und schreibt ein vollstaendiges Ergebnisartefakt mit Modell, Metriken und Markdown-Report.
+Der Data Forecast Generator verarbeitet Kundendaten als CSV, fuehrt einen agentischen 10-18 Step-Workflow aus, trainiert mehrere Regressionsmodelle und schreibt pro Run ein vollstaendiges Artefaktpaket mit Modell, Metriken, Audit und Bericht.
 
 ## Motivation
 
 Kunden liefern haeufig Produktions- oder Betriebsdaten als CSV und suchen Optimierungspotenzial, ohne den konkreten Analyse- oder Forecasting-Use-Case bereits klar benennen zu koennen.
 
-Der Data Forecast Generator soll aus einer CSV-Datei, einer Zielspalte und Laufparametern automatisch eine Regression- bzw. Forecasting-Pipeline erzeugen, trainieren, bewerten und als wiederverwendbares Artefakt dokumentieren.
+Der Data Forecast Generator soll aus CSV-Datei, Zielspalte und Laufparametern automatisch eine robuste Regression- bzw. Forecasting-Pipeline ausfuehren und reproduzierbar dokumentieren.
 
 ## Workflow
 
-1. CSV-Cleansing
-2. Datenexploration
-3. Feature Engineering mit Leakage-Pruefung
-4. Training mehrerer Modellkandidaten
-5. Evaluation
-6. Modellauswahl
-7. Ergebnisreport
-8. Kritischer Self-Audit
-9. Executive Summary
+1. CSV Read/Cleansing (Step 10)
+2. Datenexploration (Step 11)
+3. Feature Extraction inkl. Leakage-Pruefung (Step 12)
+4. Training mehrerer Modellkandidaten (Step 13)
+5. Evaluation inkl. Baselines und Qualitaetsflag (Step 14)
+6. Modellauswahl (Step 15)
+7. Ergebnisreport (Step 16)
+8. Kritischer Self-Audit (Step 17)
+9. Executive Summary (Step 18)
 
-Nach abgeschlossenem Step 18 kann die Streamlit-App automatisch den separaten Post Run Judge Agent starten. Der Judge ist kein Pipeline-Step, sondern bewertet den fertigen Run fuer MVP- und Use-Case-Diskussionen.
+Nach Step 18 kann die Streamlit-App optional den separaten Post Run Judge Agent starten. Der Judge ist kein Pipeline-Step, sondern bewertet den fertigen Run aus externer Sicht.
 
 ## Artefakte
 
@@ -35,48 +35,72 @@ Ein Run liegt unter `output/<RUN_ID>/` und enthaelt typischerweise:
 - `candidate-*.joblib`
 - `model.joblib`
 - `holdout.npz`
-- `step-*.json`
+- `step-10-cleanse.json` bis `step-18-executive-summary.json`
 - `step-16-report.md`
+- `step-18-executive-summary.md`
 - `code_audit.json`
 - `step-17-audit.json`
-- `step-18-executive-summary.json`
-- `step-18-executive-summary.md`
-- `judge.json`
-- `judge.md`
+- optional `judge.json` und `judge.md`
 
-## Verifizierter Beispiel-Run
+## Schnellstart
 
-Der dokumentierte Referenzlauf nutzt:
+### Option A: Docker Compose (empfohlen)
 
-- CSV: `data/appliances_energy_prediction.csv`
-- Target: `appliances`
-- Run: `output/singleagent_20260424T073352Z`
-- ausgewaehltes Modell: `ridge`
-- Qualitaetsflag: `acceptable`
-- R2: `0.5668829594991238`
-- RMSE: `59.56329686814976`
-- MAE: `28.412928284580204`
+1. `.env.example` nach `.env` kopieren und `GH_TOKEN` setzen.
+2. Container starten:
+
+```bash
+docker compose up --build
+```
+
+Danach:
+
+- Agent-App (Training/Run-Steuerung): `http://localhost:8501`
+- Inference-App (Modell laden, Prognosen, XAI): `http://localhost:8502`
+
+Wichtig: Fuer Agent-Runs ist ein gueltiger GitHub Token Pflicht. Ohne `GH_TOKEN` kann die Agent-App keine Pipeline-Schritte ueber Copilot CLI ausfuehren.
+
+### Option B: Lokal mit uv
+
+Abhaengigkeiten synchronisieren:
+
+```bash
+uv sync --no-install-project
+```
+
+Falls `uv` unter Windows nicht im PATH liegt, nutze stattdessen:
+
+```powershell
+.venv\Scripts\uv.exe sync --no-install-project
+```
+
+Apps starten:
+
+```bash
+uv run streamlit run scripts/streamlit_single_agent_app.py
+uv run streamlit run scripts/streamlit_inference_app.py --server.port 8502
+```
+
+Auch lokal gilt: Fuer Runs ueber die Agent-App muss ein gueltiger GitHub Token verfuegbar sein (z. B. als `GH_TOKEN` in der Umgebung).
+
+## Was beim Start ungefaehr ablaeuft
+
+1. CSV hochladen oder vorhandene CSV aus `data/` verwenden.
+2. Zielspalte waehlen (oder automatisch vorschlagen lassen).
+3. Run starten (ueber Copilot CLI oder Codex CLI aus der Agent-App).
+4. Die Pipeline schreibt Schritt fuer Schritt Artefakte nach `output/<RUN_ID>/`.
+5. Nach Abschluss kannst du im gleichen Run die Ergebnisse pruefen:
+	- Modell und Kandidaten
+	- Metriken und Ranking
+	- Markdown-Report
+	- Self-Audit und optional Judge
+6. In der Inference-App kannst du bestehende Runs laden und Vorhersagen/XAI analysieren.
 
 ## Modellartefakt pruefen
 
 ```bash
-uv run --no-sync python - <<'PY'
-import joblib
-
-model = joblib.load("output/manual_run_001/model.joblib")
-print(type(model))
-print(hasattr(model, "predict"))
-PY
+uv run --no-sync python -c "import joblib; m=joblib.load('output/<RUN_ID>/model.joblib'); print(type(m)); print(hasattr(m, 'predict'))"
 ```
-
-## Streamlit-Apps
-
-```bash
-uv run streamlit run scripts/streamlit_single_agent_app.py
-uv run streamlit run scripts/streamlit_inference_app.py
-```
-
-Die Training-App kann Runs ueber Copilot CLI oder Codex CLI starten und zeigt nach Abschluss einen Judge-Tab mit der Post-run-Bewertung.
 
 ## Roadmap
 
