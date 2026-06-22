@@ -110,6 +110,7 @@ PHASE 2 — CODE:
 PHASE 3 — VALIDATE:
 - step-12-features.json exists with non-empty features.
 - features.parquet exists.
+- features_future.parquet exists with exactly 10 rows (or future_inference.k_future=0 if generation failed non-fatally).
 - leakage_audit.json exists with pass status.
 ```
 

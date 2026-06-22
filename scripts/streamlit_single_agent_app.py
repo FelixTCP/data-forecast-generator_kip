@@ -8,7 +8,8 @@ Seven views:
   Tab 4 — Best Model: SHAP, residuals, detailed metrics
   Tab 5 — Report    : full step-16-report.md
   Tab 6 — Audit     : critical self-audit results, remediation actions
-  Tab 7 — Judge     : external post-run assessment
+  Tab 7 — Executive Summary
+  Tab 8 — Judge     : external post-run assessment
 """
 
 from __future__ import annotations
@@ -661,6 +662,8 @@ def _start_pipeline_process(prompt: str, working_dir: Path,
     command.extend(["--model", model])
     if "gpt" in model.lower():
         command.extend(["--reasoning-effort", "low"])
+    if model.lower() == "claude-sonnet-4.6":
+        command.extend(["--reasoning-effort", "medium"])
     command.extend(["-s", "-p", prompt])
     return subprocess.Popen(command, cwd=working_dir,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -1040,7 +1043,6 @@ def _trigger_auto_remediation(output_dir: Path) -> bool:
 
 def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
     progress = _read_json(output_dir / "progress.json")
-    elapsed = _format_elapsed(time.monotonic() - started_at)
 
     completed_count = 0
     current_step = None
@@ -1117,6 +1119,15 @@ def _render_live_status(output_dir: Path, started_at: float) -> dict | None:
                 )
                 restart_step = restart_step_number
                 status = "remediation"
+
+    # Freeze elapsed timer once pipeline reports completed
+    _completed_at_key = f"pipeline_completed_at_{output_dir.name}"
+    if status == "completed":
+        if _completed_at_key not in st.session_state:
+            st.session_state[_completed_at_key] = time.monotonic()
+        elapsed = _format_elapsed(st.session_state[_completed_at_key] - started_at)
+    else:
+        elapsed = _format_elapsed(time.monotonic() - started_at)
 
     # Update progress bar with correct count
     progress_text = f"Completed {completed_count}/{len(PIPELINE_STEPS)} steps"
@@ -3088,7 +3099,12 @@ def _render_executive_summary_tab(output_dir: Path) -> None:
                     st.write(f"• {risk}")
 
 
-def _render_judge_tab(output_dir: Path) -> None:
+def _render_judge_tab(
+    output_dir: Path,
+    model: str = "claude-haiku-4.5",
+    agent_cli: str = "copilot",
+    reasoning_effort: str = DEFAULT_CODEX_REASONING_EFFORT,
+) -> None:
     """Render the separate Post-run Judge Agent result."""
     st.subheader("⚖️ Post-run Judge")
 
@@ -3098,6 +3114,10 @@ def _render_judge_tab(output_dir: Path) -> None:
         progress = _read_json(output_dir / "progress.json") or {}
         if progress.get("status") == "completed":
             st.info("Pipeline is completed, but the Post-run Judge Agent has not written a result yet.")
+            if st.button("▶️ Run Post-run Judge Agent", key="run_judge_btn", type="primary"):
+                success = _run_post_run_judge(output_dir, model, agent_cli, reasoning_effort)
+                if success:
+                    st.rerun()
         else:
             st.info("Judge result is not available until the pipeline has completed.")
         return
@@ -3491,12 +3511,31 @@ def _handle_cli_mode(prompt: str, output_dir: Path, model: str, agent_cli: str,
     capture_thread, capture_result = _capture_process_output(process)
     status_ph = st.empty()
 
+    pipeline_completed = False
     while process.poll() is None:
         with status_ph.container():
-            _render_live_status(output_dir, started_at)
+            live_progress = _render_live_status(output_dir, started_at)
+        if live_progress and live_progress.get("status") == "completed":
+            pipeline_completed = True
+            break
         time.sleep(1.0)
+
+    # Final render to reflect terminal state
     with status_ph.container():
         _render_live_status(output_dir, started_at)
+
+    # progress.json already says "completed" — skip waiting for the CLI
+    # process to exit and go straight to the results tabs
+    if pipeline_completed:
+        elapsed_total = time.monotonic() - started_at
+        model_metadata = f"{agent_cli}:{model}"
+        if agent_cli == "codex":
+            model_metadata += f":reasoning={reasoning_effort}"
+        _save_metadata(output_dir, model_metadata, elapsed_total)
+        # Pre-select the finished run in the sidebar so the tabs load immediately
+        st.session_state["_pending_run_select"] = output_dir.name
+        st.rerun()
+        return
 
     stdout, stderr = _finish_process_output_capture(capture_thread, capture_result)
     with st.expander("📝 Execution Logs"):
@@ -3604,7 +3643,14 @@ def main() -> None:
         # Existing run browser
         existing = _existing_runs()
         run_options = ["— New run —"] + [r.name for r in existing]
-        chosen_run = st.selectbox("📂 Browse existing run", run_options)
+        # Consume any pending auto-select written before the last st.rerun()
+        # (must be read BEFORE the widget is instantiated — cannot write to it after)
+        _pending = st.session_state.pop("_pending_run_select", None)
+        _default_idx = run_options.index(_pending) if _pending and _pending in run_options else 0
+        chosen_run = st.selectbox(
+            "📂 Browse existing run", run_options,
+            index=_default_idx, key="chosen_run_select"
+        )
 
         st.markdown("---")
         st.subheader("▶️ Start New Run")
@@ -3643,7 +3689,7 @@ def main() -> None:
             _raw = uploaded.getvalue()
             dataframe = _read_uploaded_dataframe(_raw)
             recommended_col = _recommend_target_column(dataframe)
-            st.info(f"💡 Empfohlene Zielspalte: **{recommended_col}**")
+            st.info(f"🎯 Empfohlene Zielspalte: **{recommended_col}**")
             default_idx = list(dataframe.columns).index(recommended_col) if recommended_col in dataframe.columns else 0
             target_column = st.selectbox(
                 "🎯 Zielspalte auswählen",
@@ -3788,7 +3834,7 @@ The pipeline runs 9 steps:
         _render_executive_summary_tab(active_dir)
     
     with tab8:
-        _render_judge_tab(active_dir)
+        _render_judge_tab(active_dir, selected_model, selected_agent_cli, selected_reasoning_effort)
 
 
 if __name__ == "__main__":

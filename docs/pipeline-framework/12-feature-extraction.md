@@ -195,14 +195,41 @@ This step performs 13 sequential operations (Z–L) to transform raw features in
 - If scaler applied: Write `features_scaled.parquet` + persist scaler to `scaler.joblib`
 - Return: `(scaled_or_original_matrix, scaling_metadata_dict)`
 
-### `main()` — CLI Entry Point
+### M — `generate_future_inference_rows(feature_matrix, feat_info, k_future=10)` ⚠️ MANDATORY
+- **Purpose**: Extend the feature matrix with `k_future` rows for future time steps so inference requires only `model.predict(future_rows)` — no feature reconstruction at serving time.
+- **Algorithm** for each future step `s = 1 … k_future`:
+  1. **Start** from the last row of `feature_matrix` (already lag-shifted historical data).
+  2. **Target lag features** (`y_lag_N`):
+     - `N >= s` → exact look-up: `feature_matrix.tail(N - s + 1)['y_lag_1'][-1]` = `y_{T-(N-s)}`
+     - `N < s`  → forward-fill placeholder: last known `y` value (`feature_matrix['y_lag_1'][-1]`)
+       *(these cells will never exceed 9 values for k_future=10 and are clearly marked)*
+  3. **Calendar features** (`day_of_week`, `day_of_month`, `month_cal`, `quarter`, `week_of_year`, `is_weekend`, `is_month_start`, `is_month_end`, `year`): advance the last known date by `s` time steps. Detect step size from `primary_seasonal_period` in `step-11-exploration.json` (period=365 → daily, period=12 → monthly, else → daily default).
+  4. **Exogenous month lags** (`month_lag_N`): `month(last_date + s·step − N·month)` computed analytically.
+  5. **Rolling mean** (`rolling_mean_W`): incremental update `µ_new = µ_old + (y_enter − y_leave) / W`; `y_enter` = last known y (s=1) or previous placeholder; `y_leave` = `feature_matrix.tail(W - s + 1)['y_lag_1'][-1]`.
+  6. **Rolling std / min / max**: forward-fill from the last observed row (change < 6 % for k≤10 and W≥182).
+  7. **EWM** (`ewm_span_S`): `ewm_new = α·y_enter + (1−α)·ewm_old`, `α = 2/(S+1)`.
+  8. **Fourier** (`fourier_sin_P_k`, `fourier_cos_P_k`): recompute as `sin/cos(2πk·(t_last+s)/P)`.
+  9. **PCA factors**: recompute by applying `pca_preprocessor.joblib` to the updated PCA source columns; keep last value if preprocessor unavailable.
+- **Output**: `features_future.parquet` — same columns as `features.parquet`, `k_future` rows, NO target column. Add boolean column `is_future = True`.
+- **JSON fields** to add to `step-12-features.json`:
+  ```json
+  "future_inference": {
+    "k_future": 10,
+    "last_known_date": "YYYY-MM-DD or null",
+    "time_step": "daily|monthly|unknown",
+    "placeholder_lags": [1, 2, ..., 9],
+    "features_future_parquet": "output/<RUN_ID>/features_future.parquet"
+  }
+  ```
+- **Failure is non-fatal**: if future row generation fails (e.g. missing PCA preprocessor), log a warning, skip `features_future.parquet`, and set `future_inference.k_future = 0`. Do NOT abort the pipeline.
+- Return: `(future_df, future_inference_metadata_dict)`
 ```python
 def main():
     # 1. Parse args: --output-dir, --run-id, --split-mode, --exclude-features
     # 2. Load inputs: cleaned.parquet, step-11-exploration.json
-    # 3. Call functions Z → L in order
+    # 3. Call functions Z → M in order
     # 4. Build output JSON
-    # 5. Write features.parquet + step-12-features.json
+    # 5. Write features.parquet + features_future.parquet + step-12-features.json
     # 6. Update progress.json
     # 7. Return 0 on success, 1 on error, 2 on leakage
 ```
@@ -247,12 +274,13 @@ def main():
 
 ## Execution Checklist (FAST VERSION)
 
-- [ ] All 13 functions (Z–L) implemented and called from `main()` in EXACT order: Z → A → B → C → D → E → F → G → H → I → J → K → L
+- [ ] All 14 functions (Z–M) implemented and called from `main()` in EXACT order: Z → A → B → C → D → E → F → G → H → I → J → K → L → M
 - [ ] `argparse`: `--output-dir`, `--run-id`, `--split-mode`, `--exclude-features`
 - [ ] Inputs: `cleaned.parquet`, `step-10-cleanse.json`, `step-11-exploration.json`
 - [ ] **MANDATORY OUTPUTS**:
   - [ ] `features.parquet` (all engineered features + target)
-  - [ ] `step-12-features.json` with ALL fields (never skip `scaling_metadata`)
+  - [ ] `features_future.parquet` (k_future=10 future rows, no target, `is_future=True` column)
+  - [ ] `step-12-features.json` with ALL fields (never skip `scaling_metadata` or `future_inference`)
   - [ ] `scaler.joblib` (if scaling applied)
 - [ ] **ZERO-VARIANCE REMOVAL (Step K)**: ⚠️ CRITICAL ⚠️
   - [ ] Detect: All columns where `std() ≤ sqrt(1e-10)` or `variance < 1e-10`
@@ -285,8 +313,9 @@ def main():
 
 ```
 output/<RUN_ID>/
-├── step-12-features.json       # Complete audit trail
-├── features.parquet            # Feature matrix + target
+├── step-12-features.json       # Complete audit trail (includes future_inference block)
+├── features.parquet            # Feature matrix + target (historical only)
+├── features_future.parquet     # k_future=10 future rows, no target, is_future=True
 ├── features_scaled.parquet     # Scaled features (if scaling applied; usually NOT)
 ├── scaler.joblib               # Persisted scaler object (if scaling applied)
 └── progress.json               # Updated with 12-feature-extraction
