@@ -40,10 +40,10 @@ outputs/*/
 *.joblib
 
 # Generated pipeline code & artifacts (per-run, all artifacts ignored)
-output/*
+output/
 model_cache/
 
-!output/haiku-4.5_failed-frontend/
+!output/demo-sonnet-4.6/
 
 # Environment
 .env
