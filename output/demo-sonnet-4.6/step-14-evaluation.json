@@ -1,0 +1,141 @@
+{
+  "step": "14-model-evaluation",
+  "run_id": "20260622T174637Z",
+  "target_stats": {
+    "mean": 65.05434430652996,
+    "std": 10.79995318102342,
+    "min": 41.8,
+    "max": 93.1
+  },
+  "candidates": [
+    {
+      "model_name": "gradient_boosting",
+      "r2": 0.9149087414167923,
+      "rmse": 3.150390190024401,
+      "mae": 2.4817485093598783,
+      "cv_mean_r2": 0.8876097247484142,
+      "cv_std_r2": 0.04047755054798465,
+      "residual_mean": -1.3145554876837338,
+      "residual_max_abs": 13.751243012521172,
+      "model_worse_than_mean_baseline": false,
+      "naive_baseline_r2": 0.9177358394764266,
+      "naive_baseline_rmse": 3.0976133539768553,
+      "naive_baseline_mae": 2.254020507285483,
+      "mape": 4.04912472356154
+    },
+    {
+      "model_name": "random_forest",
+      "r2": 0.9254531090300862,
+      "rmse": 2.9487410829668796,
+      "mae": 2.2025200215866163,
+      "cv_mean_r2": 0.9098967999514004,
+      "cv_std_r2": 0.010874898719951348,
+      "residual_mean": -0.08127965461414167,
+      "residual_max_abs": 14.361999999999995,
+      "model_worse_than_mean_baseline": false,
+      "naive_baseline_r2": 0.9177358394764266,
+      "naive_baseline_rmse": 3.0976133539768553,
+      "naive_baseline_mae": 2.254020507285483,
+      "mape": 3.5263642899266365
+    },
+    {
+      "model_name": "ridge",
+      "r2": 0.9325256229459613,
+      "rmse": 2.8053775331629347,
+      "mae": 2.0493825352629846,
+      "cv_mean_r2": 0.9289632021228357,
+      "cv_std_r2": 0.004829075420811477,
+      "residual_mean": 0.0772997511646472,
+      "residual_max_abs": 15.101524267150722,
+      "model_worse_than_mean_baseline": false,
+      "naive_baseline_r2": 0.9177358394764266,
+      "naive_baseline_rmse": 3.0976133539768553,
+      "naive_baseline_mae": 2.254020507285483,
+      "mape": 3.276464214312922
+    },
+    {
+      "model_name": "xgboost",
+      "r2": 0.90504232871044,
+      "rmse": 3.3280274562703176,
+      "mae": 2.5593276574041672,
+      "cv_mean_r2": 0.8645141045179257,
+      "cv_std_r2": 0.03206159465783853,
+      "residual_mean": -0.6457057633788537,
+      "residual_max_abs": 15.485588073730469,
+      "model_worse_than_mean_baseline": false,
+      "naive_baseline_r2": 0.9177358394764266,
+      "naive_baseline_rmse": 3.0976133539768553,
+      "naive_baseline_mae": 2.254020507285483,
+      "mape": 4.08097696116865
+    }
+  ],
+  "quality_assessment": "acceptable",
+  "expansion_diagnosis": null,
+  "expansion_candidates": [],
+  "leakage_probe": {
+    "triggered": false,
+    "status": "not_triggered",
+    "details": []
+  },
+  "naive_baseline": {
+    "r2": 0.9177358394764266,
+    "rmse": 3.0976133539768553,
+    "mae": 2.254020507285483,
+    "residual_mean": 5.3966540744735194e-05,
+    "residual_max_abs": 15.899999999999999
+  },
+  "shap_artifacts": {
+    "status": "computed",
+    "model_name": "ridge",
+    "explainer_type": "LinearExplainer",
+    "n_samples_used": 500,
+    "shap_values_path": "output\\20260622T174635Z\\shap_values.npz",
+    "top_features_by_mean_abs_shap": [
+      {
+        "feature": "avgtemperature_lag_1",
+        "mean_abs_shap": 7.636349177824057
+      },
+      {
+        "feature": "avgtemperature_lag_2",
+        "mean_abs_shap": 1.7839127826433567
+      },
+      {
+        "feature": "fourier_cos_365_1",
+        "mean_abs_shap": 1.6298812315168836
+      },
+      {
+        "feature": "avgtemperature_roll_mean_30",
+        "mean_abs_shap": 0.9971872844800216
+      },
+      {
+        "feature": "avgtemperature_roll_mean_7",
+        "mean_abs_shap": 0.6348787103352959
+      },
+      {
+        "feature": "fourier_sin_365_1",
+        "mean_abs_shap": 0.45924183625282006
+      },
+      {
+        "feature": "avgtemperature_lag_3",
+        "mean_abs_shap": 0.31611474945379037
+      },
+      {
+        "feature": "month_lag_3",
+        "mean_abs_shap": 0.2469259091161465
+      },
+      {
+        "feature": "fourier_sin_365_2",
+        "mean_abs_shap": 0.21445640295082158
+      },
+      {
+        "feature": "month_lag_2",
+        "mean_abs_shap": 0.16561566008954637
+      }
+    ]
+  },
+  "context": {
+    "target_column": "avgtemperature",
+    "best_r2": 0.9325256229459613,
+    "best_model": "ridge"
+  }
+}

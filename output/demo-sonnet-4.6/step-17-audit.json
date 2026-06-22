@@ -1,0 +1,111 @@
+{
+  "step": "17-critical-self-audit",
+  "run_id": "20260622T174637Z",
+  "data_profile": {
+    "detected_profile": "daily_cyclical_temporal",
+    "confidence": 0.9,
+    "characteristics": [
+      "strong_short_lag_autocorr",
+      "daily_or_weekly_pattern"
+    ]
+  },
+  "checks": {
+    "temporal_consistency": {
+      "status": "pass",
+      "findings": [
+        "inferred_frequency_daily",
+        "no_gaps_detected",
+        "regular_frequency_confirmed: stddev=0.0%"
+      ],
+      "gap_count": 0,
+      "max_gap_days": 0,
+      "regularity_stddev_percent": 0.0,
+      "inferred_frequency": "daily",
+      "severity": "low"
+    },
+    "multi_series_detection": {
+      "status": "pass",
+      "findings": [
+        "No duplicate timestamps: 9265 unique timestamps for 9265 rows",
+        "single_series_confirmed"
+      ],
+      "detected_group_columns": [],
+      "severity": "low"
+    },
+    "feature_target_alignment": {
+      "status": "marginal",
+      "findings": [
+        "target_variable_correctly_excluded",
+        "timestamp_not_used_as_raw_feature",
+        "no_monotone_index_features",
+        "mi_retention_rate_0.67_below_0.80",
+        "aggressive_filtering: excluded_ratio=1.00",
+        "no_redundant_features: max_corr=0.028"
+      ],
+      "mi_retention_rate": 0.667,
+      "correlation_max": 0.0276,
+      "excluded_ratio": 1.0,
+      "target_variable_in_features": false,
+      "timestamp_in_features": false,
+      "monotone_features_found": [],
+      "severity": "medium"
+    },
+    "model_performance_baseline": {
+      "status": "pass",
+      "findings": [
+        "selected_model_ridge",
+        "holdout_r2_0.9325",
+        "r2_above_pass_threshold_0.55",
+        "no_overfitting: holdout_r2/cv_r2=1.004"
+      ],
+      "detected_profile": "daily_cyclical_temporal",
+      "r2_holdout": 0.9325256229459613,
+      "r2_cv_mean": 0.9289632021228357,
+      "r2_pass_threshold": 0.55,
+      "r2_marginal_threshold": 0.3,
+      "severity": "low"
+    },
+    "data_distribution_drift": {
+      "status": "pass",
+      "findings": [
+        "no_monotone_index_features",
+        "feature_year_ks_1.0_perfect_leakage",
+        "target_ks_acceptable_0.0372",
+        "no_temporal_drift_in_training"
+      ],
+      "target_ks_stat": 0.0372369131138694,
+      "feature_ks_stats": {
+        "month": 0.9121694549379384,
+        "year": 1.0
+      },
+      "feature_ks_mean": 0.9560847274689692,
+      "monotone_features": [],
+      "temporal_drift_detected": false,
+      "severity": "low"
+    }
+  },
+  "critical_findings": [],
+  "overall_audit_result": "pass",
+  "remediation_actions": [
+    {
+      "action_id": "add_seasonal_features",
+      "severity": "medium",
+      "description": "Add seasonal features to capture distribution patterns.",
+      "affected_steps": [
+        "12",
+        "13"
+      ],
+      "suggested_parameters": {
+        "seasonal_features": "true"
+      },
+      "auto_executable": true,
+      "expected_improvement": "CV R\u00b2 +0.1 to +0.2 for seasonal patterns."
+    }
+  ],
+  "audit_confidence": 0.9,
+  "context": {
+    "target_column": "avgtemperature",
+    "n_fail_checks": 1,
+    "n_critical": 0
+  }
+}

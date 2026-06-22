@@ -1,0 +1,75 @@
+{
+  "step": "15-model-selection",
+  "run_id": "20260622T174637Z",
+  "selected_model": "ridge",
+  "weighted_score": 0.9995170924579189,
+  "quality_flag": "acceptable",
+  "rationale": "ridge scored highest with a weighted score of 0.9995 (R\u00b2=0.9325, RMSE=2.81, MAE=2.05). It outperforms the naive lag baseline (R\u00b2=0.9177) and demonstrates stable cross-validation performance (CV R\u00b2=0.929). Lower-complexity models are preferred as tie-breakers to reduce overfitting risk.",
+  "baselines": {
+    "mean_baseline_r2": 0.0,
+    "naive_lag_baseline": {
+      "r2": 0.9177358394764266,
+      "rmse": 3.0976133539768553,
+      "mae": 2.254020507285483,
+      "residual_mean": 5.3966540744735194e-05,
+      "residual_max_abs": 15.899999999999999
+    }
+  },
+  "candidate_analysis": {
+    "gradient_boosting": "R\u00b2=0.9149; beats mean baseline (R\u00b2 > 0). lags naive baseline by 0.0028 R\u00b2. RMSE=3.15. CV R\u00b2=0.888\u00b10.040.",
+    "random_forest": "R\u00b2=0.9255; beats mean baseline (R\u00b2 > 0). beats naive baseline by 0.0077 R\u00b2. RMSE=2.95. CV R\u00b2=0.910\u00b10.011.",
+    "ridge": "R\u00b2=0.9325; beats mean baseline (R\u00b2 > 0). beats naive baseline by 0.0148 R\u00b2. RMSE=2.81. CV R\u00b2=0.929\u00b10.005.",
+    "xgboost": "R\u00b2=0.9050; beats mean baseline (R\u00b2 > 0). lags naive baseline by 0.0127 R\u00b2. RMSE=3.33. CV R\u00b2=0.865\u00b10.032."
+  },
+  "full_ranking": [
+    {
+      "rank": 1,
+      "model_name": "ridge",
+      "r2": 0.9325256229459613,
+      "rmse": 2.8053775331629347,
+      "mae": 2.0493825352629846,
+      "cv_mean_r2": 0.9289632021228357,
+      "weighted_score": 0.9995170924579189,
+      "eligible": true
+    },
+    {
+      "rank": 2,
+      "model_name": "random_forest",
+      "r2": 0.9254531090300862,
+      "rmse": 2.9487410829668796,
+      "mae": 2.2025200215866163,
+      "cv_mean_r2": 0.9098967999514004,
+      "weighted_score": 0.7566225761840439,
+      "eligible": true
+    },
+    {
+      "rank": 3,
+      "model_name": "gradient_boosting",
+      "r2": 0.9149087414167923,
+      "rmse": 3.150390190024401,
+      "mae": 2.4817485093598783,
+      "cv_mean_r2": 0.8876097247484142,
+      "weighted_score": 0.3832399875823009,
+      "eligible": true
+    },
+    {
+      "rank": 4,
+      "model_name": "xgboost",
+      "r2": 0.90504232871044,
+      "rmse": 3.3280274562703176,
+      "mae": 2.5593276574041672,
+      "cv_mean_r2": 0.8645141045179257,
+      "weighted_score": 0.09679384053421615,
+      "eligible": true
+    }
+  ],
+  "artifacts": {
+    "selection_report_md": "output\\20260622T174635Z\\step-15-model-selection-report.md",
+    "selection_metrics_png": "output\\20260622T174635Z\\step-15-model-selection-metrics.png"
+  },
+  "context": {
+    "selected_model": "ridge",
+    "r2": 0.9325256229459613,
+    "quality_flag": "acceptable"
+  }
+}

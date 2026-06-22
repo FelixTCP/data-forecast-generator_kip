@@ -1,0 +1,17 @@
+{
+  "scripts": [
+    "orchestrator.py",
+    "step_10_cleanse.py",
+    "step_11_exploration.py",
+    "step_12_features.py",
+    "step_13_training.py",
+    "step_14_evaluation.py",
+    "step_15_selection.py",
+    "step_16_report.py",
+    "step_17_audit.py",
+    "step_18_executive_summary.py"
+  ],
+  "generated_at": "2026-06-22T20:24:59Z",
+  "run_id": "20260622T174637Z",
+  "script_count": 10
+}

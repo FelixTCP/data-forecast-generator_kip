@@ -1,0 +1,78 @@
+{
+  "step": "10-csv-read-cleansing",
+  "row_count_initial": 9266,
+  "row_count_after": 9265,
+  "column_count": 8,
+  "target_column_normalized": "avgtemperature",
+  "time_column_detected": "date_synthesized",
+  "null_rate": {
+    "region": 0.0,
+    "country": 0.0,
+    "city": 0.0,
+    "month": 0.0,
+    "day": 0.0,
+    "year": 0.0,
+    "avgtemperature": 0.0,
+    "date_synthesized": 0.0
+  },
+  "duplicate_rows_removed": 0,
+  "inferred_dtypes": {
+    "region": "String",
+    "country": "String",
+    "city": "String",
+    "month": "Int64",
+    "day": "Int64",
+    "year": "Int64",
+    "avgtemperature": "Float64",
+    "date_synthesized": "Date"
+  },
+  "outliers": {
+    "month": {
+      "iqr_outlier_count": 0,
+      "zscore_outlier_count": 0,
+      "iqr_lower_bound": -6.0,
+      "iqr_upper_bound": 18.0,
+      "outlier_fraction": 0.0,
+      "outlier_indices_sample": []
+    },
+    "day": {
+      "iqr_outlier_count": 0,
+      "zscore_outlier_count": 0,
+      "iqr_lower_bound": -14.5,
+      "iqr_upper_bound": 45.5,
+      "outlier_fraction": 0.0,
+      "outlier_indices_sample": []
+    },
+    "year": {
+      "iqr_outlier_count": 0,
+      "zscore_outlier_count": 0,
+      "iqr_lower_bound": 1981.5,
+      "iqr_upper_bound": 2033.5,
+      "outlier_fraction": 0.0,
+      "outlier_indices_sample": []
+    },
+    "avgtemperature": {
+      "iqr_outlier_count": 0,
+      "zscore_outlier_count": 0,
+      "iqr_lower_bound": 27.15,
+      "iqr_upper_bound": 101.95000000000002,
+      "outlier_fraction": 0.0,
+      "outlier_indices_sample": []
+    }
+  },
+  "sorted_by": "date_synthesized",
+  "fixes": [
+    "normalized_column_names",
+    "synthesized_date_from_year_month_day",
+    "removed_1_duplicate_date_rows",
+    "extreme_anomaly_smoothed: col='avgtemperature', zscore_threshold=6, count=35",
+    "final_chronological_sort_by=date_synthesized"
+  ],
+  "artifacts": {
+    "cleaned_parquet": "output\\20260622T174635Z\\cleaned.parquet"
+  },
+  "context": {
+    "target_column": "avgtemperature",
+    "time_column": "date_synthesized"
+  }
+}

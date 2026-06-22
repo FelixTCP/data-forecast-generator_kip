@@ -1,0 +1,144 @@
+{
+  "step": "13-model-training",
+  "run_id": "20260622T174637Z",
+  "n_train": 7412,
+  "n_test": 1853,
+  "feature_cols": [
+    "month",
+    "year",
+    "cal_month",
+    "cal_day",
+    "cal_day_of_week",
+    "cal_year",
+    "trend_elapsed_days",
+    "avgtemperature_lag_1",
+    "avgtemperature_lag_2",
+    "avgtemperature_lag_3",
+    "avgtemperature_roll_mean_7",
+    "avgtemperature_roll_std_7",
+    "avgtemperature_roll_mean_30",
+    "avgtemperature_roll_std_30",
+    "month_lag_1",
+    "month_lag_2",
+    "month_lag_3",
+    "month_lag_6",
+    "month_lag_12",
+    "fourier_sin_365_1",
+    "fourier_cos_365_1",
+    "fourier_sin_365_2",
+    "fourier_cos_365_2"
+  ],
+  "split_mode": "time_series",
+  "primary_seasonal_period": 365,
+  "best_model": "ridge",
+  "best_r2": 0.9325256229459613,
+  "benchmark_warning": false,
+  "benchmarks": {
+    "naive_persistence": {
+      "r2": 0.9177267709461668,
+      "rmse": 3.097784084621512,
+      "mae": 2.2547760388559097
+    },
+    "seasonal_naive": {
+      "r2": 0.7232494539261349,
+      "rmse": 5.681540620257135,
+      "mae": 4.349757150566649,
+      "seasonal_period": 365
+    },
+    "auto_arima_benchmark": {
+      "r2": -0.018634612761774694,
+      "rmse": 10.900115187459102,
+      "mae": 9.383098327056766
+    },
+    "ar1_benchmark": {
+      "r2": -0.007802342562988951,
+      "rmse": 10.84200378428415,
+      "mae": 9.348405744650387,
+      "lags": 1
+    }
+  },
+  "candidates": [
+    {
+      "model_name": "ridge",
+      "r2": 0.9325256229459613,
+      "rmse": 2.805377533162935,
+      "mae": 2.0493825352629855,
+      "cv_mean_r2": 0.9289632021228357,
+      "cv_std_r2": 0.004829075420811477,
+      "residual_mean": 0.0772997511646472,
+      "residual_max_abs": 15.101524267150722,
+      "model_worse_than_mean_baseline": false,
+      "joblib_path": "output\\20260622T174635Z\\candidate-ridge.joblib"
+    },
+    {
+      "model_name": "random_forest",
+      "r2": 0.9254531090300862,
+      "rmse": 2.9487410829668796,
+      "mae": 2.2025200215866163,
+      "cv_mean_r2": 0.9098967999514004,
+      "cv_std_r2": 0.010874898719951348,
+      "residual_mean": -0.08127965461414167,
+      "residual_max_abs": 14.361999999999995,
+      "model_worse_than_mean_baseline": false,
+      "joblib_path": "output\\20260622T174635Z\\candidate-random_forest.joblib"
+    },
+    {
+      "model_name": "gradient_boosting",
+      "r2": 0.9149087414167923,
+      "rmse": 3.150390190024401,
+      "mae": 2.4817485093598783,
+      "cv_mean_r2": 0.8876097247484142,
+      "cv_std_r2": 0.04047755054798465,
+      "residual_mean": -1.3145554876837338,
+      "residual_max_abs": 13.751243012521172,
+      "model_worse_than_mean_baseline": false,
+      "joblib_path": "output\\20260622T174635Z\\candidate-gradient_boosting.joblib"
+    },
+    {
+      "model_name": "xgboost",
+      "r2": 0.90504232871044,
+      "rmse": 3.3280274562703176,
+      "mae": 2.5593276574041672,
+      "cv_mean_r2": 0.8645141045179257,
+      "cv_std_r2": 0.03206159465783853,
+      "residual_mean": -0.6457057633788537,
+      "residual_max_abs": 15.485588073730469,
+      "model_worse_than_mean_baseline": false,
+      "joblib_path": "output\\20260622T174635Z\\candidate-xgboost.joblib"
+    }
+  ],
+  "artifacts": {
+    "model_joblib": "output\\20260622T174635Z\\model.joblib",
+    "holdout_npz": "output\\20260622T174635Z\\holdout.npz"
+  },
+  "context": {
+    "target_column": "avgtemperature",
+    "feature_cols": [
+      "month",
+      "year",
+      "cal_month",
+      "cal_day",
+      "cal_day_of_week",
+      "cal_year",
+      "trend_elapsed_days",
+      "avgtemperature_lag_1",
+      "avgtemperature_lag_2",
+      "avgtemperature_lag_3",
+      "avgtemperature_roll_mean_7",
+      "avgtemperature_roll_std_7",
+      "avgtemperature_roll_mean_30",
+      "avgtemperature_roll_std_30",
+      "month_lag_1",
+      "month_lag_2",
+      "month_lag_3",
+      "month_lag_6",
+      "month_lag_12",
+      "fourier_sin_365_1",
+      "fourier_cos_365_1",
+      "fourier_sin_365_2",
+      "fourier_cos_365_2"
+    ],
+    "train_size": 7412,
+    "test_size": 1853
+  }
+}

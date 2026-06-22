@@ -1,0 +1,183 @@
+{
+  "step": "12-feature-extraction",
+  "run_id": "20260622T174637Z",
+  "features": [
+    "month",
+    "year",
+    "cal_month",
+    "cal_day",
+    "cal_day_of_week",
+    "cal_year",
+    "trend_elapsed_days",
+    "avgtemperature_lag_1",
+    "avgtemperature_lag_2",
+    "avgtemperature_lag_3",
+    "avgtemperature_roll_mean_7",
+    "avgtemperature_roll_std_7",
+    "avgtemperature_roll_mean_30",
+    "avgtemperature_roll_std_30",
+    "month_lag_1",
+    "month_lag_2",
+    "month_lag_3",
+    "month_lag_6",
+    "month_lag_12",
+    "fourier_sin_365_1",
+    "fourier_cos_365_1",
+    "fourier_sin_365_2",
+    "fourier_cos_365_2"
+  ],
+  "features_count": 23,
+  "features_excluded": {
+    "day": "below_noise_baseline",
+    "region": "non_numeric",
+    "country": "non_numeric",
+    "city": "non_numeric"
+  },
+  "excluded_count": 4,
+  "target_column": "avgtemperature",
+  "split_strategy": {
+    "resolved_mode": "time_series"
+  },
+  "leakage": {
+    "status": "pass",
+    "leakage_candidates": [],
+    "threshold": 0.98,
+    "reconstruction_probe_r2": null
+  },
+  "scaling_metadata": {
+    "scaler_used": "StandardScaler",
+    "features_scaled": [
+      "month",
+      "year",
+      "cal_month",
+      "cal_day",
+      "cal_day_of_week",
+      "cal_year",
+      "trend_elapsed_days",
+      "avgtemperature_lag_1",
+      "avgtemperature_lag_2",
+      "avgtemperature_lag_3",
+      "avgtemperature_roll_mean_7",
+      "avgtemperature_roll_std_7",
+      "avgtemperature_roll_mean_30",
+      "avgtemperature_roll_std_30",
+      "month_lag_1",
+      "month_lag_2",
+      "month_lag_3",
+      "month_lag_6",
+      "month_lag_12",
+      "fourier_sin_365_1",
+      "fourier_cos_365_1",
+      "fourier_sin_365_2",
+      "fourier_cos_365_2"
+    ],
+    "features_not_scaled": [
+      "avgtemperature"
+    ],
+    "scaler_path": "output\\20260622T174635Z\\scaler.joblib"
+  },
+  "future_inference": {
+    "k_future": 10,
+    "last_known_date": "2020-05-13 00:00:00",
+    "time_step": "daily",
+    "placeholder_lags": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "features_future_parquet": "output\\20260622T174635Z\\features_future.parquet"
+  },
+  "artifacts": {
+    "features_parquet": "output\\20260622T174635Z\\features.parquet",
+    "scaler_joblib": "output\\20260622T174635Z\\scaler.joblib"
+  },
+  "engineered_metadata": {
+    "lag_features": [
+      "avgtemperature_lag_1",
+      "avgtemperature_lag_2",
+      "avgtemperature_lag_3",
+      "month_lag_1",
+      "month_lag_2",
+      "month_lag_3",
+      "month_lag_6",
+      "month_lag_12"
+    ],
+    "rolling_features": [
+      "avgtemperature_roll_mean_7",
+      "avgtemperature_roll_std_7",
+      "avgtemperature_roll_mean_30",
+      "avgtemperature_roll_std_30"
+    ],
+    "calendar_features": [
+      "cal_month",
+      "cal_day",
+      "cal_day_of_week",
+      "cal_year"
+    ],
+    "trend_features": [
+      "trend_elapsed_days"
+    ]
+  },
+  "model_preselection": {
+    "top_recommendation": "ridge",
+    "top_3": [
+      "ridge",
+      "random_forest",
+      "gradient_boosting"
+    ],
+    "reasoning": {
+      "stationarity": "stationary",
+      "seasonal": true
+    }
+  },
+  "seasonality": {
+    "has_seasonality": true,
+    "dominant_period": 365,
+    "strength": 0.8778928361089388
+  },
+  "target_distribution": {
+    "mean": 64.36541824069079,
+    "std": 10.809112931975948,
+    "skewness": 0.10008157169259706,
+    "kurtosis": -1.0580171870152337,
+    "cv": 0.1679335461094324,
+    "outlier_frac": 0.0,
+    "tree_model_suitable": "yes"
+  },
+  "context": {
+    "target_column": "avgtemperature",
+    "time_column": "date_synthesized",
+    "features": [
+      "month",
+      "year",
+      "cal_month",
+      "cal_day",
+      "cal_day_of_week",
+      "cal_year",
+      "trend_elapsed_days",
+      "avgtemperature_lag_1",
+      "avgtemperature_lag_2",
+      "avgtemperature_lag_3",
+      "avgtemperature_roll_mean_7",
+      "avgtemperature_roll_std_7",
+      "avgtemperature_roll_mean_30",
+      "avgtemperature_roll_std_30",
+      "month_lag_1",
+      "month_lag_2",
+      "month_lag_3",
+      "month_lag_6",
+      "month_lag_12",
+      "fourier_sin_365_1",
+      "fourier_cos_365_1",
+      "fourier_sin_365_2",
+      "fourier_cos_365_2"
+    ],
+    "split_mode": "time_series"
+  }
+}
